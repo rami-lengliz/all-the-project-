@@ -23,7 +23,7 @@ export class ReviewsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a review' })
   create(@Body() createReviewDto: CreateReviewDto, @Request() req) {
-    return this.reviewsService.create(createReviewDto, req.user.id);
+    return this.reviewsService.create(createReviewDto, req.user.sub);
   }
 
   @Get('user/:userId')

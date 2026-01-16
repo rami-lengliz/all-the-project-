@@ -1,0 +1,18 @@
+node_modules
+dist
+coverage
+.git
+.github
+
+# Frontend is a separate app; don't bake it into the backend image
+frontend
+frontend/node_modules
+frontend/.next
+
+# Python service is built from its own context
+ml-service
+
+# OS/editor noise
+**/.DS_Store
+**/Thumbs.db
+

@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
@@ -6,6 +10,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyDto } from './dto/verify.dto';
 import * as bcrypt from 'bcrypt';
+import type { JwtPayload, Role } from '../../common/auth/jwt-payload';
 
 @Injectable()
 export class AuthService {
@@ -26,7 +31,12 @@ export class AuthService {
       passwordHash: hashedPassword,
     });
 
-    const tokens = await this.generateTokens(user.id, user.email || user.phone);
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email || user.phone,
+      this.getRoleForUser(user),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { passwordHash, ...result } = user;
 
     return {
@@ -36,7 +46,9 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    const user = await this.usersService.findByEmailOrPhone(loginDto.emailOrPhone);
+    const user = await this.usersService.findByEmailOrPhone(
+      loginDto.emailOrPhone,
+    );
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -49,7 +61,12 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const tokens = await this.generateTokens(user.id, user.email || user.phone);
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email || user.phone,
+      this.getRoleForUser(user),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { passwordHash, ...userResult } = user;
 
     return {
@@ -60,7 +77,7 @@ export class AuthService {
 
   async refresh(refreshToken: string) {
     try {
-      const payload = this.jwtService.verify(refreshToken, {
+      const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
         secret: this.configService.get<string>('refreshToken.secret'),
       });
 
@@ -70,7 +87,11 @@ export class AuthService {
       }
 
       const accessToken = this.jwtService.sign(
-        { sub: user.id, email: user.email || user.phone },
+        {
+          sub: user.id,
+          email: user.email || user.phone,
+          role: this.getRoleForUser(user),
+        } satisfies JwtPayload,
         {
           secret: this.configService.get<string>('jwt.secret'),
           expiresIn: this.configService.get<string>('jwt.expiresIn'),
@@ -97,16 +118,25 @@ export class AuthService {
       user.verifiedPhone = true;
     }
 
+    // Note: verifiedEmail/verifiedPhone aren't part of the public UpdateUserDto (profile update).
+    // We still persist them here explicitly.
     await this.usersService.update(user.id, {
-      verifiedEmail: user.verifiedEmail,
-      verifiedPhone: user.verifiedPhone,
+      verifiedEmail: user.verifiedEmail as any,
+      verifiedPhone: user.verifiedPhone as any,
     });
 
     return { message: 'Verification successful' };
   }
 
-  private async generateTokens(userId: string, identifier: string) {
-    const payload = { sub: userId, email: identifier };
+  private getRoleForUser(user: { roles?: string[]; isHost?: boolean }): Role {
+    const roles = (user.roles ?? []).map((r) => String(r).toUpperCase());
+    if (roles.includes('ADMIN')) return 'ADMIN';
+    if (user.isHost) return 'HOST';
+    return 'USER';
+  }
+
+  private async generateTokens(userId: string, identifier: string, role: Role) {
+    const payload: JwtPayload = { sub: userId, email: identifier, role };
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('jwt.secret'),

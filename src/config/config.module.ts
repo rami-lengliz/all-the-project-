@@ -13,4 +13,3 @@ import { configuration } from './configuration';
   exports: [NestConfigModule],
 })
 export class ConfigModule {}
-

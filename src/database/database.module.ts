@@ -32,4 +32,3 @@ import { AdminLog } from '../entities/admin-log.entity';
   ],
 })
 export class DatabaseModule {}
-

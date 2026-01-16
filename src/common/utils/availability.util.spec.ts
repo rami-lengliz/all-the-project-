@@ -1,12 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { AvailabilityUtil } from './availability.util';
-import { Booking, BookingStatus } from '../../entities/booking.entity';
+import { Booking } from '../../entities/booking.entity';
 
 describe('AvailabilityUtil', () => {
   let util: AvailabilityUtil;
-  let bookingRepository: Repository<Booking>;
 
   const mockBookingRepository = {
     createQueryBuilder: jest.fn(),
@@ -24,9 +22,6 @@ describe('AvailabilityUtil', () => {
     }).compile();
 
     util = module.get<AvailabilityUtil>(AvailabilityUtil);
-    bookingRepository = module.get<Repository<Booking>>(
-      getRepositoryToken(Booking),
-    );
   });
 
   it('should be defined', () => {
@@ -77,4 +72,3 @@ describe('AvailabilityUtil', () => {
     });
   });
 });
-

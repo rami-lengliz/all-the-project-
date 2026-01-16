@@ -25,14 +25,15 @@ const AppDataSource = new DataSource({
 
 // Kelibia coordinates (Tunisia) - center point
 const KELIBIA_LAT = 36.8578;
-const KELIBIA_LNG = 11.0920;
+const KELIBIA_LNG = 11.092;
 
 // Sample listings data with realistic names and descriptions
 const sampleListings = [
   // Accommodation
   {
     title: 'Beachfront Villa in Kelibia',
-    description: 'Beautiful 3-bedroom villa with stunning sea views. Perfect for families. Fully equipped kitchen, private terrace, and direct beach access.',
+    description:
+      'Beautiful 3-bedroom villa with stunning sea views. Perfect for families. Fully equipped kitchen, private terrace, and direct beach access.',
     pricePerDay: 180,
     lat: KELIBIA_LAT + 0.002,
     lng: KELIBIA_LNG + 0.001,
@@ -42,7 +43,8 @@ const sampleListings = [
   },
   {
     title: 'Cozy Apartment Near Kelibia Port',
-    description: 'Modern 2-bedroom apartment in the heart of Kelibia. Walking distance to restaurants and shops.',
+    description:
+      'Modern 2-bedroom apartment in the heart of Kelibia. Walking distance to restaurants and shops.',
     pricePerDay: 120,
     lat: KELIBIA_LAT - 0.001,
     lng: KELIBIA_LNG + 0.002,
@@ -52,7 +54,8 @@ const sampleListings = [
   },
   {
     title: 'Luxury Sea View Apartment',
-    description: 'Spacious apartment with panoramic Mediterranean views. Air conditioning, WiFi, and parking included.',
+    description:
+      'Spacious apartment with panoramic Mediterranean views. Air conditioning, WiFi, and parking included.',
     pricePerDay: 200,
     lat: KELIBIA_LAT + 0.003,
     lng: KELIBIA_LNG - 0.001,
@@ -62,7 +65,8 @@ const sampleListings = [
   },
   {
     title: 'Traditional Tunisian House',
-    description: 'Authentic Tunisian house with courtyard. Experience local culture in comfort.',
+    description:
+      'Authentic Tunisian house with courtyard. Experience local culture in comfort.',
     pricePerDay: 100,
     lat: KELIBIA_LAT - 0.002,
     lng: KELIBIA_LNG - 0.002,
@@ -72,7 +76,8 @@ const sampleListings = [
   },
   {
     title: 'Beachside Studio Apartment',
-    description: 'Compact studio perfect for couples. Steps away from the beach.',
+    description:
+      'Compact studio perfect for couples. Steps away from the beach.',
     pricePerDay: 80,
     lat: KELIBIA_LAT + 0.001,
     lng: KELIBIA_LNG + 0.003,
@@ -83,7 +88,8 @@ const sampleListings = [
   // Mobility
   {
     title: 'Scooter Rental - Perfect for Exploring',
-    description: 'Reliable 125cc scooter. Ideal for exploring Kelibia and surrounding areas. Helmet and lock included.',
+    description:
+      'Reliable 125cc scooter. Ideal for exploring Kelibia and surrounding areas. Helmet and lock included.',
     pricePerDay: 45,
     lat: KELIBIA_LAT + 0.004,
     lng: KELIBIA_LNG + 0.002,
@@ -93,7 +99,8 @@ const sampleListings = [
   },
   {
     title: 'Car Rental - Compact Vehicle',
-    description: 'Economical compact car for day trips. Air conditioning, GPS navigation included.',
+    description:
+      'Economical compact car for day trips. Air conditioning, GPS navigation included.',
     pricePerDay: 75,
     lat: KELIBIA_LAT - 0.003,
     lng: KELIBIA_LNG + 0.001,
@@ -103,7 +110,8 @@ const sampleListings = [
   },
   {
     title: 'Mountain Bike Rental',
-    description: 'High-quality mountain bike perfect for exploring coastal paths and countryside.',
+    description:
+      'High-quality mountain bike perfect for exploring coastal paths and countryside.',
     pricePerDay: 25,
     lat: KELIBIA_LAT + 0.002,
     lng: KELIBIA_LNG - 0.003,
@@ -113,7 +121,8 @@ const sampleListings = [
   },
   {
     title: 'Electric Scooter - Eco-Friendly',
-    description: 'Modern electric scooter. Silent, eco-friendly, and fun way to explore Kelibia.',
+    description:
+      'Modern electric scooter. Silent, eco-friendly, and fun way to explore Kelibia.',
     pricePerDay: 30,
     lat: KELIBIA_LAT - 0.001,
     lng: KELIBIA_LNG - 0.001,
@@ -123,7 +132,8 @@ const sampleListings = [
   },
   {
     title: 'Motorcycle Rental - 250cc',
-    description: 'Powerful motorcycle for longer trips. Perfect for exploring the Cap Bon peninsula.',
+    description:
+      'Powerful motorcycle for longer trips. Perfect for exploring the Cap Bon peninsula.',
     pricePerDay: 90,
     lat: KELIBIA_LAT + 0.005,
     lng: KELIBIA_LNG + 0.004,
@@ -134,7 +144,8 @@ const sampleListings = [
   // Water & Beach Activities
   {
     title: 'Kayak Rental - Single Person',
-    description: 'Stable single-person kayak. Paddles and life jackets included. Perfect for exploring the coast.',
+    description:
+      'Stable single-person kayak. Paddles and life jackets included. Perfect for exploring the coast.',
     pricePerDay: 40,
     lat: KELIBIA_LAT + 0.001,
     lng: KELIBIA_LNG + 0.005,
@@ -144,7 +155,8 @@ const sampleListings = [
   },
   {
     title: 'Stand-Up Paddle Board Rental',
-    description: 'SUP board with paddle. Great for calm waters and beach activities.',
+    description:
+      'SUP board with paddle. Great for calm waters and beach activities.',
     pricePerDay: 35,
     lat: KELIBIA_LAT - 0.004,
     lng: KELIBIA_LNG + 0.003,
@@ -154,7 +166,8 @@ const sampleListings = [
   },
   {
     title: 'Snorkeling Equipment Set',
-    description: 'Complete snorkeling set: mask, fins, snorkel. Explore the beautiful underwater world.',
+    description:
+      'Complete snorkeling set: mask, fins, snorkel. Explore the beautiful underwater world.',
     pricePerDay: 20,
     lat: KELIBIA_LAT + 0.003,
     lng: KELIBIA_LNG + 0.006,
@@ -164,7 +177,8 @@ const sampleListings = [
   },
   {
     title: 'Beach Umbrella and Chairs Set',
-    description: 'Comfortable beach setup: large umbrella, 2 chairs, and cooler bag. Perfect for a day at the beach.',
+    description:
+      'Comfortable beach setup: large umbrella, 2 chairs, and cooler bag. Perfect for a day at the beach.',
     pricePerDay: 15,
     lat: KELIBIA_LAT - 0.002,
     lng: KELIBIA_LNG + 0.004,
@@ -174,7 +188,8 @@ const sampleListings = [
   },
   {
     title: 'Tandem Kayak Rental',
-    description: 'Two-person kayak. Great for couples or friends. All safety equipment included.',
+    description:
+      'Two-person kayak. Great for couples or friends. All safety equipment included.',
     pricePerDay: 60,
     lat: KELIBIA_LAT + 0.006,
     lng: KELIBIA_LNG + 0.001,
@@ -185,7 +200,8 @@ const sampleListings = [
   // More listings to reach 20
   {
     title: 'Family Villa with Pool',
-    description: 'Spacious 4-bedroom villa with private pool. Perfect for large families or groups.',
+    description:
+      'Spacious 4-bedroom villa with private pool. Perfect for large families or groups.',
     pricePerDay: 250,
     lat: KELIBIA_LAT + 0.007,
     lng: KELIBIA_LNG - 0.004,
@@ -195,7 +211,8 @@ const sampleListings = [
   },
   {
     title: 'Budget-Friendly Room',
-    description: 'Simple, clean room with shared facilities. Great for budget travelers.',
+    description:
+      'Simple, clean room with shared facilities. Great for budget travelers.',
     pricePerDay: 50,
     lat: KELIBIA_LAT - 0.005,
     lng: KELIBIA_LNG - 0.003,
@@ -210,12 +227,13 @@ const sampleListings = [
     lat: KELIBIA_LAT + 0.001,
     lng: KELIBIA_LNG - 0.005,
     categorySlug: 'mobility',
-    address: 'Place de l\'Indépendance, Kelibia 8090, Tunisia',
+    address: "Place de l'Indépendance, Kelibia 8090, Tunisia",
     images: ['city-bike-kelibia.jpg'],
   },
   {
     title: 'Fishing Equipment Rental',
-    description: 'Complete fishing gear: rods, reels, tackle box. Perfect for fishing enthusiasts.',
+    description:
+      'Complete fishing gear: rods, reels, tackle box. Perfect for fishing enthusiasts.',
     pricePerDay: 25,
     lat: KELIBIA_LAT - 0.006,
     lng: KELIBIA_LNG + 0.002,
@@ -225,7 +243,8 @@ const sampleListings = [
   },
   {
     title: 'Beach Volleyball Set',
-    description: 'Complete beach volleyball set with net, ball, and boundary markers.',
+    description:
+      'Complete beach volleyball set with net, ball, and boundary markers.',
     pricePerDay: 12,
     lat: KELIBIA_LAT + 0.004,
     lng: KELIBIA_LNG - 0.002,
@@ -261,12 +280,37 @@ async function seed() {
     // Create categories - only travel/vacation categories allowed
     console.log('Creating categories...');
     const categories = [
-      { name: 'Accommodation', slug: 'accommodation', icon: '🏠', allowed_for_private: true },
-      { name: 'Mobility', slug: 'mobility', icon: '🚗', allowed_for_private: true },
-      { name: 'Water & Beach Activities', slug: 'water-beach-activities', icon: '🏖️', allowed_for_private: true },
+      {
+        name: 'Accommodation',
+        slug: 'accommodation',
+        icon: '🏠',
+        allowed_for_private: true,
+      },
+      {
+        name: 'Mobility',
+        slug: 'mobility',
+        icon: '🚗',
+        allowed_for_private: true,
+      },
+      {
+        name: 'Water & Beach Activities',
+        slug: 'water-beach-activities',
+        icon: '🏖️',
+        allowed_for_private: true,
+      },
       // Placeholder categories (not allowed for private)
-      { name: 'Public Facilities', slug: 'public-facilities', icon: '🏛️', allowed_for_private: false },
-      { name: 'Stadiums & Courts', slug: 'stadiums-courts', icon: '⚽', allowed_for_private: false },
+      {
+        name: 'Public Facilities',
+        slug: 'public-facilities',
+        icon: '🏛️',
+        allowed_for_private: false,
+      },
+      {
+        name: 'Stadiums & Courts',
+        slug: 'stadiums-courts',
+        icon: '⚽',
+        allowed_for_private: false,
+      },
     ];
 
     const savedCategories = await categoryRepository.save(
@@ -295,9 +339,9 @@ async function seed() {
       });
     }
 
-    const savedUsers = await userRepository.save(
-      users.map((user) => userRepository.create(user)),
-    );
+    // Avoid TypeORM create() overload confusion (array vs single entity)
+    const userEntities = users.map((u) => userRepository.create(u as any));
+    const savedUsers = await userRepository.save(userEntities as any);
     console.log(`Created ${savedUsers.length} users`);
 
     // Create listings
@@ -352,14 +396,21 @@ async function seed() {
       const endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 3);
 
-      const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const days = Math.ceil(
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+      );
       const totalPrice = listing.pricePerDay * days;
-      const commission = totalPrice * 0.10;
+      const commission = totalPrice * 0.1;
 
       const booking = bookingRepository.create({
         startDate,
         endDate,
-        status: i % 3 === 0 ? BookingStatus.CONFIRMED : i % 3 === 1 ? BookingStatus.PENDING : BookingStatus.COMPLETED,
+        status:
+          i % 3 === 0
+            ? BookingStatus.CONFIRMED
+            : i % 3 === 1
+              ? BookingStatus.PENDING
+              : BookingStatus.COMPLETED,
         renterId: renter.id,
         hostId: listing.hostId,
         listingId: listing.id,
@@ -374,7 +425,9 @@ async function seed() {
 
     // Create reviews
     console.log('Creating reviews...');
-    const completedBookings = bookings.filter((b) => b.status === BookingStatus.COMPLETED);
+    const completedBookings = bookings.filter(
+      (b) => b.status === BookingStatus.COMPLETED,
+    );
 
     for (const booking of completedBookings.slice(0, 8)) {
       const review = reviewRepository.create({

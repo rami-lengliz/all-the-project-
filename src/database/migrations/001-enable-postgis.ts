@@ -9,4 +9,3 @@ export class EnablePostgis1700000000001 implements MigrationInterface {
     await queryRunner.query(`DROP EXTENSION IF EXISTS postgis;`);
   }
 }
-

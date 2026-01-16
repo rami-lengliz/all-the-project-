@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
@@ -7,6 +7,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { VerifyDto } from './dto/verify.dto';
 import { Public } from '../../common/decorators/public.decorator';
+import { JwtRefreshGuard } from '../../common/guards/jwt-refresh.guard';
 
 @ApiTags('auth')
 @Controller('api/auth')
@@ -33,6 +34,7 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
+  @UseGuards(JwtRefreshGuard)
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
   async refresh(@Body() refreshTokenDto: RefreshTokenDto) {

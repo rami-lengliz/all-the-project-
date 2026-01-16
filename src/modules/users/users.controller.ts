@@ -24,19 +24,30 @@ export class UsersController {
   @Get('me')
   @ApiOperation({ summary: 'Get current user profile' })
   getProfile(@Request() req) {
-    return this.usersService.findOne(req.user.id);
+    return this.usersService.findOne(req.user.sub);
   }
 
   @Patch('me')
   @ApiOperation({ summary: 'Update current user profile' })
   updateProfile(@Request() req, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(req.user.id, updateUserDto);
+    return this.usersService.update(req.user.sub, updateUserDto);
   }
 
   @Post('me/become-host')
   @ApiOperation({ summary: 'Become a host' })
   becomeHost(@Request() req, @Body() becomeHostDto: BecomeHostDto) {
-    return this.usersService.becomeHost(req.user.id, becomeHostDto.acceptTerms);
+    return this.usersService.becomeHost(
+      req.user.sub,
+      becomeHostDto.acceptTerms,
+    );
+  }
+
+  @Post('me/verify')
+  @ApiOperation({
+    summary: 'Verify current user (dev only - auto-verifies email/phone)',
+  })
+  verifyUser(@Request() req) {
+    return this.usersService.verifyUser(req.user.sub);
   }
 
   @Get(':id')

@@ -1,11 +1,17 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useEffect, useState } from 'react';
 import { CategoryStrip } from '@/components/shared/CategoryStrip';
 import { useAuth } from '@/lib/auth/AuthProvider';
 
 export function Header() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   return (
     <header className="border-b border-slate-200 bg-white">
@@ -46,7 +52,13 @@ export function Header() {
             🌐
           </button>
 
-          {user ? (
+          {/*
+            Hydration-safe auth rendering:
+            - SSR always has no localStorage => user is null, so it renders Login.
+            - On first client render, we must match SSR exactly to avoid hydration mismatch.
+            - After mount, we can safely switch to the real auth-dependent UI.
+          */}
+          {isMounted && user ? (
             <div className="flex items-center gap-2">
               <Link
                 href="/profile"

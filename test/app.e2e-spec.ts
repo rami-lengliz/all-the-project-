@@ -2,13 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from './../src/app.module';
-import { DataSource } from 'typeorm';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
-  let dataSource: DataSource;
   let accessToken: string;
-  let userId: string;
   let listingId: string;
   let bookingId: string;
 
@@ -18,7 +15,6 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    dataSource = moduleFixture.get<DataSource>(DataSource);
     await app.init();
   });
 
@@ -97,7 +93,7 @@ describe('AppController (e2e)', () => {
         .field('categoryId', accommodationCategory.id)
         .field('pricePerDay', 150)
         .field('latitude', 36.8578)
-        .field('longitude', 11.0920)
+        .field('longitude', 11.092)
         .field('address', 'Test Address, Kelibia')
         .expect(201);
 
@@ -120,7 +116,7 @@ describe('AppController (e2e)', () => {
     it('GET /api/listings?lat=36.8578&lng=11.0920&radiusKm=5 should return nearby listings', () => {
       return request(app.getHttpServer())
         .get('/api/listings')
-        .query({ lat: 36.8578, lng: 11.0920, radiusKm: 5 })
+        .query({ lat: 36.8578, lng: 11.092, radiusKm: 5 })
         .expect(200)
         .expect((res) => {
           expect(Array.isArray(res.body)).toBe(true);
@@ -184,4 +180,3 @@ describe('AppController (e2e)', () => {
     });
   });
 });
-

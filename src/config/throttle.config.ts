@@ -6,4 +6,3 @@ export default registerAs('throttle', () => ({
   authLimit: parseInt(process.env.THROTTLE_AUTH_LIMIT || '5', 10), // auth endpoints
   bookingLimit: parseInt(process.env.THROTTLE_BOOKING_LIMIT || '10', 10), // booking endpoints
 }));
-

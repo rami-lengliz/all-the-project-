@@ -25,7 +25,10 @@ export class MlService {
       return response.data;
     } catch (error) {
       // Fallback to mock response if ML service is unavailable
-      console.warn('ML service unavailable, using mock response', error.message);
+      console.warn(
+        'ML service unavailable, using mock response',
+        error.message,
+      );
       return this.mockSuggestCategory(data);
     }
   }
@@ -49,33 +52,49 @@ export class MlService {
       return response.data;
     } catch (error) {
       // Fallback to mock response if ML service is unavailable
-      console.warn('ML service unavailable, using mock response', error.message);
+      console.warn(
+        'ML service unavailable, using mock response',
+        error.message,
+      );
       return this.mockSuggestPrice(data);
     }
   }
 
-  private mockSuggestCategory(data: {
-    images?: string[];
-    title?: string;
-  }): { suggestedCategorySlug: string; confidence: number } {
+  private mockSuggestCategory(data: { images?: string[]; title?: string }): {
+    suggestedCategorySlug: string;
+    confidence: number;
+  } {
     // Simple keyword-based mock matching ML service logic
     const text = (data.title || '').toLowerCase();
     const imageFilenames = (data.images || []).join(' ').toLowerCase();
     const combinedText = `${text} ${imageFilenames}`;
 
-    if (combinedText.includes('paddle') || combinedText.includes('kayak') || 
-        combinedText.includes('beach') || combinedText.includes('water') ||
-        combinedText.includes('surf') || combinedText.includes('snorkel')) {
-      return { suggestedCategorySlug: 'water-beach-activities', confidence: 0.85 };
+    if (
+      combinedText.includes('paddle') ||
+      combinedText.includes('kayak') ||
+      combinedText.includes('beach') ||
+      combinedText.includes('water') ||
+      combinedText.includes('surf') ||
+      combinedText.includes('snorkel')
+    ) {
+      return {
+        suggestedCategorySlug: 'water-beach-activities',
+        confidence: 0.85,
+      };
     }
 
-    if (combinedText.includes('scooter') || combinedText.includes('motor') || 
-        combinedText.includes('car') || combinedText.includes('bike') ||
-        combinedText.includes('bicycle') || combinedText.includes('vehicle')) {
-      return { suggestedCategorySlug: 'mobility', confidence: 0.80 };
+    if (
+      combinedText.includes('scooter') ||
+      combinedText.includes('motor') ||
+      combinedText.includes('car') ||
+      combinedText.includes('bike') ||
+      combinedText.includes('bicycle') ||
+      combinedText.includes('vehicle')
+    ) {
+      return { suggestedCategorySlug: 'mobility', confidence: 0.8 };
     }
 
-    return { suggestedCategorySlug: 'accommodation', confidence: 0.60 };
+    return { suggestedCategorySlug: 'accommodation', confidence: 0.6 };
   }
 
   private mockSuggestPrice(data: {
@@ -93,4 +112,3 @@ export class MlService {
     return { suggestedPricePerDay: Math.round(basePrice * 100) / 100 };
   }
 }
-

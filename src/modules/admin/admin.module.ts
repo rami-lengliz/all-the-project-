@@ -7,14 +7,9 @@ import { UsersModule } from '../users/users.module';
 import { ListingsModule } from '../listings/listings.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([AdminLog]),
-    UsersModule,
-    ListingsModule,
-  ],
+  imports: [TypeOrmModule.forFeature([AdminLog]), UsersModule, ListingsModule],
   controllers: [AdminController],
   providers: [AdminService],
   exports: [AdminService],
 })
 export class AdminModule {}
-

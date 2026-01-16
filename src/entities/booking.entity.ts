@@ -16,8 +16,9 @@ import { Review } from './review.entity';
 export enum BookingStatus {
   PENDING = 'pending',
   CONFIRMED = 'confirmed',
-  CANCELLED = 'cancelled',
+  PAID = 'paid',
   COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
 }
 
 @Entity('bookings')

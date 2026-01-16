@@ -50,4 +50,8 @@ export class UpdateListingDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  imagesToRemove?: string[];
 }

@@ -40,9 +40,24 @@ export class SeedService {
     // Create categories
     console.log('Creating categories...');
     const categories = [
-      { name: 'Lodging', slug: 'lodging', icon: '🏠', allowed_for_private: true },
-      { name: 'Mobility', slug: 'mobility', icon: '🚗', allowed_for_private: true },
-      { name: 'Sports Equipment', slug: 'sports_equipment', icon: '⚽', allowed_for_private: true },
+      {
+        name: 'Lodging',
+        slug: 'lodging',
+        icon: '🏠',
+        allowed_for_private: true,
+      },
+      {
+        name: 'Mobility',
+        slug: 'mobility',
+        icon: '🚗',
+        allowed_for_private: true,
+      },
+      {
+        name: 'Sports Equipment',
+        slug: 'sports_equipment',
+        icon: '⚽',
+        allowed_for_private: true,
+      },
       { name: 'Tools', slug: 'tools', icon: '🔧', allowed_for_private: true },
       { name: 'Other', slug: 'other', icon: '📦', allowed_for_private: true },
     ];
@@ -79,34 +94,11 @@ export class SeedService {
 
     // Kelibia coordinates
     const KELIBIA_LAT = 36.8578;
-    const KELIBIA_LNG = 11.0920;
+    const KELIBIA_LNG = 11.092;
 
     // Create listings
     console.log('Creating listings...');
     const hosts = savedUsers.filter((u) => u.isHost);
-    const categoryMap = new Map(savedCategories.map((cat) => [cat.slug, cat]));
-
-    const sampleListings = [
-      {
-        title: 'Mountain Bike for Rent',
-        description: 'High-quality mountain bike perfect for exploring Kelibia.',
-        pricePerDay: 25.0,
-        lat: KELIBIA_LAT + 0.01,
-        lng: KELIBIA_LNG + 0.01,
-        categorySlug: 'mobility',
-        address: '123 Main St, Kelibia',
-      },
-      {
-        title: 'Camera Equipment Package',
-        description: 'Professional camera with lenses.',
-        pricePerDay: 80.0,
-        lat: KELIBIA_LAT - 0.008,
-        lng: KELIBIA_LNG + 0.012,
-        categorySlug: 'other',
-        address: '456 Beach Rd, Kelibia',
-      },
-      // Add more listings...
-    ];
 
     // Generate 20 listings
     const allListings = [];
@@ -123,7 +115,7 @@ export class SeedService {
       const listing = this.listingRepository.create({
         title: `Listing ${i + 1}`,
         description: `Description for listing ${i + 1}`,
-        pricePerDay: 20 + (i * 5),
+        pricePerDay: 20 + i * 5,
         location,
         address: `${i + 1} Street, Kelibia`,
         categoryId: category.id,
@@ -154,14 +146,21 @@ export class SeedService {
       const endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 3);
 
-      const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const days = Math.ceil(
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+      );
       const totalPrice = listing.pricePerDay * days;
-      const commission = totalPrice * 0.10;
+      const commission = totalPrice * 0.1;
 
       const booking = this.bookingRepository.create({
         startDate,
         endDate,
-        status: i % 3 === 0 ? BookingStatus.CONFIRMED : i % 3 === 1 ? BookingStatus.PENDING : BookingStatus.COMPLETED,
+        status:
+          i % 3 === 0
+            ? BookingStatus.CONFIRMED
+            : i % 3 === 1
+              ? BookingStatus.PENDING
+              : BookingStatus.COMPLETED,
         renterId: renter.id,
         hostId: listing.hostId,
         listingId: listing.id,
@@ -176,7 +175,9 @@ export class SeedService {
 
     // Create reviews
     console.log('Creating reviews...');
-    const completedBookings = bookings.filter((b) => b.status === BookingStatus.COMPLETED);
+    const completedBookings = bookings.filter(
+      (b) => b.status === BookingStatus.COMPLETED,
+    );
 
     for (const booking of completedBookings.slice(0, 5)) {
       const review = this.reviewRepository.create({
@@ -195,4 +196,3 @@ export class SeedService {
     console.log('Seed completed successfully!');
   }
 }
-

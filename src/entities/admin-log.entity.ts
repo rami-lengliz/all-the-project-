@@ -32,4 +32,3 @@ export class AdminLog {
   @CreateDateColumn()
   createdAt: Date;
 }
-

@@ -27,13 +27,13 @@ export class BookingsController {
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   @ApiOperation({ summary: 'Create a new booking' })
   create(@Body() createBookingDto: CreateBookingDto, @Request() req) {
-    return this.bookingsService.create(createBookingDto, req.user.id);
+    return this.bookingsService.create(createBookingDto, req.user.sub);
   }
 
   @Get('me')
   @ApiOperation({ summary: 'Get user bookings' })
   findAll(@Request() req) {
-    return this.bookingsService.findAll(req.user.id);
+    return this.bookingsService.findAll(req.user.sub);
   }
 
   @Get(':id')
@@ -46,7 +46,7 @@ export class BookingsController {
   @UseGuards(HostGuard)
   @ApiOperation({ summary: 'Confirm booking (host only)' })
   confirm(@Param('id') id: string, @Request() req) {
-    return this.bookingsService.confirm(id, req.user.id);
+    return this.bookingsService.confirm(id, req.user.sub);
   }
 
   @Post(':id/pay')
@@ -56,12 +56,12 @@ export class BookingsController {
     @Body() payBookingDto: PayBookingDto,
     @Request() req,
   ) {
-    return this.bookingsService.pay(id, payBookingDto, req.user.id);
+    return this.bookingsService.pay(id, payBookingDto, req.user.sub);
   }
 
   @Patch(':id/cancel')
   @ApiOperation({ summary: 'Cancel booking' })
   cancel(@Param('id') id: string, @Request() req) {
-    return this.bookingsService.cancel(id, req.user.id);
+    return this.bookingsService.cancel(id, req.user.sub);
   }
 }

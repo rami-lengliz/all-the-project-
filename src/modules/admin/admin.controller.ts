@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Body,
-  Param,
   UseGuards,
   Request,
   Query,
@@ -19,7 +18,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 @ApiBearerAuth()
 @Controller('api/admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('admin')
+@Roles('ADMIN')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
@@ -38,7 +37,11 @@ export class AdminController {
   @Post('flag')
   @ApiOperation({ summary: 'Flag a listing for review (admin only)' })
   flagListing(@Body() flagDto: FlagListingDto, @Request() req) {
-    return this.adminService.flagListing(flagDto.listingId, flagDto, req.user.id);
+    return this.adminService.flagListing(
+      flagDto.listingId,
+      flagDto,
+      req.user.sub,
+    );
   }
 
   @Get('logs')
@@ -47,4 +50,3 @@ export class AdminController {
     return this.adminService.getLogs(limit ? parseInt(limit.toString()) : 100);
   }
 }
-

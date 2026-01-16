@@ -19,4 +19,3 @@ export class VerifyDto {
   @IsString()
   code: string;
 }
-

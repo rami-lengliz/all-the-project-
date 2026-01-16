@@ -30,15 +30,11 @@ export class ReviewsService {
     );
 
     if (booking.renterId !== authorId) {
-      throw new ForbiddenException(
-        'Only the renter can review this booking',
-      );
+      throw new ForbiddenException('Only the renter can review this booking');
     }
 
     if (booking.status !== BookingStatus.COMPLETED) {
-      throw new BadRequestException(
-        'Can only review completed bookings',
-      );
+      throw new BadRequestException('Can only review completed bookings');
     }
 
     // Check if review already exists
@@ -90,7 +86,10 @@ export class ReviewsService {
       .getMany();
 
     if (reviews.length > 0) {
-      const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+      const totalRating = reviews.reduce(
+        (sum, review) => sum + review.rating,
+        0,
+      );
       const averageRating = totalRating / reviews.length;
       const roundedRating = Math.round(averageRating * 100) / 100;
 

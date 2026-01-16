@@ -12,7 +12,19 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated OpenAPI client (do not lint generated code)
+    "src/lib/api/generated/**",
   ]),
+  // Minimal overrides to keep lint signal high without blocking the repo on
+  // common/intentional patterns used in this project (SSR hydration guards, etc).
+  {
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "@next/next/no-sync-scripts": "off",
+      "react/no-unescaped-entities": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

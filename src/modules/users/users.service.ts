@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../entities/user.entity';
@@ -35,6 +39,9 @@ export class UsersService {
     const user = this.usersRepository.create({
       ...createUserDto,
       roles: createUserDto.roles || ['user'],
+      // Auto-verify email/phone in development for easier testing
+      verifiedEmail: createUserDto.email ? true : false,
+      verifiedPhone: createUserDto.phone ? true : false,
     });
     return this.usersRepository.save(user);
   }
@@ -73,15 +80,33 @@ export class UsersService {
     return this.usersRepository.findOne({ where: { email } });
   }
 
-  async update(id: string, updateUserDto: Partial<UpdateUserDto>): Promise<User> {
+  // Accept Partial<User> so internal flows (auth verification, admin tooling, seeding)
+  // can update non-profile fields safely. Controllers should still pass UpdateUserDto.
+  async update(
+    id: string,
+    updateUserDto: Partial<User> | Partial<UpdateUserDto>,
+  ): Promise<User> {
     const user = await this.findOne(id);
     Object.assign(user, updateUserDto);
     return this.usersRepository.save(user);
   }
 
+  async verifyUser(userId: string): Promise<User> {
+    const user = await this.findOne(userId);
+    if (user.email) {
+      user.verifiedEmail = true;
+    }
+    if (user.phone) {
+      user.verifiedPhone = true;
+    }
+    return this.usersRepository.save(user);
+  }
+
   async becomeHost(userId: string, acceptTerms: boolean): Promise<User> {
-    if (!acceptTerms) {
-      throw new BadRequestException('You must accept the terms to become a host');
+    if (acceptTerms !== true) {
+      throw new BadRequestException(
+        'You must accept the terms to become a host',
+      );
     }
 
     const user = await this.findOne(userId);
@@ -93,7 +118,20 @@ export class UsersService {
       );
     }
 
+    // Set isHost to true
     user.isHost = true;
+
+    // Ensure "host" role is added to roles array (do not remove existing roles)
+    const roles = user.roles || [];
+    const normalizedRoles = roles.map((r) => String(r).toLowerCase());
+    if (
+      !normalizedRoles.includes('host') &&
+      !normalizedRoles.includes('role_host')
+    ) {
+      roles.push('host');
+      user.roles = roles;
+    }
+
     return this.usersRepository.save(user);
   }
 

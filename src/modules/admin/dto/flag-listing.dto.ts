@@ -10,4 +10,3 @@ export class FlagListingDto {
   @IsString()
   reason: string;
 }
-

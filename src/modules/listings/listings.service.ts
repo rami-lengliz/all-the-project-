@@ -14,9 +14,14 @@ import { CategoriesService } from '../categories/categories.service';
 import { MlService } from '../ml/ml.service';
 import { Point } from 'geojson';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class ListingsService {
+  private readonly logger = new Logger(ListingsService.name);
+
   // Allowed category slugs for travel/vacation rentals
   private readonly ALLOWED_CATEGORY_SLUGS = [
     'accommodation',
@@ -55,41 +60,68 @@ export class ListingsService {
       );
     }
 
-    // Process image files
-    const imageUrls: string[] = [];
-    if (imageFiles && imageFiles.length > 0) {
-      const uploadDir = this.configService.get<string>('upload.dir');
-      for (const file of imageFiles) {
-        // In production, upload to S3; for now, save locally
-        const fileName = `${Date.now()}-${file.originalname}`;
-        const fs = require('fs');
-        const path = require('path');
-        const uploadPath = path.join(uploadDir, fileName);
-
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-
-        fs.writeFileSync(uploadPath, file.buffer);
-        imageUrls.push(`/uploads/${fileName}`);
-      }
-    }
-
     // Create Point geometry from lat/lng
     const location: Point = {
       type: 'Point',
       coordinates: [createListingDto.longitude, createListingDto.latitude],
     };
 
+    // Create listing first to get ID for image folder
     const listing = this.listingsRepository.create({
       ...createListingDto,
       location,
-      images: imageUrls,
+      images: [],
       hostId,
       bookingType: BookingType.DAILY,
     });
 
     const savedListing = await this.listingsRepository.save(listing);
+
+    // Process image files and save to listing-specific folder
+    const imageUrls: string[] = [];
+    if (imageFiles && imageFiles.length > 0) {
+      const baseDir =
+        this.configService.get<string>('upload.dir') || './uploads';
+      const listingDir = path.join(baseDir, 'listings', savedListing.id);
+
+      // Ensure listing directory exists
+      if (!fs.existsSync(listingDir)) {
+        fs.mkdirSync(listingDir, { recursive: true });
+      }
+
+      for (const file of imageFiles) {
+        // Generate unique filename
+        const timestamp = Date.now();
+        const randomStr = Array(8)
+          .fill(null)
+          .map(() => Math.round(Math.random() * 16).toString(16))
+          .join('');
+        const ext = path.extname(file.originalname);
+        const fileName = `${timestamp}-${randomStr}${ext}`;
+        const filePath = path.join(listingDir, fileName);
+
+        // Move file from temp to listing folder
+        const tempPath = file.path;
+        if (fs.existsSync(tempPath)) {
+          fs.renameSync(tempPath, filePath);
+        } else {
+          // If file wasn't saved to temp (shouldn't happen), write buffer
+          fs.writeFileSync(filePath, file.buffer);
+        }
+
+        // Store relative URL for public access
+        imageUrls.push(`/uploads/listings/${savedListing.id}/${fileName}`);
+      }
+
+      // Update listing with image URLs
+      savedListing.images = imageUrls;
+      await this.listingsRepository.save(savedListing);
+    }
+
+    // Require at least one image
+    if (imageUrls.length === 0) {
+      throw new BadRequestException('At least one image is required');
+    }
 
     // Call ML service for suggestions
     const mlSuggestions = {
@@ -163,48 +195,53 @@ export class ListingsService {
       });
     }
 
-    // PostGIS distance search
-    if (filters.lat && filters.lng) {
-      const lat = filters.lat;
-      const lng = filters.lng;
-      // Clamp radius to max 50km, default 10km
+    const hasLatLng =
+      typeof filters.lat === 'number' &&
+      Number.isFinite(filters.lat) &&
+      typeof filters.lng === 'number' &&
+      Number.isFinite(filters.lng);
+
+    // Geo search is optional. We only apply geo filters when lat/lng are provided.
+    // NOTE: Some environments may not have full PostGIS functions installed/available.
+    // We guard and fallback below so read-only search never returns 500.
+    if (hasLatLng) {
+      const lat = filters.lat as number;
+      const lng = filters.lng as number;
       const radiusKm = Math.min(filters.radiusKm || 10, 50);
-      const maxDistance = radiusKm * 1000; // Convert km to meters
+      const maxDistanceMeters = radiusKm * 1000;
 
+      // Filter within radius (geography) - supported by PostGIS.
       queryBuilder.andWhere(
-        `ST_Distance_Sphere(
-          listing.location,
-          ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
-        ) <= :maxDistance`,
-        {
-          lat,
-          lng,
-          maxDistance,
-        },
+        `ST_DWithin(
+          listing.location::geography,
+          ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
+          :maxDistanceMeters
+        )`,
+        { lat, lng, maxDistanceMeters },
       );
 
-      // Add distance calculation for sorting
-      queryBuilder.addSelect(
-        `ST_Distance_Sphere(
-          listing.location,
-          ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
-        ) as distance`,
-      );
-
-      // Sort by distance if location provided
+      // Only compute distance when we actually need it (sorting).
       if (filters.sortBy === 'distance') {
+        queryBuilder.addSelect(
+          `ST_Distance(
+            listing.location::geography,
+            ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
+          )`,
+          'distance',
+        );
         queryBuilder.orderBy('distance', 'ASC');
       }
     }
 
     // Filter by availability
+    // Only CONFIRMED and PAID bookings block availability (PENDING does not)
     if (filters.availableFrom && filters.availableTo) {
       queryBuilder
         .leftJoin('listing.bookings', 'booking')
         .andWhere(
-          '(booking.id IS NULL OR NOT (booking.status = :confirmedStatus AND booking.startDate <= :availableTo AND booking.endDate >= :availableFrom))',
+          '(booking.id IS NULL OR NOT (booking.status IN (:...blockingStatuses) AND booking.startDate < :availableTo AND booking.endDate > :availableFrom))',
           {
-            confirmedStatus: 'confirmed',
+            blockingStatuses: ['confirmed', 'paid'],
             availableFrom: filters.availableFrom,
             availableTo: filters.availableTo,
           },
@@ -221,7 +258,90 @@ export class ListingsService {
       queryBuilder.orderBy('listing.createdAt', 'DESC');
     }
 
-    return queryBuilder.getMany();
+    try {
+      return await queryBuilder.getMany();
+    } catch (e: any) {
+      // Defensive fallback: never 500 on read-only search.
+      // If PostGIS functions are missing/unavailable, retry without geo constraints/sorting.
+      const msg = String(e?.message || e);
+      this.logger.warn(`Listings search failed, retrying without geo. ${msg}`);
+
+      try {
+        const fallback = this.listingsRepository
+          .createQueryBuilder('listing')
+          .leftJoinAndSelect('listing.category', 'category')
+          .leftJoinAndSelect('listing.host', 'host')
+          .where('listing.isActive = :isActive', { isActive: true })
+          .andWhere('listing.deletedAt IS NULL')
+          .select([
+            'listing.id',
+            'listing.title',
+            'listing.description',
+            'listing.pricePerDay',
+            'listing.location',
+            'listing.address',
+            'listing.images',
+            'listing.createdAt',
+            'listing.bookingType',
+            'category.id',
+            'category.name',
+            'category.icon',
+            'category.slug',
+            'host.id',
+            'host.name',
+            'host.ratingAvg',
+          ]);
+
+        if (filters.q) {
+          fallback.andWhere(
+            '(listing.title ILIKE :q OR listing.description ILIKE :q)',
+            {
+              q: `%${filters.q}%`,
+            },
+          );
+        }
+        if (filters.category) {
+          fallback.andWhere('listing.categoryId = :categoryId', {
+            categoryId: filters.category,
+          });
+        }
+        if (filters.minPrice) {
+          fallback.andWhere('listing.pricePerDay >= :minPrice', {
+            minPrice: filters.minPrice,
+          });
+        }
+        if (filters.maxPrice) {
+          fallback.andWhere('listing.pricePerDay <= :maxPrice', {
+            maxPrice: filters.maxPrice,
+          });
+        }
+
+        if (filters.availableFrom && filters.availableTo) {
+          fallback
+            .leftJoin('listing.bookings', 'booking')
+            .andWhere(
+              '(booking.id IS NULL OR NOT (booking.status IN (:...blockingStatuses) AND booking.startDate < :availableTo AND booking.endDate > :availableFrom))',
+              {
+                blockingStatuses: ['confirmed', 'paid'],
+                availableFrom: filters.availableFrom,
+                availableTo: filters.availableTo,
+              },
+            );
+        }
+
+        const page = filters.page || 1;
+        const limit = Math.min(filters.limit || 20, 100);
+        fallback.skip((page - 1) * limit).take(limit);
+        fallback.orderBy('listing.createdAt', 'DESC');
+
+        return await fallback.getMany();
+      } catch (e2: any) {
+        this.logger.error(
+          `Listings fallback search failed; returning empty list. ${String(e2?.message || e2)}`,
+        );
+        return [];
+      }
+    }
   }
 
   async findOne(id: string): Promise<Listing> {
@@ -240,6 +360,8 @@ export class ListingsService {
     updateListingDto: UpdateListingDto,
     userId: string,
     isAdmin: boolean = false,
+    imageFiles?: Express.Multer.File[],
+    imagesToRemove?: string[],
   ): Promise<Listing> {
     const listing = await this.findOne(id);
     if (!isAdmin && listing.hostId !== userId) {
@@ -250,19 +372,83 @@ export class ListingsService {
     if (updateListingDto.latitude && updateListingDto.longitude) {
       const location: Point = {
         type: 'Point',
-        coordinates: [
-          updateListingDto.longitude,
-          updateListingDto.latitude,
-        ],
+        coordinates: [updateListingDto.longitude, updateListingDto.latitude],
       };
       listing.location = location;
+    }
+
+    // Handle image removal
+    if (imagesToRemove && imagesToRemove.length > 0) {
+      const baseDir =
+        this.configService.get<string>('upload.dir') || './uploads';
+      const currentImages = listing.images || [];
+      const updatedImages = currentImages.filter((url) => {
+        const shouldRemove = imagesToRemove.includes(url);
+        if (shouldRemove) {
+          // Delete file from filesystem
+          try {
+            const filePath = url.replace('/uploads/', path.join(baseDir, ''));
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+            }
+          } catch (e) {
+            this.logger.warn(`Failed to delete image file: ${url}`, e);
+          }
+        }
+        return !shouldRemove;
+      });
+      listing.images = updatedImages;
+    }
+
+    // Handle new image uploads
+    if (imageFiles && imageFiles.length > 0) {
+      const baseDir =
+        this.configService.get<string>('upload.dir') || './uploads';
+      const listingDir = path.join(baseDir, 'listings', listing.id);
+
+      if (!fs.existsSync(listingDir)) {
+        fs.mkdirSync(listingDir, { recursive: true });
+      }
+
+      const newImageUrls: string[] = [];
+      for (const file of imageFiles) {
+        const timestamp = Date.now();
+        const randomStr = Array(8)
+          .fill(null)
+          .map(() => Math.round(Math.random() * 16).toString(16))
+          .join('');
+        const ext = path.extname(file.originalname);
+        const fileName = `${timestamp}-${randomStr}${ext}`;
+        const filePath = path.join(listingDir, fileName);
+
+        const tempPath = file.path;
+        if (fs.existsSync(tempPath)) {
+          fs.renameSync(tempPath, filePath);
+        } else {
+          fs.writeFileSync(filePath, file.buffer);
+        }
+
+        newImageUrls.push(`/uploads/listings/${listing.id}/${fileName}`);
+      }
+
+      // Append new images to existing ones
+      listing.images = [...(listing.images || []), ...newImageUrls];
+    }
+
+    // Ensure at least one image remains
+    if (listing.images && listing.images.length === 0) {
+      throw new BadRequestException('Listing must have at least one image');
     }
 
     Object.assign(listing, updateListingDto);
     return this.listingsRepository.save(listing);
   }
 
-  async remove(id: string, userId: string, isAdmin: boolean = false): Promise<void> {
+  async remove(
+    id: string,
+    userId: string,
+    isAdmin: boolean = false,
+  ): Promise<void> {
     const listing = await this.findOne(id);
     if (!isAdmin && listing.hostId !== userId) {
       throw new ForbiddenException('You can only delete your own listings');

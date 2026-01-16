@@ -5,10 +5,18 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
+
+  // Serve static files from uploads directory
+  const uploadDir = configService.get<string>('upload.dir') || './uploads';
+  app.useStaticAssets(join(process.cwd(), uploadDir), {
+    prefix: '/uploads/',
+  });
 
   // Enable CORS
   app.enableCors();
@@ -34,7 +42,9 @@ async function bootstrap() {
   // Swagger/OpenAPI documentation
   const config = new DocumentBuilder()
     .setTitle('RentEverything API')
-    .setDescription('Production-grade backend API for travel & vacation rental platform. Focus: Accommodation, Mobility, Water & Beach Activities.')
+    .setDescription(
+      'Production-grade backend API for travel & vacation rental platform. Focus: Accommodation, Mobility, Water & Beach Activities.',
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .addServer('http://localhost:3000', 'Development server')
@@ -59,4 +69,3 @@ async function bootstrap() {
   console.log(`Swagger documentation: http://localhost:${port}/api/docs`);
 }
 bootstrap();
-
