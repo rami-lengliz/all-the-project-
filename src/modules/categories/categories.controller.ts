@@ -20,7 +20,7 @@ import { Public } from '../../common/decorators/public.decorator';
 @ApiTags('categories')
 @Controller('api/categories')
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) {}
+  constructor(private readonly categoriesService: CategoriesService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)

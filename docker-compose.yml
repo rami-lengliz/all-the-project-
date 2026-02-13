@@ -34,6 +34,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/rental_platform?schema=public
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
       DATABASE_USER: postgres

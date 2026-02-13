@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { AdminLog } from '../../entities/admin-log.entity';
+import { PrismaService } from '../../database/prisma.service';
+import { AdminLog } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { ListingsService } from '../listings/listings.service';
 import { FlagListingDto } from './dto/flag-listing.dto';
@@ -9,23 +8,23 @@ import { FlagListingDto } from './dto/flag-listing.dto';
 @Injectable()
 export class AdminService {
   constructor(
-    @InjectRepository(AdminLog)
-    private adminLogRepository: Repository<AdminLog>,
+    private prisma: PrismaService,
     private usersService: UsersService,
     private listingsService: ListingsService,
-  ) {}
+  ) { }
 
   async logAction(
     actorId: string,
     action: string,
     details?: Record<string, any>,
   ): Promise<AdminLog> {
-    const log = this.adminLogRepository.create({
-      actorId,
-      action,
-      details,
+    return this.prisma.adminLog.create({
+      data: {
+        actorId,
+        action,
+        details,
+      },
     });
-    return this.adminLogRepository.save(log);
   }
 
   async getAllUsers() {
@@ -66,9 +65,13 @@ export class AdminService {
   }
 
   async getLogs(limit: number = 100) {
-    return this.adminLogRepository.find({
-      relations: ['actor'],
-      order: { createdAt: 'DESC' },
+    return this.prisma.adminLog.findMany({
+      include: {
+        actor: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
       take: limit,
     });
   }

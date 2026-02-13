@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BookingStatus } from '../../entities/booking.entity';
-import { PaymentIntentStatus } from '../../entities/payment-intent.entity';
+import { BookingStatus, PaymentIntentStatus } from '@prisma/client';
 
 export type CancellationActor = 'RENTER' | 'HOST';
 
@@ -41,7 +40,7 @@ export class CancellationPolicyService {
     } = context;
 
     // Rule 1: COMPLETED bookings cannot be cancelled
-    if (bookingStatus === BookingStatus.COMPLETED) {
+    if (bookingStatus === 'completed') {
       return {
         allowCancel: false,
         refundAmount: 0,
@@ -52,9 +51,9 @@ export class CancellationPolicyService {
     }
 
     // Rule 2: Already CANCELLED bookings (idempotent check)
-    if (bookingStatus === BookingStatus.CANCELLED) {
+    if (bookingStatus === 'cancelled') {
       // If payment is already refunded, mention that
-      if (paymentStatus === PaymentIntentStatus.REFUNDED) {
+      if (paymentStatus === 'refunded') {
         return {
           allowCancel: true,
           refundAmount: 0,
@@ -74,7 +73,7 @@ export class CancellationPolicyService {
 
     // Rule 3: Host cancels at any time → FULL refund (if payment captured)
     if (actor === 'HOST') {
-      if (paymentStatus === PaymentIntentStatus.CAPTURED) {
+      if (paymentStatus === 'captured') {
         return {
           allowCancel: true,
           refundAmount: totalPrice,
@@ -82,7 +81,7 @@ export class CancellationPolicyService {
           penaltyApplied: false,
           reason: 'Host cancellation: Full refund required',
         };
-      } else if (paymentStatus === PaymentIntentStatus.REFUNDED) {
+      } else if (paymentStatus === 'refunded') {
         return {
           allowCancel: true,
           refundAmount: 0,
@@ -107,7 +106,7 @@ export class CancellationPolicyService {
       const isBeforeStart = now < startDate;
 
       if (isBeforeStart) {
-        if (paymentStatus === PaymentIntentStatus.CAPTURED) {
+        if (paymentStatus === 'captured') {
           return {
             allowCancel: true,
             refundAmount: totalPrice,
@@ -115,7 +114,7 @@ export class CancellationPolicyService {
             penaltyApplied: false,
             reason: 'Renter cancellation before start date: Full refund',
           };
-        } else if (paymentStatus === PaymentIntentStatus.REFUNDED) {
+        } else if (paymentStatus === 'refunded') {
           return {
             allowCancel: true,
             refundAmount: 0,
@@ -161,7 +160,7 @@ export class CancellationPolicyService {
    * Refunds only allowed if payment is CAPTURED
    */
   canRefund(paymentStatus: PaymentIntentStatus): boolean {
-    return paymentStatus === PaymentIntentStatus.CAPTURED;
+    return paymentStatus === 'captured';
   }
 
   /**
@@ -169,9 +168,9 @@ export class CancellationPolicyService {
    */
   canCancel(bookingStatus: BookingStatus): boolean {
     return (
-      bookingStatus === BookingStatus.PENDING ||
-      bookingStatus === BookingStatus.CONFIRMED ||
-      bookingStatus === BookingStatus.PAID
+      bookingStatus === 'pending' ||
+      bookingStatus === 'confirmed' ||
+      bookingStatus === 'paid'
     );
   }
 }

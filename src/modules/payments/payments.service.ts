@@ -4,14 +4,17 @@ import {
   BadRequestException,
   ForbiddenException,
   ConflictException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { PrismaService } from '../../database/prisma.service';
 import {
   PaymentIntent,
   PaymentIntentStatus,
-} from '../../entities/payment-intent.entity';
-import { Booking, BookingStatus } from '../../entities/booking.entity';
+  Booking,
+  BookingStatus,
+  Prisma,
+} from '@prisma/client';
 import { PaymentStateMachine } from '../../common/utils/payment-state-machine';
 import { BookingsService } from '../bookings/bookings.service';
 import { CancellationPolicyService } from '../../common/policies/cancellation-policy.service';
@@ -19,14 +22,11 @@ import { CancellationPolicyService } from '../../common/policies/cancellation-po
 @Injectable()
 export class PaymentsService {
   constructor(
-    @InjectRepository(PaymentIntent)
-    private paymentIntentRepository: Repository<PaymentIntent>,
-    @InjectRepository(Booking)
-    private bookingRepository: Repository<Booking>,
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => BookingsService))
     private bookingsService: BookingsService,
-    private dataSource: DataSource,
     private cancellationPolicyService: CancellationPolicyService,
-  ) {}
+  ) { }
 
   /**
    * Create a payment intent for a booking
@@ -36,7 +36,7 @@ export class PaymentsService {
     const booking = await this.bookingsService.findOne(bookingId);
 
     // Check if payment intent already exists
-    const existing = await this.paymentIntentRepository.findOne({
+    const existing = await this.prisma.paymentIntent.findUnique({
       where: { bookingId },
     });
 
@@ -44,16 +44,20 @@ export class PaymentsService {
       return existing;
     }
 
-    const paymentIntent = this.paymentIntentRepository.create({
-      bookingId,
-      renterId: booking.renterId,
-      hostId: booking.hostId,
-      amount: booking.totalPrice,
-      currency: 'TND',
-      status: PaymentIntentStatus.CREATED,
-    });
+    const totalPrice = typeof booking.totalPrice === 'number'
+      ? booking.totalPrice
+      : Number(booking.totalPrice);
 
-    return this.paymentIntentRepository.save(paymentIntent);
+    return this.prisma.paymentIntent.create({
+      data: {
+        bookingId,
+        renterId: booking.renterId,
+        hostId: booking.hostId,
+        amount: totalPrice,
+        currency: 'TND',
+        status: 'created',
+      },
+    });
   }
 
   /**
@@ -65,19 +69,21 @@ export class PaymentsService {
     userId: string,
     metadata?: Record<string, any>,
   ): Promise<PaymentIntent> {
-    return await this.dataSource.transaction(async (manager) => {
+    return await this.prisma.$transaction(async (tx) => {
       // Load payment intent with lock
-      const paymentIntent = await manager
-        .createQueryBuilder(PaymentIntent, 'pi')
-        .setLock('pessimistic_write')
-        .where('pi.bookingId = :bookingId', { bookingId })
-        .getOne();
+      const paymentIntents = await tx.$queryRaw<PaymentIntent[]>`
+        SELECT * FROM payment_intents
+        WHERE "bookingId" = ${bookingId}::uuid
+        FOR UPDATE
+      `;
 
-      if (!paymentIntent) {
+      if (!paymentIntents || paymentIntents.length === 0) {
         throw new NotFoundException(
           `Payment intent not found for booking ${bookingId}`,
         );
       }
+
+      const paymentIntent = paymentIntents[0];
 
       // Authorization check
       if (paymentIntent.renterId !== userId) {
@@ -87,27 +93,27 @@ export class PaymentsService {
       }
 
       // Idempotent check
-      if (paymentIntent.status === PaymentIntentStatus.AUTHORIZED) {
+      if (paymentIntent.status === 'authorized') {
         return paymentIntent;
       }
 
       // State machine validation
       PaymentStateMachine.validateTransition(
-        paymentIntent.status,
-        PaymentIntentStatus.AUTHORIZED,
+        paymentIntent.status as any,
+        'AUTHORIZED' as any,
         'authorize payment',
       );
 
       // Update status
-      paymentIntent.status = PaymentIntentStatus.AUTHORIZED;
-      if (metadata) {
-        paymentIntent.metadata = {
-          ...paymentIntent.metadata,
-          ...metadata,
-        };
-      }
-
-      return manager.save(paymentIntent);
+      return tx.paymentIntent.update({
+        where: { id: paymentIntent.id },
+        data: {
+          status: 'authorized',
+          metadata: metadata
+            ? { ...(paymentIntent.metadata as any), ...metadata }
+            : paymentIntent.metadata,
+        },
+      });
     });
   }
 
@@ -117,36 +123,39 @@ export class PaymentsService {
    * This is called when booking moves to PAID status
    */
   async capture(bookingId: string): Promise<PaymentIntent> {
-    return await this.dataSource.transaction(async (manager) => {
+    return await this.prisma.$transaction(async (tx) => {
       // Load payment intent with lock
-      const paymentIntent = await manager
-        .createQueryBuilder(PaymentIntent, 'pi')
-        .setLock('pessimistic_write')
-        .where('pi.bookingId = :bookingId', { bookingId })
-        .getOne();
+      const paymentIntents = await tx.$queryRaw<PaymentIntent[]>`
+        SELECT * FROM payment_intents
+        WHERE "bookingId" = ${bookingId}::uuid
+        FOR UPDATE
+      `;
 
-      if (!paymentIntent) {
+      if (!paymentIntents || paymentIntents.length === 0) {
         throw new NotFoundException(
           `Payment intent not found for booking ${bookingId}`,
         );
       }
 
+      const paymentIntent = paymentIntents[0];
+
       // Idempotent check
-      if (paymentIntent.status === PaymentIntentStatus.CAPTURED) {
+      if (paymentIntent.status === 'captured') {
         return paymentIntent;
       }
 
       // State machine validation
       PaymentStateMachine.validateTransition(
-        paymentIntent.status,
-        PaymentIntentStatus.CAPTURED,
+        paymentIntent.status as any,
+        'CAPTURED' as any,
         'capture payment',
       );
 
       // Update status
-      paymentIntent.status = PaymentIntentStatus.CAPTURED;
-
-      return manager.save(paymentIntent);
+      return tx.paymentIntent.update({
+        where: { id: paymentIntent.id },
+        data: { status: 'captured' },
+      });
     });
   }
 
@@ -156,44 +165,47 @@ export class PaymentsService {
    * Policy validation ensures refunds follow cancellation rules
    */
   async refund(bookingId: string): Promise<PaymentIntent> {
-    return await this.dataSource.transaction(async (manager) => {
+    return await this.prisma.$transaction(async (tx) => {
       // Load payment intent with lock
-      const paymentIntent = await manager
-        .createQueryBuilder(PaymentIntent, 'pi')
-        .setLock('pessimistic_write')
-        .where('pi.bookingId = :bookingId', { bookingId })
-        .getOne();
+      const paymentIntents = await tx.$queryRaw<PaymentIntent[]>`
+        SELECT * FROM payment_intents
+        WHERE "bookingId" = ${bookingId}::uuid
+        FOR UPDATE
+      `;
 
-      if (!paymentIntent) {
+      if (!paymentIntents || paymentIntents.length === 0) {
         throw new NotFoundException(
           `Payment intent not found for booking ${bookingId}`,
         );
       }
 
+      const paymentIntent = paymentIntents[0];
+
       // Idempotent check
-      if (paymentIntent.status === PaymentIntentStatus.REFUNDED) {
+      if (paymentIntent.status === 'refunded') {
         return paymentIntent;
       }
 
       // Policy validation: Refunds only allowed if payment is CAPTURED
-      if (!this.cancellationPolicyService.canRefund(paymentIntent.status)) {
+      if (!this.cancellationPolicyService.canRefund(paymentIntent.status as any)) {
         throw new BadRequestException(
           `Cannot refund payment: Payment status is ${paymentIntent.status}. ` +
-            `Only CAPTURED payments can be refunded.`,
+          `Only CAPTURED payments can be refunded.`,
         );
       }
 
       // State machine validation
       PaymentStateMachine.validateTransition(
-        paymentIntent.status,
-        PaymentIntentStatus.REFUNDED,
+        paymentIntent.status as any,
+        'REFUNDED' as any,
         'refund payment',
       );
 
       // Update status
-      paymentIntent.status = PaymentIntentStatus.REFUNDED;
-
-      return manager.save(paymentIntent);
+      return tx.paymentIntent.update({
+        where: { id: paymentIntent.id },
+        data: { status: 'refunded' },
+      });
     });
   }
 
@@ -202,19 +214,21 @@ export class PaymentsService {
    * Can only cancel authorized payments (before capture)
    */
   async cancel(bookingId: string, userId: string): Promise<PaymentIntent> {
-    return await this.dataSource.transaction(async (manager) => {
+    return await this.prisma.$transaction(async (tx) => {
       // Load payment intent with lock
-      const paymentIntent = await manager
-        .createQueryBuilder(PaymentIntent, 'pi')
-        .setLock('pessimistic_write')
-        .where('pi.bookingId = :bookingId', { bookingId })
-        .getOne();
+      const paymentIntents = await tx.$queryRaw<PaymentIntent[]>`
+        SELECT * FROM payment_intents
+        WHERE "bookingId" = ${bookingId}::uuid
+        FOR UPDATE
+      `;
 
-      if (!paymentIntent) {
+      if (!paymentIntents || paymentIntents.length === 0) {
         throw new NotFoundException(
           `Payment intent not found for booking ${bookingId}`,
         );
       }
+
+      const paymentIntent = paymentIntents[0];
 
       // Authorization check - renter or host can cancel
       if (
@@ -227,21 +241,22 @@ export class PaymentsService {
       }
 
       // Idempotent check
-      if (paymentIntent.status === PaymentIntentStatus.CANCELLED) {
+      if (paymentIntent.status === 'cancelled') {
         return paymentIntent;
       }
 
       // State machine validation
       PaymentStateMachine.validateTransition(
-        paymentIntent.status,
-        PaymentIntentStatus.CANCELLED,
+        paymentIntent.status as any,
+        'CANCELLED' as any,
         'cancel payment intent',
       );
 
       // Update status
-      paymentIntent.status = PaymentIntentStatus.CANCELLED;
-
-      return manager.save(paymentIntent);
+      return tx.paymentIntent.update({
+        where: { id: paymentIntent.id },
+        data: { status: 'cancelled' },
+      });
     });
   }
 
@@ -249,9 +264,12 @@ export class PaymentsService {
    * Get payment intent for a booking
    */
   async findByBooking(bookingId: string): Promise<PaymentIntent | null> {
-    return this.paymentIntentRepository.findOne({
+    return this.prisma.paymentIntent.findUnique({
       where: { bookingId },
-      relations: ['renter', 'host'],
+      include: {
+        renter: true,
+        host: true,
+      },
     });
   }
 
@@ -259,9 +277,13 @@ export class PaymentsService {
    * Get payment intent by ID
    */
   async findOne(id: string): Promise<PaymentIntent> {
-    const paymentIntent = await this.paymentIntentRepository.findOne({
+    const paymentIntent = await this.prisma.paymentIntent.findUnique({
       where: { id },
-      relations: ['renter', 'host', 'booking'],
+      include: {
+        renter: true,
+        host: true,
+        booking: true,
+      },
     });
 
     if (!paymentIntent) {

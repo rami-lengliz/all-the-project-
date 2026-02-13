@@ -1,0 +1,314 @@
+// This is the Prisma schema file.
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================
+// User Model
+// ===========================
+model User {
+  id            String   @id @default(uuid())
+  name          String   @db.VarChar(255)
+  email         String?  @unique @db.VarChar(255)
+  phone         String?  @unique @db.VarChar(20)
+  passwordHash  String   @map("password_hash") @db.VarChar(255)
+  avatarUrl     String?  @db.VarChar(500)
+  roles         String[] @default(["user"])
+  isHost        Boolean  @default(false)
+  verifiedEmail Boolean  @default(false)
+  verifiedPhone Boolean  @default(false)
+  ratingAvg     Decimal  @default(0) @db.Decimal(3, 2)
+  ratingCount   Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  listings               Listing[]
+  bookingsAsRenter       Booking[]       @relation("RenterBookings")
+  bookingsAsHost         Booking[]       @relation("HostBookings")
+  reviewsWritten         Review[]        @relation("ReviewAuthor")
+  reviewsReceived        Review[]        @relation("ReviewTarget")
+  adminLogs              AdminLog[]
+  paymentIntentsAsRenter PaymentIntent[] @relation("RenterPayments")
+  paymentIntentsAsHost   PaymentIntent[] @relation("HostPayments")
+
+  // Chat relations
+  renterConversations Conversation[] @relation("RenterConversations")
+  hostConversations   Conversation[] @relation("HostConversations")
+  sentMessages        Message[]
+
+  @@index([email])
+  @@index([phone])
+  @@map("users")
+}
+
+// ===========================
+// Category Model
+// ===========================
+model Category {
+  id                String   @id @default(uuid())
+  name              String   @db.VarChar(255)
+  slug              String   @unique @db.VarChar(255)
+  icon              String?  @db.VarChar(100)
+  allowedForPrivate Boolean  @default(true) @map("allowed_for_private")
+  createdAt         DateTime @default(now())
+
+  // Relations
+  listings Listing[]
+
+  @@index([slug], name: "idx_category_slug")
+  @@map("categories")
+}
+
+// ===========================
+// Listing Model
+// ===========================
+enum BookingType {
+  DAILY
+  SLOT
+}
+
+model Listing {
+  id           String                               @id @default(uuid())
+  hostId       String
+  title        String                               @db.VarChar(255)
+  description  String                               @db.Text
+  categoryId   String
+  images       String[]
+  pricePerDay  Decimal                              @db.Decimal(10, 2)
+  location     Unsupported("geometry(Point,4326)")?
+  address      String                               @db.VarChar(500)
+  rules        String?                              @db.Text
+  availability Json?                                @db.JsonB
+  isActive     Boolean                              @default(true)
+  bookingType  BookingType                          @default(DAILY)
+  deletedAt    DateTime?
+  createdAt    DateTime                             @default(now())
+  updatedAt    DateTime                             @updatedAt
+
+  // Relations
+  host              User               @relation(fields: [hostId], references: [id])
+  category          Category           @relation(fields: [categoryId], references: [id])
+  bookings          Booking[]
+  reviews           Review[]
+  conversations     Conversation[]
+  slotConfiguration SlotConfiguration?
+
+  @@index([pricePerDay])
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("listings")
+}
+
+// ===========================
+// Booking Model
+// ===========================
+enum BookingStatus {
+  pending
+  confirmed
+  paid
+  completed
+  cancelled
+}
+
+model Booking {
+  id        String   @id @default(uuid())
+  listingId String
+  renterId  String
+  hostId    String
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+
+  // Slot-specific fields (null for DAILY bookings)
+  startTime DateTime? @db.Time
+  endTime   DateTime? @db.Time
+
+  totalPrice  Decimal       @db.Decimal(10, 2)
+  commission  Decimal       @db.Decimal(10, 2)
+  status      BookingStatus @default(pending)
+  paid        Boolean       @default(false)
+  paymentInfo Json?         @db.JsonB
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  listing       Listing        @relation(fields: [listingId], references: [id])
+  renter        User           @relation("RenterBookings", fields: [renterId], references: [id])
+  host          User           @relation("HostBookings", fields: [hostId], references: [id])
+  review        Review?
+  paymentIntent PaymentIntent?
+  Conversation  Conversation[]
+
+  @@index([startDate, endDate])
+  @@index([status])
+  @@index([listingId, startDate, startTime, endTime])
+  @@map("bookings")
+}
+
+// ===========================
+// Review Model
+// ===========================
+model Review {
+  id           String   @id @default(uuid())
+  bookingId    String   @unique
+  authorId     String
+  targetUserId String
+  listingId    String
+  rating       Int
+  comment      String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  // Relations
+  booking    Booking @relation(fields: [bookingId], references: [id])
+  author     User    @relation("ReviewAuthor", fields: [authorId], references: [id])
+  targetUser User    @relation("ReviewTarget", fields: [targetUserId], references: [id])
+  listing    Listing @relation(fields: [listingId], references: [id])
+
+  @@index([targetUserId])
+  @@map("reviews")
+}
+
+// ===========================
+// AdminLog Model
+// ===========================
+model AdminLog {
+  id        String   @id @default(uuid())
+  action    String   @db.VarChar(255)
+  actorId   String
+  details   Json?    @db.JsonB
+  createdAt DateTime @default(now())
+
+  // Relations
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("admin_logs")
+}
+
+// ===========================
+// PaymentIntent Model
+// ===========================
+enum PaymentIntentStatus {
+  created
+  authorized
+  captured
+  refunded
+  cancelled
+}
+
+model PaymentIntent {
+  id        String              @id @default(uuid())
+  bookingId String              @unique
+  renterId  String
+  hostId    String
+  amount    Decimal             @db.Decimal(10, 2)
+  currency  String              @default("TND") @db.VarChar(3)
+  status    PaymentIntentStatus @default(created)
+  metadata  Json?               @db.JsonB
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  // Relations
+  booking Booking @relation(fields: [bookingId], references: [id])
+  renter  User    @relation("RenterPayments", fields: [renterId], references: [id])
+  host    User    @relation("HostPayments", fields: [hostId], references: [id])
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([renterId])
+  @@map("payment_intents")
+}
+
+// ===========================
+// Chat Models
+// ===========================
+model Conversation {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Participants
+  renterId String
+  hostId   String
+  renter   User   @relation("RenterConversations", fields: [renterId], references: [id])
+  host     User   @relation("HostConversations", fields: [hostId], references: [id])
+
+  // Optional: Link to booking or listing
+  bookingId String?
+  listingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+  listing   Listing? @relation(fields: [listingId], references: [id])
+
+  // Messages in this conversation
+  messages Message[]
+
+  // Metadata
+  lastMessageAt DateTime?
+
+  @@unique([renterId, hostId, bookingId])
+  @@index([renterId])
+  @@index([hostId])
+  @@index([bookingId])
+  @@index([listingId])
+  @@map("conversations")
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Content
+  content String @db.Text
+
+  // Sender
+  senderId String
+  sender   User   @relation(fields: [senderId], references: [id])
+
+  // Conversation
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // Read status
+  readAt DateTime?
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+// ===========================
+// Slot Configuration Model
+// ===========================
+model SlotConfiguration {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Associated listing
+  listingId String  @unique
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  // Slot settings
+  slotDurationMinutes Int // e.g., 60 for 1-hour slots
+  operatingHours      Json @db.JsonB // { "monday": { "start": "08:00", "end": "22:00" }, ... }
+  minBookingSlots     Int  @default(1) // Minimum slots to book
+  maxBookingSlots     Int? // Maximum slots per booking
+  bufferMinutes       Int  @default(0) // Buffer time between bookings
+
+  // Pricing
+  pricePerSlot Decimal @db.Decimal(10, 2)
+
+  @@index([listingId])
+  @@map("slot_configurations")
+}

@@ -1,4 +1,4 @@
-import { PaymentIntentStatus } from '../../entities/payment-intent.entity';
+import { PaymentIntentStatus } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common';
 
 /**
@@ -30,15 +30,15 @@ export class PaymentStateMachine {
     PaymentIntentStatus,
     PaymentIntentStatus[]
   > = {
-    [PaymentIntentStatus.CREATED]: [PaymentIntentStatus.AUTHORIZED],
-    [PaymentIntentStatus.AUTHORIZED]: [
-      PaymentIntentStatus.CAPTURED,
-      PaymentIntentStatus.CANCELLED,
-    ],
-    [PaymentIntentStatus.CAPTURED]: [PaymentIntentStatus.REFUNDED],
-    [PaymentIntentStatus.REFUNDED]: [], // Terminal state
-    [PaymentIntentStatus.CANCELLED]: [], // Terminal state
-  };
+      ['created']: ['authorized'],
+      ['authorized']: [
+        'captured',
+        'cancelled',
+      ],
+      ['captured']: ['refunded'],
+      ['refunded']: [], // Terminal state
+      ['cancelled']: [], // Terminal state
+    };
 
   /**
    * Check if a state transition is valid
@@ -69,7 +69,7 @@ export class PaymentStateMachine {
     if (!this.isValidTransition(from, to)) {
       throw new BadRequestException(
         `Cannot ${actionName}: Invalid state transition from ${from} to ${to}. ` +
-          `Valid transitions from ${from} are: ${this.VALID_TRANSITIONS[from]?.join(', ') || 'none'}`,
+        `Valid transitions from ${from} are: ${this.VALID_TRANSITIONS[from]?.join(', ') || 'none'}`,
       );
     }
   }
@@ -78,28 +78,28 @@ export class PaymentStateMachine {
    * Check if payment can be authorized
    */
   static canAuthorize(status: PaymentIntentStatus): boolean {
-    return status === PaymentIntentStatus.CREATED;
+    return status === 'created';
   }
 
   /**
    * Check if payment can be captured
    */
   static canCapture(status: PaymentIntentStatus): boolean {
-    return status === PaymentIntentStatus.AUTHORIZED;
+    return status === 'authorized';
   }
 
   /**
    * Check if payment can be refunded
    */
   static canRefund(status: PaymentIntentStatus): boolean {
-    return status === PaymentIntentStatus.CAPTURED;
+    return status === 'captured';
   }
 
   /**
    * Check if payment can be cancelled
    */
   static canCancel(status: PaymentIntentStatus): boolean {
-    return status === PaymentIntentStatus.AUTHORIZED;
+    return status === 'authorized';
   }
 
   /**
@@ -107,8 +107,8 @@ export class PaymentStateMachine {
    */
   static isTerminal(status: PaymentIntentStatus): boolean {
     return [
-      PaymentIntentStatus.REFUNDED,
-      PaymentIntentStatus.CANCELLED,
+      'refunded',
+      'cancelled',
     ].includes(status);
   }
 

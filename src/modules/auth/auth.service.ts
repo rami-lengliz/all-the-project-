@@ -18,61 +18,89 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {}
+  ) { }
 
   async register(registerDto: RegisterDto) {
-    if (!registerDto.email && !registerDto.phone) {
-      throw new BadRequestException('Either email or phone must be provided');
+    try {
+      console.log('[AuthService] Registration attempt:', { email: registerDto.email, name: registerDto.name });
+
+      if (!registerDto.email && !registerDto.phone) {
+        throw new BadRequestException('Either email or phone must be provided');
+      }
+
+      const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+      console.log('[AuthService] Password hashed successfully');
+
+      // Exclude password field, only send passwordHash
+      const { password, ...userDataWithoutPassword } = registerDto;
+      const user = await this.usersService.create({
+        ...userDataWithoutPassword,
+        passwordHash: hashedPassword,
+      });
+      console.log('[AuthService] User created:', user.id);
+
+      const tokens = await this.generateTokens(
+        user.id,
+        user.email || user.phone,
+        this.getRoleForUser(user),
+      );
+      console.log('[AuthService] Tokens generated');
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { passwordHash, ...result } = user;
+
+      return {
+        user: result,
+        ...tokens,
+      };
+    } catch (error) {
+      console.error('[AuthService] Registration error:', error);
+      throw error;
     }
-
-    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
-    const user = await this.usersService.create({
-      ...registerDto,
-      passwordHash: hashedPassword,
-    });
-
-    const tokens = await this.generateTokens(
-      user.id,
-      user.email || user.phone,
-      this.getRoleForUser(user),
-    );
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash, ...result } = user;
-
-    return {
-      user: result,
-      ...tokens,
-    };
   }
 
   async login(loginDto: LoginDto) {
-    const user = await this.usersService.findByEmailOrPhone(
-      loginDto.emailOrPhone,
-    );
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+    try {
+      console.log('[AuthService] Login attempt for:', loginDto.emailOrPhone);
+
+      const user = await this.usersService.findByEmailOrPhone(
+        loginDto.emailOrPhone,
+      );
+      console.log('[AuthService] User found:', !!user);
+
+      if (!user) {
+        console.log('[AuthService] User not found');
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      const isPasswordValid = await bcrypt.compare(
+        loginDto.password,
+        user.passwordHash,
+      );
+      console.log('[AuthService] Password valid:', isPasswordValid);
+
+      if (!isPasswordValid) {
+        console.log('[AuthService] Invalid password');
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      const tokens = await this.generateTokens(
+        user.id,
+        user.email || user.phone,
+        this.getRoleForUser(user),
+      );
+      console.log('[AuthService] Login successful, tokens generated');
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { passwordHash, ...result } = user;
+      return {
+        user: result,
+        ...tokens,
+      };
+    } catch (error) {
+      console.error('[AuthService] Login error:', error.message);
+      throw error;
     }
-
-    const isPasswordValid = await bcrypt.compare(
-      loginDto.password,
-      user.passwordHash,
-    );
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    const tokens = await this.generateTokens(
-      user.id,
-      user.email || user.phone,
-      this.getRoleForUser(user),
-    );
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash, ...userResult } = user;
-
-    return {
-      user: userResult,
-      ...tokens,
-    };
   }
 
   async refresh(refreshToken: string) {

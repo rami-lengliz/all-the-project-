@@ -4,22 +4,19 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Review } from '../../entities/review.entity';
+import { PrismaService } from '../../database/prisma.service';
+import { Review } from '@prisma/client';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { BookingsService } from '../bookings/bookings.service';
-import { BookingStatus } from '../../entities/booking.entity';
 import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class ReviewsService {
   constructor(
-    @InjectRepository(Review)
-    private reviewsRepository: Repository<Review>,
+    private prisma: PrismaService,
     private bookingsService: BookingsService,
     private usersService: UsersService,
-  ) {}
+  ) { }
 
   async create(
     createReviewDto: CreateReviewDto,
@@ -33,45 +30,55 @@ export class ReviewsService {
       throw new ForbiddenException('Only the renter can review this booking');
     }
 
-    if (booking.status !== BookingStatus.COMPLETED) {
+    if (booking.status !== 'completed') {
       throw new BadRequestException('Can only review completed bookings');
     }
 
     // Check if review already exists
-    const existingReview = await this.reviewsRepository.findOne({
+    const existingReview = await this.prisma.review.findUnique({
       where: { bookingId: createReviewDto.bookingId },
     });
     if (existingReview) {
       throw new BadRequestException('Review already exists for this booking');
     }
 
-    const review = this.reviewsRepository.create({
-      ...createReviewDto,
-      authorId,
-      targetUserId: booking.hostId,
-      listingId: booking.listingId,
+    const review = await this.prisma.review.create({
+      data: {
+        ...createReviewDto,
+        authorId,
+        targetUserId: booking.hostId,
+        listingId: booking.listingId,
+      },
     });
-
-    const savedReview = await this.reviewsRepository.save(review);
 
     // Update target user rating
     await this.updateUserRating(booking.hostId);
 
-    return savedReview;
+    return review;
   }
 
   async findByUser(userId: string): Promise<Review[]> {
-    return this.reviewsRepository.find({
+    return this.prisma.review.findMany({
       where: { targetUserId: userId },
-      relations: ['author', 'listing'],
-      order: { createdAt: 'DESC' },
+      include: {
+        author: true,
+        listing: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
   }
 
   async findOne(id: string): Promise<Review> {
-    const review = await this.reviewsRepository.findOne({
+    const review = await this.prisma.review.findUnique({
       where: { id },
-      relations: ['author', 'targetUser', 'listing', 'booking'],
+      include: {
+        author: true,
+        targetUser: true,
+        listing: true,
+        booking: true,
+      },
     });
     if (!review) {
       throw new NotFoundException(`Review with ID ${id} not found`);
@@ -80,10 +87,9 @@ export class ReviewsService {
   }
 
   private async updateUserRating(userId: string): Promise<void> {
-    const reviews = await this.reviewsRepository
-      .createQueryBuilder('review')
-      .where('review.targetUserId = :userId', { userId })
-      .getMany();
+    const reviews = await this.prisma.review.findMany({
+      where: { targetUserId: userId },
+    });
 
     if (reviews.length > 0) {
       const totalRating = reviews.reduce(
@@ -93,9 +99,6 @@ export class ReviewsService {
       const averageRating = totalRating / reviews.length;
       const roundedRating = Math.round(averageRating * 100) / 100;
 
-      const user = await this.usersService.findOne(userId);
-      user.ratingAvg = roundedRating;
-      user.ratingCount = reviews.length;
       await this.usersService.update(userId, {
         ratingAvg: roundedRating,
         ratingCount: reviews.length,

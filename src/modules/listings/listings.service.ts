@@ -4,15 +4,13 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { Listing, BookingType } from '../../entities/listing.entity';
+import { PrismaService } from '../../database/prisma.service';
+import { Listing, Prisma } from '@prisma/client';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { FilterListingsDto } from './dto/filter-listings.dto';
 import { CategoriesService } from '../categories/categories.service';
 import { MlService } from '../ml/ml.service';
-import { Point } from 'geojson';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import * as fs from 'fs';
@@ -30,13 +28,11 @@ export class ListingsService {
   ];
 
   constructor(
-    @InjectRepository(Listing)
-    private listingsRepository: Repository<Listing>,
+    private prisma: PrismaService,
     private categoriesService: CategoriesService,
     private mlService: MlService,
     private configService: ConfigService,
-    private dataSource: DataSource,
-  ) {}
+  ) { }
 
   async create(
     createListingDto: CreateListingDto,
@@ -48,7 +44,7 @@ export class ListingsService {
       createListingDto.categoryId,
     );
 
-    if (!category.allowed_for_private) {
+    if (!category.allowedForPrivate) {
       throw new BadRequestException(
         'This category does not allow private listings',
       );
@@ -60,29 +56,40 @@ export class ListingsService {
       );
     }
 
-    // Create Point geometry from lat/lng
-    const location: Point = {
-      type: 'Point',
-      coordinates: [createListingDto.longitude, createListingDto.latitude],
-    };
-
     // Create listing first to get ID for image folder
-    const listing = this.listingsRepository.create({
-      ...createListingDto,
-      location,
-      images: [],
-      hostId,
-      bookingType: BookingType.DAILY,
+    // Note: PostGIS geometry is stored as WKT (Well-Known Text) in Prisma
+    const locationWKT = `POINT(${createListingDto.longitude} ${createListingDto.latitude})`;
+
+    const savedListing = await this.prisma.$executeRaw`
+      INSERT INTO listings (
+        id, "hostId", title, description, "categoryId", images, "pricePerDay",
+        location, address, rules, availability, "isActive", "bookingType", "createdAt", "updatedAt"
+      ) VALUES (
+        gen_random_uuid(), ${hostId}, ${createListingDto.title}, ${createListingDto.description},
+        ${createListingDto.categoryId}, ARRAY[]::text[], ${createListingDto.pricePerDay},
+        ST_SetSRID(ST_GeomFromText(${locationWKT}), 4326), ${createListingDto.address},
+        ${createListingDto.rules || null}, ${createListingDto.availability ? JSON.stringify(createListingDto.availability) : null}::jsonb,
+        true, 'DAILY', NOW(), NOW()
+      )
+      RETURNING *
+    ` as any;
+
+    // Get the created listing
+    const listing = await this.prisma.listing.findFirst({
+      where: { hostId, title: createListingDto.title },
+      orderBy: { createdAt: 'desc' },
     });
 
-    const savedListing = await this.listingsRepository.save(listing);
+    if (!listing) {
+      throw new Error('Failed to create listing');
+    }
 
     // Process image files and save to listing-specific folder
     const imageUrls: string[] = [];
     if (imageFiles && imageFiles.length > 0) {
       const baseDir =
         this.configService.get<string>('upload.dir') || './uploads';
-      const listingDir = path.join(baseDir, 'listings', savedListing.id);
+      const listingDir = path.join(baseDir, 'listings', listing.id);
 
       // Ensure listing directory exists
       if (!fs.existsSync(listingDir)) {
@@ -110,18 +117,25 @@ export class ListingsService {
         }
 
         // Store relative URL for public access
-        imageUrls.push(`/uploads/listings/${savedListing.id}/${fileName}`);
+        imageUrls.push(`/uploads/listings/${listing.id}/${fileName}`);
       }
 
       // Update listing with image URLs
-      savedListing.images = imageUrls;
-      await this.listingsRepository.save(savedListing);
+      await this.prisma.listing.update({
+        where: { id: listing.id },
+        data: { images: imageUrls },
+      });
     }
 
     // Require at least one image
     if (imageUrls.length === 0) {
       throw new BadRequestException('At least one image is required');
     }
+
+    // Get updated listing with images
+    const finalListing = await this.prisma.listing.findUnique({
+      where: { id: listing.id },
+    });
 
     // Call ML service for suggestions
     const mlSuggestions = {
@@ -139,202 +153,194 @@ export class ListingsService {
       }),
     };
 
-    return { listing: savedListing, mlSuggestions };
+    return { listing: finalListing!, mlSuggestions };
   }
 
-  async findAll(filters: FilterListingsDto = {}): Promise<Listing[]> {
-    const queryBuilder = this.listingsRepository
-      .createQueryBuilder('listing')
-      .leftJoinAndSelect('listing.category', 'category')
-      .leftJoinAndSelect('listing.host', 'host')
-      .where('listing.isActive = :isActive', { isActive: true })
-      .andWhere('listing.deletedAt IS NULL')
-      .select([
-        'listing.id',
-        'listing.title',
-        'listing.description',
-        'listing.pricePerDay',
-        'listing.location',
-        'listing.address',
-        'listing.images',
-        'listing.createdAt',
-        'listing.bookingType',
-        'category.id',
-        'category.name',
-        'category.icon',
-        'category.slug',
-        'host.id',
-        'host.name',
-        'host.ratingAvg',
-      ]);
-
-    // Text search
-    if (filters.q) {
-      queryBuilder.andWhere(
-        '(listing.title ILIKE :q OR listing.description ILIKE :q)',
-        { q: `%${filters.q}%` },
-      );
-    }
-
-    // Filter by category
-    if (filters.category) {
-      queryBuilder.andWhere('listing.categoryId = :categoryId', {
-        categoryId: filters.category,
-      });
-    }
-
-    // Filter by price range
-    if (filters.minPrice) {
-      queryBuilder.andWhere('listing.pricePerDay >= :minPrice', {
-        minPrice: filters.minPrice,
-      });
-    }
-    if (filters.maxPrice) {
-      queryBuilder.andWhere('listing.pricePerDay <= :maxPrice', {
-        maxPrice: filters.maxPrice,
-      });
-    }
-
+  async findAll(filters: FilterListingsDto = {}): Promise<any[]> {
     const hasLatLng =
       typeof filters.lat === 'number' &&
       Number.isFinite(filters.lat) &&
       typeof filters.lng === 'number' &&
       Number.isFinite(filters.lng);
 
-    // Geo search is optional. We only apply geo filters when lat/lng are provided.
-    // NOTE: Some environments may not have full PostGIS functions installed/available.
-    // We guard and fallback below so read-only search never returns 500.
-    if (hasLatLng) {
-      const lat = filters.lat as number;
-      const lng = filters.lng as number;
-      const radiusKm = Math.min(filters.radiusKm || 10, 50);
-      const maxDistanceMeters = radiusKm * 1000;
-
-      // Filter within radius (geography) - supported by PostGIS.
-      queryBuilder.andWhere(
-        `ST_DWithin(
-          listing.location::geography,
-          ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
-          :maxDistanceMeters
-        )`,
-        { lat, lng, maxDistanceMeters },
-      );
-
-      // Only compute distance when we actually need it (sorting).
-      if (filters.sortBy === 'distance') {
-        queryBuilder.addSelect(
-          `ST_Distance(
-            listing.location::geography,
-            ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
-          )`,
-          'distance',
-        );
-        queryBuilder.orderBy('distance', 'ASC');
-      }
-    }
-
-    // Filter by availability
-    // Only CONFIRMED and PAID bookings block availability (PENDING does not)
-    if (filters.availableFrom && filters.availableTo) {
-      queryBuilder
-        .leftJoin('listing.bookings', 'booking')
-        .andWhere(
-          '(booking.id IS NULL OR NOT (booking.status IN (:...blockingStatuses) AND booking.startDate < :availableTo AND booking.endDate > :availableFrom))',
-          {
-            blockingStatuses: ['confirmed', 'paid'],
-            availableFrom: filters.availableFrom,
-            availableTo: filters.availableTo,
-          },
-        );
-    }
-
-    // Pagination with clamp
-    const page = filters.page || 1;
-    const limit = Math.min(filters.limit || 20, 100); // Max 100
-    queryBuilder.skip((page - 1) * limit).take(limit);
-
-    // Default sort
-    if (!filters.sortBy || filters.sortBy !== 'distance') {
-      queryBuilder.orderBy('listing.createdAt', 'DESC');
-    }
-
     try {
-      return await queryBuilder.getMany();
+      // Build conditions
+      const conditions: string[] = ['l."isActive" = true', 'l."deletedAt" IS NULL'];
+      const params: any[] = [];
+      let paramIndex = 1;
+
+      // Text search
+      if (filters.q) {
+        conditions.push(`(l.title ILIKE $${paramIndex} OR l.description ILIKE $${paramIndex})`);
+        params.push(`%${filters.q}%`);
+        paramIndex++;
+      }
+
+      // Filter by category
+      if (filters.category) {
+        conditions.push(`l."categoryId" = $${paramIndex}`);
+        params.push(filters.category);
+        paramIndex++;
+      }
+
+      // Filter by price range
+      if (filters.minPrice) {
+        conditions.push(`l."pricePerDay" >= $${paramIndex}`);
+        params.push(filters.minPrice);
+        paramIndex++;
+      }
+      if (filters.maxPrice) {
+        conditions.push(`l."pricePerDay" <= $${paramIndex}`);
+        params.push(filters.maxPrice);
+        paramIndex++;
+      }
+
+      // Geo search
+      let distanceSelect = '';
+      let orderByClause = 'l."createdAt" DESC';
+
+      if (hasLatLng) {
+        const lat = filters.lat as number;
+        const lng = filters.lng as number;
+        const radiusKm = Math.min(filters.radiusKm || 10, 50);
+        const maxDistanceMeters = radiusKm * 1000;
+
+        conditions.push(`
+          ST_DWithin(
+            l.location::geography,
+            ST_SetSRID(ST_MakePoint($${paramIndex}, $${paramIndex + 1}), 4326)::geography,
+            $${paramIndex + 2}
+          )
+        `);
+        params.push(lng, lat, maxDistanceMeters);
+        paramIndex += 3;
+
+        if (filters.sortBy === 'distance') {
+          distanceSelect = `, ST_Distance(
+            l.location::geography,
+            ST_SetSRID(ST_MakePoint($${paramIndex}, $${paramIndex + 1}), 4326)::geography
+          ) as distance`;
+          params.push(lng, lat);
+          paramIndex += 2;
+          orderByClause = 'distance ASC';
+        }
+      }
+
+      // Pagination
+      const page = filters.page || 1;
+      const limit = Math.min(filters.limit || 20, 100);
+      const offset = (page - 1) * limit;
+
+      // Build query
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+      const query = `
+        SELECT 
+          l.id, l.title, l.description, l."pricePerDay",
+          l.location, l.address, l.images, l."createdAt", l."bookingType",
+          c.id as "category_id", c.name as "category_name", c.icon as "category_icon", c.slug as "category_slug",
+          h.id as "host_id", h.name as "host_name", h."ratingAvg" as "host_ratingAvg"
+          ${distanceSelect}
+        FROM listings l
+        LEFT JOIN categories c ON l."categoryId" = c.id
+        LEFT JOIN users h ON l."hostId" = h.id
+        ${whereClause}
+        ORDER BY ${orderByClause}
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      `;
+
+      params.push(limit, offset);
+
+      const results = await this.prisma.$queryRawUnsafe(query, ...params);
+
+      // Transform results to match expected format
+      return (results as any[]).map(row => ({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        pricePerDay: row.pricePerDay,
+        location: row.location,
+        address: row.address,
+        images: row.images,
+        createdAt: row.createdAt,
+        bookingType: row.bookingType,
+        category: {
+          id: row.category_id,
+          name: row.category_name,
+          icon: row.category_icon,
+          slug: row.category_slug,
+        },
+        host: {
+          id: row.host_id,
+          name: row.host_name,
+          ratingAvg: row.host_ratingAvg,
+        },
+      }));
     } catch (e: any) {
-      // Defensive fallback: never 500 on read-only search.
-      // If PostGIS functions are missing/unavailable, retry without geo constraints/sorting.
+      // Defensive fallback
       const msg = String(e?.message || e);
       this.logger.warn(`Listings search failed, retrying without geo. ${msg}`);
 
       try {
-        const fallback = this.listingsRepository
-          .createQueryBuilder('listing')
-          .leftJoinAndSelect('listing.category', 'category')
-          .leftJoinAndSelect('listing.host', 'host')
-          .where('listing.isActive = :isActive', { isActive: true })
-          .andWhere('listing.deletedAt IS NULL')
-          .select([
-            'listing.id',
-            'listing.title',
-            'listing.description',
-            'listing.pricePerDay',
-            'listing.location',
-            'listing.address',
-            'listing.images',
-            'listing.createdAt',
-            'listing.bookingType',
-            'category.id',
-            'category.name',
-            'category.icon',
-            'category.slug',
-            'host.id',
-            'host.name',
-            'host.ratingAvg',
-          ]);
+        // Fallback to simple query without geo
+        const where: Prisma.ListingWhereInput = {
+          isActive: true,
+          deletedAt: null,
+        };
 
         if (filters.q) {
-          fallback.andWhere(
-            '(listing.title ILIKE :q OR listing.description ILIKE :q)',
-            {
-              q: `%${filters.q}%`,
-            },
-          );
+          where.OR = [
+            { title: { contains: filters.q, mode: 'insensitive' } },
+            { description: { contains: filters.q, mode: 'insensitive' } },
+          ];
         }
         if (filters.category) {
-          fallback.andWhere('listing.categoryId = :categoryId', {
-            categoryId: filters.category,
-          });
+          where.categoryId = filters.category;
         }
-        if (filters.minPrice) {
-          fallback.andWhere('listing.pricePerDay >= :minPrice', {
-            minPrice: filters.minPrice,
-          });
-        }
-        if (filters.maxPrice) {
-          fallback.andWhere('listing.pricePerDay <= :maxPrice', {
-            maxPrice: filters.maxPrice,
-          });
-        }
-
-        if (filters.availableFrom && filters.availableTo) {
-          fallback
-            .leftJoin('listing.bookings', 'booking')
-            .andWhere(
-              '(booking.id IS NULL OR NOT (booking.status IN (:...blockingStatuses) AND booking.startDate < :availableTo AND booking.endDate > :availableFrom))',
-              {
-                blockingStatuses: ['confirmed', 'paid'],
-                availableFrom: filters.availableFrom,
-                availableTo: filters.availableTo,
-              },
-            );
+        if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
+          where.pricePerDay = {};
+          if (filters.minPrice) {
+            where.pricePerDay.gte = filters.minPrice;
+          }
+          if (filters.maxPrice) {
+            where.pricePerDay.lte = filters.maxPrice;
+          }
         }
 
         const page = filters.page || 1;
         const limit = Math.min(filters.limit || 20, 100);
-        fallback.skip((page - 1) * limit).take(limit);
-        fallback.orderBy('listing.createdAt', 'DESC');
 
-        return await fallback.getMany();
+        return await this.prisma.listing.findMany({
+          where,
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            pricePerDay: true,
+            address: true,
+            images: true,
+            createdAt: true,
+            bookingType: true,
+            category: {
+              select: {
+                id: true,
+                name: true,
+                icon: true,
+                slug: true,
+              },
+            },
+            host: {
+              select: {
+                id: true,
+                name: true,
+                ratingAvg: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: (page - 1) * limit,
+          take: limit,
+        });
       } catch (e2: any) {
         this.logger.error(
           `Listings fallback search failed; returning empty list. ${String(e2?.message || e2)}`,
@@ -344,14 +350,31 @@ export class ListingsService {
     }
   }
 
-  async findOne(id: string): Promise<Listing> {
-    const listing = await this.listingsRepository.findOne({
-      where: { id, isActive: true, deletedAt: null },
-      relations: ['category', 'host', 'bookings', 'reviews'],
+  async findOne(id: string): Promise<Listing & { category?: any; host?: any; bookings?: any[]; reviews?: any[] }> {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id },
+      include: {
+        category: true,
+        host: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatarUrl: true,
+            isHost: true,
+            ratingAvg: true,
+            ratingCount: true,
+          },
+        },
+        bookings: true,
+        reviews: true,
+      },
     });
-    if (!listing) {
+
+    if (!listing || !listing.isActive || listing.deletedAt) {
       throw new NotFoundException(`Listing with ID ${id} not found`);
     }
+
     return listing;
   }
 
@@ -368,21 +391,26 @@ export class ListingsService {
       throw new ForbiddenException('You can only update your own listings');
     }
 
+    const updateData: any = { ...updateListingDto };
+
     // Update location if lat/lng provided
     if (updateListingDto.latitude && updateListingDto.longitude) {
-      const location: Point = {
-        type: 'Point',
-        coordinates: [updateListingDto.longitude, updateListingDto.latitude],
-      };
-      listing.location = location;
+      const locationWKT = `POINT(${updateListingDto.longitude} ${updateListingDto.latitude})`;
+      await this.prisma.$executeRaw`
+        UPDATE listings
+        SET location = ST_SetSRID(ST_GeomFromText(${locationWKT}), 4326)
+        WHERE id = ${id}
+      `;
+      delete updateData.latitude;
+      delete updateData.longitude;
     }
 
     // Handle image removal
+    let currentImages = listing.images || [];
     if (imagesToRemove && imagesToRemove.length > 0) {
       const baseDir =
         this.configService.get<string>('upload.dir') || './uploads';
-      const currentImages = listing.images || [];
-      const updatedImages = currentImages.filter((url) => {
+      currentImages = currentImages.filter((url) => {
         const shouldRemove = imagesToRemove.includes(url);
         if (shouldRemove) {
           // Delete file from filesystem
@@ -397,7 +425,6 @@ export class ListingsService {
         }
         return !shouldRemove;
       });
-      listing.images = updatedImages;
     }
 
     // Handle new image uploads
@@ -432,16 +459,20 @@ export class ListingsService {
       }
 
       // Append new images to existing ones
-      listing.images = [...(listing.images || []), ...newImageUrls];
+      currentImages = [...currentImages, ...newImageUrls];
     }
 
     // Ensure at least one image remains
-    if (listing.images && listing.images.length === 0) {
+    if (currentImages.length === 0) {
       throw new BadRequestException('Listing must have at least one image');
     }
 
-    Object.assign(listing, updateListingDto);
-    return this.listingsRepository.save(listing);
+    updateData.images = currentImages;
+
+    return this.prisma.listing.update({
+      where: { id },
+      data: updateData,
+    });
   }
 
   async remove(
@@ -456,12 +487,88 @@ export class ListingsService {
 
     if (isAdmin) {
       // Hard delete for admin
-      await this.listingsRepository.remove(listing);
+      await this.prisma.listing.delete({ where: { id } });
     } else {
       // Soft delete for hosts
-      listing.isActive = false;
-      listing.deletedAt = new Date();
-      await this.listingsRepository.save(listing);
+      await this.prisma.listing.update({
+        where: { id },
+        data: {
+          isActive: false,
+          deletedAt: new Date(),
+        },
+      });
     }
+  }
+
+  async createSlotConfiguration(
+    listingId: string,
+    dto: any,
+    userId: string,
+  ): Promise<any> {
+    const listing = await this.findOne(listingId);
+
+    if (listing.hostId !== userId) {
+      throw new ForbiddenException('You can only configure your own listings');
+    }
+
+    if (listing.bookingType !== 'SLOT') {
+      throw new BadRequestException('Listing must be SLOT type to configure slots');
+    }
+
+    const existing = await this.prisma.slotConfiguration.findUnique({
+      where: { listingId },
+    });
+
+    if (existing) {
+      throw new BadRequestException('Slot configuration already exists for this listing');
+    }
+
+    return this.prisma.slotConfiguration.create({
+      data: {
+        listingId,
+        slotDurationMinutes: dto.slotDurationMinutes,
+        operatingHours: dto.operatingHours,
+        minBookingSlots: dto.minBookingSlots,
+        maxBookingSlots: dto.maxBookingSlots,
+        bufferMinutes: dto.bufferMinutes,
+        pricePerSlot: dto.pricePerSlot,
+      },
+    });
+  }
+
+  async getAvailableSlots(listingId: string, date: Date): Promise<any[]> {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      include: { slotConfiguration: true },
+    });
+
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    if (listing.bookingType !== 'SLOT') {
+      throw new BadRequestException('This endpoint is only for slot-based listings');
+    }
+
+    if (!listing.slotConfiguration) {
+      throw new NotFoundException('Slot configuration not found for this listing');
+    }
+
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        listingId,
+        startDate: date,
+        status: { notIn: ['cancelled'] },
+      },
+    });
+
+    const { AvailabilityService } = await import('../../common/utils/availability.service');
+    const availabilityService = new AvailabilityService(this.prisma);
+
+    return availabilityService.generateAvailableSlots(
+      listing.slotConfiguration,
+      date,
+      bookings,
+    );
   }
 }

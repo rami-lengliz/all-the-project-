@@ -3,23 +3,19 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from '../../entities/user.entity';
+import { PrismaService } from '../../database/prisma.service';
+import { User } from '@prisma/client';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectRepository(User)
-    private usersRepository: Repository<User>,
-  ) {}
+  constructor(private prisma: PrismaService) { }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     // Check if email or phone already exists
     if (createUserDto.email) {
-      const existingEmail = await this.usersRepository.findOne({
+      const existingEmail = await this.prisma.user.findUnique({
         where: { email: createUserDto.email },
       });
       if (existingEmail) {
@@ -28,7 +24,7 @@ export class UsersService {
     }
 
     if (createUserDto.phone) {
-      const existingPhone = await this.usersRepository.findOne({
+      const existingPhone = await this.prisma.user.findUnique({
         where: { phone: createUserDto.phone },
       });
       if (existingPhone) {
@@ -36,34 +32,37 @@ export class UsersService {
       }
     }
 
-    const user = this.usersRepository.create({
-      ...createUserDto,
-      roles: createUserDto.roles || ['user'],
-      // Auto-verify email/phone in development for easier testing
-      verifiedEmail: createUserDto.email ? true : false,
-      verifiedPhone: createUserDto.phone ? true : false,
+    return this.prisma.user.create({
+      data: {
+        ...createUserDto,
+        roles: createUserDto.roles || ['user'],
+        // Auto-verify email/phone in development for easier testing
+        verifiedEmail: createUserDto.email ? true : false,
+        verifiedPhone: createUserDto.phone ? true : false,
+      },
     });
-    return this.usersRepository.save(user);
   }
 
-  async findAll(): Promise<User[]> {
-    return this.usersRepository.find({
-      select: [
-        'id',
-        'name',
-        'email',
-        'phone',
-        'avatarUrl',
-        'isHost',
-        'ratingAvg',
-        'ratingCount',
-        'createdAt',
-      ],
+  async findAll(): Promise<Partial<User>[]> {
+    return this.prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        avatarUrl: true,
+        isHost: true,
+        ratingAvg: true,
+        ratingCount: true,
+        createdAt: true,
+        updatedAt: false,
+        passwordHash: false,
+      },
     });
   }
 
   async findOne(id: string): Promise<User> {
-    const user = await this.usersRepository.findOne({ where: { id } });
+    const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
@@ -71,13 +70,20 @@ export class UsersService {
   }
 
   async findByEmailOrPhone(identifier: string): Promise<User | null> {
-    return this.usersRepository.findOne({
-      where: [{ email: identifier }, { phone: identifier }],
+    // Try email first, then phone
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { phone: identifier },
+        ],
+      },
     });
+    return user;
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.usersRepository.findOne({ where: { email } });
+    return this.prisma.user.findUnique({ where: { email } });
   }
 
   // Accept Partial<User> so internal flows (auth verification, admin tooling, seeding)
@@ -86,20 +92,22 @@ export class UsersService {
     id: string,
     updateUserDto: Partial<User> | Partial<UpdateUserDto>,
   ): Promise<User> {
-    const user = await this.findOne(id);
-    Object.assign(user, updateUserDto);
-    return this.usersRepository.save(user);
+    await this.findOne(id); // Ensure user exists
+    return this.prisma.user.update({
+      where: { id },
+      data: updateUserDto,
+    });
   }
 
   async verifyUser(userId: string): Promise<User> {
     const user = await this.findOne(userId);
-    if (user.email) {
-      user.verifiedEmail = true;
-    }
-    if (user.phone) {
-      user.verifiedPhone = true;
-    }
-    return this.usersRepository.save(user);
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        verifiedEmail: user.email ? true : undefined,
+        verifiedPhone: user.phone ? true : undefined,
+      },
+    });
   }
 
   async becomeHost(userId: string, acceptTerms: boolean): Promise<User> {
@@ -118,25 +126,29 @@ export class UsersService {
       );
     }
 
-    // Set isHost to true
-    user.isHost = true;
-
     // Ensure "host" role is added to roles array (do not remove existing roles)
     const roles = user.roles || [];
     const normalizedRoles = roles.map((r) => String(r).toLowerCase());
+    const updatedRoles = [...roles];
+
     if (
       !normalizedRoles.includes('host') &&
       !normalizedRoles.includes('role_host')
     ) {
-      roles.push('host');
-      user.roles = roles;
+      updatedRoles.push('host');
     }
 
-    return this.usersRepository.save(user);
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        isHost: true,
+        roles: updatedRoles,
+      },
+    });
   }
 
   async remove(id: string): Promise<void> {
-    const user = await this.findOne(id);
-    await this.usersRepository.remove(user);
+    await this.findOne(id); // Ensure user exists
+    await this.prisma.user.delete({ where: { id } });
   }
 }

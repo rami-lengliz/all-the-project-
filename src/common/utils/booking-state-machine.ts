@@ -1,4 +1,4 @@
-import { BookingStatus } from '../../entities/booking.entity';
+import { BookingStatus } from '@prisma/client';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 
 /**
@@ -29,12 +29,12 @@ export class BookingStateMachine {
     BookingStatus,
     BookingStatus[]
   > = {
-    [BookingStatus.PENDING]: [BookingStatus.CONFIRMED, BookingStatus.CANCELLED],
-    [BookingStatus.CONFIRMED]: [BookingStatus.PAID, BookingStatus.CANCELLED],
-    [BookingStatus.PAID]: [BookingStatus.COMPLETED, BookingStatus.CANCELLED],
-    [BookingStatus.COMPLETED]: [], // Terminal state
-    [BookingStatus.CANCELLED]: [], // Terminal state
-  };
+      ['pending']: ['confirmed', 'cancelled'],
+      ['confirmed']: ['paid', 'cancelled'],
+      ['paid']: ['completed', 'cancelled'],
+      ['completed']: [], // Terminal state
+      ['cancelled']: [], // Terminal state
+    };
 
   /**
    * Check if a state transition is valid
@@ -69,7 +69,7 @@ export class BookingStateMachine {
     if (!this.isValidTransition(from, to)) {
       throw new BadRequestException(
         `Cannot ${actionName}: Invalid state transition from ${from} to ${to}. ` +
-          `Valid transitions from ${from} are: ${this.VALID_TRANSITIONS[from]?.join(', ') || 'none'}`,
+        `Valid transitions from ${from} are: ${this.VALID_TRANSITIONS[from]?.join(', ') || 'none'}`,
       );
     }
   }
@@ -81,9 +81,9 @@ export class BookingStateMachine {
    */
   static canCancel(status: BookingStatus): boolean {
     return [
-      BookingStatus.PENDING,
-      BookingStatus.CONFIRMED,
-      BookingStatus.PAID,
+      'pending',
+      'confirmed',
+      'paid',
     ].includes(status);
   }
 
@@ -93,7 +93,7 @@ export class BookingStateMachine {
    * @returns true if booking can be confirmed
    */
   static canConfirm(status: BookingStatus): boolean {
-    return status === BookingStatus.PENDING;
+    return status === 'pending';
   }
 
   /**
@@ -103,7 +103,7 @@ export class BookingStateMachine {
    * @returns true if booking can be paid
    */
   static canPay(status: BookingStatus, paid: boolean): boolean {
-    return status === BookingStatus.CONFIRMED && !paid;
+    return status === 'confirmed' && !paid;
   }
 
   /**
@@ -112,7 +112,7 @@ export class BookingStateMachine {
    * @returns true if booking can be completed
    */
   static canComplete(status: BookingStatus): boolean {
-    return status === BookingStatus.PAID;
+    return status === 'paid';
   }
 
   /**
@@ -130,6 +130,6 @@ export class BookingStateMachine {
    * @returns true if state is terminal
    */
   static isTerminal(status: BookingStatus): boolean {
-    return [BookingStatus.COMPLETED, BookingStatus.CANCELLED].includes(status);
+    return ['completed', 'cancelled'].includes(status);
   }
 }

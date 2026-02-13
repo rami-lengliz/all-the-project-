@@ -16,6 +16,8 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { MlModule } from './modules/ml/ml.module';
+import { ChatModule } from './chat/chat.module';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -43,6 +45,8 @@ import { MlModule } from './modules/ml/ml.module';
     ReviewsModule,
     AdminModule,
     MlModule,
+    ChatModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [
@@ -53,4 +57,4 @@ import { MlModule } from './modules/ml/ml.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

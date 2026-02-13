@@ -19,7 +19,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @Controller('api/users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @Get('me')
   @ApiOperation({ summary: 'Get current user profile' })

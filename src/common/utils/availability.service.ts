@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { Booking, BookingStatus } from '../../entities/booking.entity';
+import { PrismaService } from '../../database/prisma.service';
+import { Booking, BookingStatus, Prisma } from '@prisma/client';
 
 /**
  * Centralized Availability Service
@@ -16,11 +15,7 @@ import { Booking, BookingStatus } from '../../entities/booking.entity';
  */
 @Injectable()
 export class AvailabilityService {
-  constructor(
-    @InjectRepository(Booking)
-    private bookingRepository: Repository<Booking>,
-    private dataSource: DataSource,
-  ) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * Check if a listing is available for the given date range
@@ -57,31 +52,29 @@ export class AvailabilityService {
       throw new Error('Start date must be before end date');
     }
 
-    // Check for overlapping CONFIRMED or PAID bookings
-    // Only these statuses block availability
-    const queryBuilder = this.bookingRepository
-      .createQueryBuilder('booking')
-      .where('booking.listingId = :listingId', { listingId })
-      .andWhere('booking.status IN (:...statuses)', {
-        statuses: [BookingStatus.CONFIRMED, BookingStatus.PAID],
-      })
-      .andWhere(
-        // Overlap condition: NOT (booking ends before request starts OR booking starts after request ends)
-        // Using exclusive end date logic: endDate is exclusive
-        'NOT (booking.endDate <= :startDate OR booking.startDate >= :endDate)',
-        {
-          startDate: normalizedStart,
-          endDate: normalizedEnd,
-        },
-      );
+    // Build where condition
+    const where: Prisma.BookingWhereInput = {
+      listingId,
+      status: {
+        in: ['confirmed', 'paid'],
+      },
+      // Overlap condition: NOT (booking ends before request starts OR booking starts after request ends)
+      NOT: {
+        OR: [
+          { endDate: { lte: normalizedStart } },
+          { startDate: { gte: normalizedEnd } },
+        ],
+      },
+    };
 
     if (excludeBookingId) {
-      queryBuilder.andWhere('booking.id != :excludeBookingId', {
-        excludeBookingId,
-      });
+      where.id = { not: excludeBookingId };
     }
 
-    const conflictingBooking = await queryBuilder.getOne();
+    const conflictingBooking = await this.prisma.booking.findFirst({
+      where,
+    });
+
     return !conflictingBooking;
   }
 
@@ -90,7 +83,7 @@ export class AvailabilityService {
    * Used during booking creation to prevent race conditions
    */
   async isListingAvailableWithLock(
-    manager: any,
+    tx: Prisma.TransactionClient,
     listingId: string,
     startDate: Date,
     endDate: Date,
@@ -103,29 +96,21 @@ export class AvailabilityService {
       throw new Error('Start date must be before end date');
     }
 
-    const queryBuilder = manager
-      .createQueryBuilder(Booking, 'booking')
-      .setLock('pessimistic_write')
-      .where('booking.listingId = :listingId', { listingId })
-      .andWhere('booking.status IN (:...statuses)', {
-        statuses: [BookingStatus.CONFIRMED, BookingStatus.PAID],
-      })
-      .andWhere(
-        'NOT (booking.endDate <= :startDate OR booking.startDate >= :endDate)',
-        {
-          startDate: normalizedStart,
-          endDate: normalizedEnd,
-        },
-      );
+    // Use raw SQL with FOR UPDATE to lock rows
+    const excludeClause = excludeBookingId
+      ? Prisma.sql`AND id != ${excludeBookingId}::uuid`
+      : Prisma.empty;
 
-    if (excludeBookingId) {
-      queryBuilder.andWhere('booking.id != :excludeBookingId', {
-        excludeBookingId,
-      });
-    }
+    const conflictingBookings = await tx.$queryRaw<Booking[]>`
+      SELECT * FROM bookings
+      WHERE "listingId" = ${listingId}::uuid
+        AND status IN ('CONFIRMED', 'PAID')
+        AND NOT ("endDate" <= ${normalizedStart} OR "startDate" >= ${normalizedEnd})
+        ${excludeClause}
+      FOR UPDATE
+    `;
 
-    const conflictingBooking = await queryBuilder.getOne();
-    return !conflictingBooking;
+    return conflictingBookings.length === 0;
   }
 
   /**
@@ -145,20 +130,23 @@ export class AvailabilityService {
     const from = fromDate || new Date();
     const to = toDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
 
-    const bookings = await this.bookingRepository
-      .createQueryBuilder('booking')
-      .where('booking.listingId = :listingId', { listingId })
-      .andWhere('booking.status IN (:...statuses)', {
-        statuses: [BookingStatus.CONFIRMED, BookingStatus.PAID],
-      })
-      .andWhere('booking.endDate > :fromDate', {
-        fromDate: this.normalizeDate(from),
-      })
-      .andWhere('booking.startDate < :toDate', {
-        toDate: this.normalizeDate(to),
-      })
-      .orderBy('booking.startDate', 'ASC')
-      .getMany();
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        listingId,
+        status: {
+          in: ['confirmed', 'paid'],
+        },
+        endDate: {
+          gt: this.normalizeDate(from),
+        },
+        startDate: {
+          lt: this.normalizeDate(to),
+        },
+      },
+      orderBy: {
+        startDate: 'asc',
+      },
+    });
 
     return bookings.map((booking) => ({
       startDate: new Date(booking.startDate),
@@ -194,5 +182,96 @@ export class AvailabilityService {
     return !(
       range1.endDate <= range2.startDate || range1.startDate >= range2.endDate
     );
+  }
+
+  /**
+   * Check if a time slot is available for booking
+   */
+  async checkSlotAvailability(
+    listingId: string,
+    date: Date,
+    startTime: string,
+    endTime: string,
+    excludeBookingId?: string,
+  ): Promise<boolean> {
+    const normalizedDate = this.normalizeDate(date);
+
+    const conflicts = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM bookings
+      WHERE listing_id = ${listingId}::uuid
+        AND start_date = ${normalizedDate}::date
+        AND start_time IS NOT NULL
+        AND end_time IS NOT NULL
+        AND status NOT IN ('cancelled')
+        AND (start_time, end_time) OVERLAPS (${startTime}::time, ${endTime}::time)
+        ${excludeBookingId ? Prisma.sql`AND id != ${excludeBookingId}::uuid` : Prisma.empty}
+      FOR UPDATE
+    `;
+
+    return conflicts.length === 0;
+  }
+
+  /**
+   * Generate available time slots for a listing on a specific date
+   */
+  generateAvailableSlots(
+    slotConfig: any,
+    date: Date,
+    existingBookings: Booking[],
+  ): Array<{ startTime: string; endTime: string; price: number; available: boolean }> {
+    const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const operatingHours = slotConfig.operatingHours[dayOfWeek];
+
+    if (!operatingHours) {
+      return [];
+    }
+
+    const slots: Array<{ startTime: string; endTime: string; price: number; available: boolean }> = [];
+    const slotDuration = slotConfig.slotDurationMinutes;
+    const bufferTime = slotConfig.bufferMinutes;
+
+    const [startHour, startMinute] = operatingHours.start.split(':').map(Number);
+    const [endHour, endMinute] = operatingHours.end.split(':').map(Number);
+
+    let currentMinutes = startHour * 60 + startMinute;
+    const endMinutes = endHour * 60 + endMinute;
+
+    while (currentMinutes + slotDuration <= endMinutes) {
+      const slotStartTime = this.minutesToTimeString(currentMinutes);
+      const slotEndTime = this.minutesToTimeString(currentMinutes + slotDuration);
+
+      const effectiveEndMinutes = currentMinutes + slotDuration + bufferTime;
+
+      const isAvailable = !existingBookings.some((booking) => {
+        if (!booking.startTime || !booking.endTime) return false;
+
+        const bookingStart = this.timeStringToMinutes(booking.startTime.toString());
+        const bookingEnd = this.timeStringToMinutes(booking.endTime.toString());
+
+        return (currentMinutes < bookingEnd && effectiveEndMinutes > bookingStart);
+      });
+
+      slots.push({
+        startTime: slotStartTime,
+        endTime: slotEndTime,
+        price: Number(slotConfig.pricePerSlot),
+        available: isAvailable,
+      });
+
+      currentMinutes += slotDuration;
+    }
+
+    return slots;
+  }
+
+  private minutesToTimeString(minutes: number): string {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  }
+
+  private timeStringToMinutes(timeStr: string): number {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
   }
 }

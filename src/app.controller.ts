@@ -2,20 +2,20 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { AppService } from './app.service';
 import { Public } from './common/decorators/public.decorator';
-import { DataSource } from 'typeorm';
+import { PrismaService } from './database/prisma.service';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 
 @ApiTags('health')
-@Controller()
+@Controller('api')
 export class AppController {
   constructor(
     private readonly appService: AppService,
-    private readonly dataSource: DataSource,
+    private readonly prisma: PrismaService,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   @Get()
   @Public()
@@ -27,8 +27,15 @@ export class AppController {
   @Public()
   @ApiOperation({ summary: 'Health check endpoint' })
   async getHealth() {
-    const dbConnected = this.dataSource.isInitialized;
+    let dbConnected = false;
     let mlServiceReachable = false;
+
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+      dbConnected = true;
+    } catch (error) {
+      dbConnected = false;
+    }
 
     try {
       const mlServiceUrl = this.configService.get<string>('ml.serviceUrl');

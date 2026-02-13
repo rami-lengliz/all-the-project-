@@ -1,41 +1,27 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { User } from '../../entities/user.entity';
-import { Category } from '../../entities/category.entity';
-import { Listing } from '../../entities/listing.entity';
-import { Booking, BookingStatus } from '../../entities/booking.entity';
-import { Review } from '../../entities/review.entity';
+import { PrismaService } from '../prisma.service';
 import * as bcrypt from 'bcrypt';
-import { Point } from 'geojson';
 
 @Injectable()
 export class SeedService {
-  constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    @InjectRepository(Category)
-    private categoryRepository: Repository<Category>,
-    @InjectRepository(Listing)
-    private listingRepository: Repository<Listing>,
-    @InjectRepository(Booking)
-    private bookingRepository: Repository<Booking>,
-    @InjectRepository(Review)
-    private reviewRepository: Repository<Review>,
-    private dataSource: DataSource,
-  ) {}
+  constructor(private prisma: PrismaService) { }
 
   async seed() {
-    // Enable PostGIS
-    await this.dataSource.query('CREATE EXTENSION IF NOT EXISTS postgis;');
+    console.log('Starting seed proces...');
 
-    // Clear existing data
+    // Clear existing data (in correct order due to foreign key constraints)
     console.log('Clearing existing data...');
-    await this.reviewRepository.delete({});
-    await this.bookingRepository.delete({});
-    await this.listingRepository.delete({});
-    await this.categoryRepository.delete({});
-    await this.userRepository.delete({});
+    await this.prisma.message.deleteMany({});
+    await this.prisma.conversation.deleteMany({});
+    await this.prisma.review.deleteMany({});
+    await this.prisma.paymentIntent.deleteMany({});
+    await this.prisma.booking.deleteMany({});
+    await this.prisma.adminLog.deleteMany({});
+    await this.prisma.slotConfiguration.deleteMany({});
+    await this.prisma.listing.deleteMany({});
+    await this.prisma.category.deleteMany({});
+    await this.prisma.user.deleteMany({});
+
 
     // Create categories
     console.log('Creating categories...');
@@ -58,38 +44,45 @@ export class SeedService {
         icon: '⚽',
         allowed_for_private: true,
       },
+      {
+        name: 'Sports Facilities',
+        slug: 'sports_facilities',
+        icon: '🏟️',
+        allowed_for_private: true,
+      },
       { name: 'Tools', slug: 'tools', icon: '🔧', allowed_for_private: true },
       { name: 'Other', slug: 'other', icon: '📦', allowed_for_private: true },
     ];
 
-    const savedCategories = await this.categoryRepository.save(
-      categories.map((cat) => this.categoryRepository.create(cat)),
+
+    const savedCategories = await Promise.all(
+      categories.map((cat) => this.prisma.category.create({ data: cat })),
     );
     console.log(`Created ${savedCategories.length} categories`);
 
     // Create users
     console.log('Creating users...');
     const hashedPassword = await bcrypt.hash('password123', 10);
-    const users = [];
+    const savedUsers = [];
 
     for (let i = 1; i <= 10; i++) {
       const isHost = i <= 5;
-      const userData: any = {
-        name: `User ${i}`,
-        email: `user${i}@example.com`,
-        phone: `+216${String(90000000 + i).padStart(8, '0')}`,
-        passwordHash: hashedPassword,
-        isHost,
-        verifiedEmail: true,
-        verifiedPhone: i % 2 === 0,
-        ratingAvg: isHost ? Math.random() * 2 + 3 : 0,
-        ratingCount: isHost ? Math.floor(Math.random() * 10) : 0,
-        roles: i === 1 ? ['user', 'admin'] : ['user'],
-      };
-      users.push(this.userRepository.create(userData));
+      const user = await this.prisma.user.create({
+        data: {
+          name: `User ${i}`,
+          email: `user${i}@example.com`,
+          phone: `+216${String(90000000 + i).padStart(8, '0')}`,
+          passwordHash: hashedPassword,
+          isHost,
+          verifiedEmail: true,
+          verifiedPhone: i % 2 === 0,
+          ratingAvg: isHost ? Math.random() * 2 + 3 : 0,
+          ratingCount: isHost ? Math.floor(Math.random() * 10) : 0,
+          roles: i === 1 ? ['user', 'admin'] : ['user'],
+        },
+      });
+      savedUsers.push(user);
     }
-
-    const savedUsers = await this.userRepository.save(users);
     console.log(`Created ${savedUsers.length} users`);
 
     // Kelibia coordinates
@@ -99,44 +92,127 @@ export class SeedService {
     // Create listings
     console.log('Creating listings...');
     const hosts = savedUsers.filter((u) => u.isHost);
+    const savedListings = [];
 
     // Generate 20 listings
-    const allListings = [];
     for (let i = 0; i < 20; i++) {
       const category = savedCategories[i % savedCategories.length];
       const host = hosts[i % hosts.length];
       const offset = (i * 0.015) % 0.1;
 
-      const location: Point = {
-        type: 'Point',
-        coordinates: [KELIBIA_LNG + offset, KELIBIA_LAT + offset],
-      };
+      const lat = KELIBIA_LAT + offset;
+      const lng = KELIBIA_LNG + offset;
+      const locationWKT = `POINT(${lng} ${lat})`;
 
-      const listing = this.listingRepository.create({
-        title: `Listing ${i + 1}`,
-        description: `Description for listing ${i + 1}`,
-        pricePerDay: 20 + i * 5,
-        location,
-        address: `${i + 1} Street, Kelibia`,
-        categoryId: category.id,
-        hostId: host.id,
-        images: [`/uploads/placeholder-${i + 1}.jpg`],
-        isActive: true,
-      });
+      // Use raw SQL to insert with PostGIS geometry
+      const listing = await this.prisma.$queryRaw`
+        INSERT INTO listings (
+          id, title, description, "pricePerDay", location, address,
+          "categoryId", "hostId", images, "isActive", "createdAt", "updatedAt"
+        )
+        VALUES (
+          gen_random_uuid(),
+          ${`Listing ${i + 1}`},
+          ${`Description for listing ${i + 1}`},
+          ${20 + i * 5},
+          ST_SetSRID(ST_GeomFromText(${locationWKT}), 4326),
+          ${`${i + 1} Street, Kelibia`},
+          ${category.id}::uuid,
+          ${host.id}::uuid,
+          ARRAY['/uploads/placeholder-${i + 1}.jpg']::TEXT[],
+          true,
+          NOW(),
+          NOW()
+        )
+        RETURNING *
+      `;
 
-      allListings.push(listing);
+      savedListings.push(listing);
+    }
+    console.log(`Created ${savedListings.length} listings`);
+
+    // Create slot-based sports facility listings
+    console.log('Creating slot-based sports facility listings...');
+    const sportsFacilityCategory = savedCategories.find(c => c.slug === 'sports_facilities');
+
+    if (sportsFacilityCategory) {
+      const sportsFacilities = [
+        { name: 'Tennis Court', price: 25 },
+        { name: 'Football Field', price: 50 },
+        { name: 'Basketball Court', price: 30 },
+      ];
+
+      for (let i = 0; i < sportsFacilities.length; i++) {
+        const facility = sportsFacilities[i];
+        const host = hosts[i % hosts.length];
+        const offset = (i * 0.02) % 0.1;
+        const lat = KELIBIA_LAT + offset;
+        const lng = KELIBIA_LNG + offset;
+        const locationWKT = `POINT(${lng} ${lat})`;
+
+        // Create listing with SLOT booking type
+        const slotListing = await this.prisma.$queryRaw`
+          INSERT INTO listings (
+            id, title, description, "pricePerDay", location, address,
+            "categoryId", "hostId", images, "isActive", "bookingType", "createdAt", "updatedAt"
+          )
+          VALUES (
+            gen_random_uuid(),
+            ${facility.name},
+            ${`Professional ${facility.name} available for hourly booking`},
+            ${facility.price},
+            ST_SetSRID(ST_GeomFromText(${locationWKT}), 4326),
+            ${`Sports Complex, Kelibia`},
+            ${sportsFacilityCategory.id}::uuid,
+            ${host.id}::uuid,
+            ARRAY['/uploads/sports-facility-${i + 1}.jpg']::TEXT[],
+            true,
+            'SLOT',
+            NOW(),
+            NOW()
+          )
+          RETURNING *
+        `;
+
+        const listingId = slotListing[0].id;
+
+        // Create slot configuration
+        await this.prisma.slotConfiguration.create({
+          data: {
+            listingId,
+            slotDurationMinutes: 60,
+            operatingHours: {
+              monday: { start: '08:00', end: '22:00' },
+              tuesday: { start: '08:00', end: '22:00' },
+              wednesday: { start: '08:00', end: '22:00' },
+              thursday: { start: '08:00', end: '22:00' },
+              friday: { start: '08:00', end: '22:00' },
+              saturday: { start: '09:00', end: '23:00' },
+              sunday: { start: '09:00', end: '21:00' },
+            },
+            minBookingSlots: 1,
+            maxBookingSlots: 4,
+            bufferMinutes: 15,
+            pricePerSlot: facility.price,
+          },
+        });
+
+        savedListings.push(slotListing[0]);
+      }
+      console.log(`Created ${sportsFacilities.length} slot-based sports facilities`);
     }
 
-    const savedListings = await this.listingRepository.save(allListings);
-    console.log(`Created ${savedListings.length} listings`);
+    // Fetch created listings
+    const allListings = await this.prisma.listing.findMany();
+
 
     // Create bookings
     console.log('Creating bookings...');
     const renters = savedUsers.filter((u) => !u.isHost);
-    const bookings = [];
+    let bookingCount = 0;
 
     for (let i = 0; i < 10; i++) {
-      const listing = savedListings[i % savedListings.length];
+      const listing = allListings[i % allListings.length];
       const renter = renters[i % renters.length];
 
       if (listing.hostId === renter.id) continue;
@@ -149,47 +225,50 @@ export class SeedService {
       const days = Math.ceil(
         (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
       );
-      const totalPrice = listing.pricePerDay * days;
+      const pricePerDay = typeof listing.pricePerDay === 'number'
+        ? listing.pricePerDay
+        : Number(listing.pricePerDay);
+      const totalPrice = pricePerDay * days;
       const commission = totalPrice * 0.1;
 
-      const booking = this.bookingRepository.create({
-        startDate,
-        endDate,
-        status:
-          i % 3 === 0
-            ? BookingStatus.CONFIRMED
-            : i % 3 === 1
-              ? BookingStatus.PENDING
-              : BookingStatus.COMPLETED,
-        renterId: renter.id,
-        hostId: listing.hostId,
-        listingId: listing.id,
-        totalPrice,
-        commission,
-        paid: i % 2 === 0,
+      const statusOptions = ['confirmed', 'pending', 'completed'] as const;
+      const status = statusOptions[i % 3];
+
+      await this.prisma.booking.create({
+        data: {
+          startDate,
+          endDate,
+          status: status as any,
+          renterId: renter.id,
+          hostId: listing.hostId,
+          listingId: listing.id,
+          totalPrice,
+          commission,
+          paid: i % 2 === 0,
+        },
       });
 
-      bookings.push(await this.bookingRepository.save(booking));
+      bookingCount++;
     }
-    console.log(`Created ${bookings.length} bookings`);
+    console.log(`Created ${bookingCount} bookings`);
 
     // Create reviews
     console.log('Creating reviews...');
-    const completedBookings = bookings.filter(
-      (b) => b.status === BookingStatus.COMPLETED,
-    );
+    const completedBookings = await this.prisma.booking.findMany({
+      where: { status: 'completed' },
+    });
 
     for (const booking of completedBookings.slice(0, 5)) {
-      const review = this.reviewRepository.create({
-        rating: Math.floor(Math.random() * 3) + 3,
-        comment: `Great experience with ${booking.listing.title}!`,
-        authorId: booking.renterId,
-        targetUserId: booking.hostId,
-        listingId: booking.listingId,
-        bookingId: booking.id,
+      await this.prisma.review.create({
+        data: {
+          rating: Math.floor(Math.random() * 3) + 3,
+          comment: `Great experience with the listing!`,
+          authorId: booking.renterId,
+          targetUserId: booking.hostId,
+          listingId: booking.listingId,
+          bookingId: booking.id,
+        },
       });
-
-      await this.reviewRepository.save(review);
     }
     console.log(`Created ${completedBookings.length} reviews`);
 
