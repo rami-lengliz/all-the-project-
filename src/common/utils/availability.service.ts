@@ -202,7 +202,7 @@ export class AvailabilityService {
         AND start_date = ${normalizedDate}::date
         AND start_time IS NOT NULL
         AND end_time IS NOT NULL
-        AND status NOT IN ('cancelled')
+        AND status IN ('confirmed', 'paid', 'completed')
         AND (start_time, end_time) OVERLAPS (${startTime}::time, ${endTime}::time)
         ${excludeBookingId ? Prisma.sql`AND id != ${excludeBookingId}::uuid` : Prisma.empty}
       FOR UPDATE

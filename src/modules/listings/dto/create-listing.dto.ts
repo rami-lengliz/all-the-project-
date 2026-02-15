@@ -49,6 +49,16 @@ export class CreateListingDto {
   @IsString()
   rules?: string;
 
+  @ApiProperty({
+    required: false,
+    enum: ['DAILY', 'SLOT'],
+    default: 'DAILY',
+    description: 'Booking type: DAILY for day-based rentals, SLOT for hourly/time-slot bookings'
+  })
+  @IsOptional()
+  @IsString()
+  bookingType?: 'DAILY' | 'SLOT';
+
   @ApiProperty({ required: false, type: [String] })
   @IsOptional()
   @IsArray()

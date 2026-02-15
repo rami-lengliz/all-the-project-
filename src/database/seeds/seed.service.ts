@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class SeedService {
@@ -27,31 +28,37 @@ export class SeedService {
     console.log('Creating categories...');
     const categories = [
       {
-        name: 'Lodging',
-        slug: 'lodging',
+        name: 'Accommodation',
+        slug: 'accommodation',
         icon: '🏠',
-        allowed_for_private: true,
+        allowedForPrivate: true,
       },
       {
         name: 'Mobility',
         slug: 'mobility',
         icon: '🚗',
-        allowed_for_private: true,
+        allowedForPrivate: true,
       },
       {
-        name: 'Sports Equipment',
-        slug: 'sports_equipment',
-        icon: '⚽',
-        allowed_for_private: true,
+        name: 'Water & Beach Activities',
+        slug: 'water-beach-activities',
+        icon: '🏖️',
+        allowedForPrivate: true,
       },
       {
         name: 'Sports Facilities',
-        slug: 'sports_facilities',
+        slug: 'sports-facilities',
         icon: '🏟️',
-        allowed_for_private: true,
+        allowedForPrivate: true,
       },
-      { name: 'Tools', slug: 'tools', icon: '🔧', allowed_for_private: true },
-      { name: 'Other', slug: 'other', icon: '📦', allowed_for_private: true },
+      {
+        name: 'Sports Equipment',
+        slug: 'sports-equipment',
+        icon: '⚽',
+        allowedForPrivate: true,
+      },
+      { name: 'Tools', slug: 'tools', icon: '🔧', allowedForPrivate: true },
+      { name: 'Other', slug: 'other', icon: '📦', allowedForPrivate: true },
     ];
 
 
@@ -104,14 +111,17 @@ export class SeedService {
       const lng = KELIBIA_LNG + offset;
       const locationWKT = `POINT(${lng} ${lat})`;
 
-      // Use raw SQL to insert with PostGIS geometry
-      const listing = await this.prisma.$queryRaw`
+      // Generate UUID in Node.js for portability (no pgcrypto extension needed)
+      const newListingId = crypto.randomUUID();
+
+      // Use $executeRaw to insert with PostGIS geometry
+      await this.prisma.$executeRaw`
         INSERT INTO listings (
           id, title, description, "pricePerDay", location, address,
           "categoryId", "hostId", images, "isActive", "createdAt", "updatedAt"
         )
         VALUES (
-          gen_random_uuid(),
+          ${newListingId}::uuid,
           ${`Listing ${i + 1}`},
           ${`Description for listing ${i + 1}`},
           ${20 + i * 5},
@@ -124,8 +134,12 @@ export class SeedService {
           NOW(),
           NOW()
         )
-        RETURNING *
       `;
+
+      // Fetch the created listing
+      const listing = await this.prisma.listing.findUnique({
+        where: { id: newListingId },
+      });
 
       savedListings.push(listing);
     }
@@ -133,7 +147,7 @@ export class SeedService {
 
     // Create slot-based sports facility listings
     console.log('Creating slot-based sports facility listings...');
-    const sportsFacilityCategory = savedCategories.find(c => c.slug === 'sports_facilities');
+    const sportsFacilityCategory = savedCategories.find(c => c.slug === 'sports-facilities');
 
     if (sportsFacilityCategory) {
       const sportsFacilities = [
@@ -150,14 +164,17 @@ export class SeedService {
         const lng = KELIBIA_LNG + offset;
         const locationWKT = `POINT(${lng} ${lat})`;
 
+        // Generate UUID in Node.js for portability (no pgcrypto extension needed)
+        const listingId = crypto.randomUUID();
+
         // Create listing with SLOT booking type
-        const slotListing = await this.prisma.$queryRaw`
+        await this.prisma.$executeRaw`
           INSERT INTO listings (
             id, title, description, "pricePerDay", location, address,
             "categoryId", "hostId", images, "isActive", "bookingType", "createdAt", "updatedAt"
           )
           VALUES (
-            gen_random_uuid(),
+            ${listingId}::uuid,
             ${facility.name},
             ${`Professional ${facility.name} available for hourly booking`},
             ${facility.price},
@@ -171,10 +188,12 @@ export class SeedService {
             NOW(),
             NOW()
           )
-          RETURNING *
         `;
 
-        const listingId = slotListing[0].id;
+        // Fetch the created listing
+        const slotListing = await this.prisma.listing.findUnique({
+          where: { id: listingId },
+        });
 
         // Create slot configuration
         await this.prisma.slotConfiguration.create({

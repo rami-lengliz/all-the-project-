@@ -1,5 +1,5 @@
 -- CreateExtension
-CREATE EXTENSION IF NOT EXISTS "postgis" WITH VERSION "3.3";
+CREATE EXTENSION IF NOT EXISTS "postgis";
 
 -- CreateEnum
 CREATE TYPE "BookingType" AS ENUM ('DAILY');

@@ -15,16 +15,21 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class ListingsService {
   private readonly logger = new Logger(ListingsService.name);
 
-  // Allowed category slugs for travel/vacation rentals
+  // Allowed category slugs for MVP scope (all categories)
   private readonly ALLOWED_CATEGORY_SLUGS = [
     'accommodation',
     'mobility',
     'water-beach-activities',
+    'sports-facilities',
+    'sports-equipment',
+    'tools',
+    'other',
   ];
 
   constructor(
@@ -50,34 +55,36 @@ export class ListingsService {
       );
     }
 
-    if (!this.ALLOWED_CATEGORY_SLUGS.includes(category.slug)) {
-      throw new BadRequestException(
-        'Only Accommodation, Mobility, and Water & Beach Activities categories are allowed',
-      );
-    }
+    // Note: Category restriction removed to support full MVP scope
+    // All categories with allowedForPrivate=true are now permitted
 
     // Create listing first to get ID for image folder
     // Note: PostGIS geometry is stored as WKT (Well-Known Text) in Prisma
     const locationWKT = `POINT(${createListingDto.longitude} ${createListingDto.latitude})`;
+
+    // Determine booking type (default to DAILY if not specified)
+    const bookingType = createListingDto.bookingType || 'DAILY';
+
+    // Generate UUID in Node.js for portability (no pgcrypto extension needed)
+    const listingId = crypto.randomUUID();
 
     const savedListing = await this.prisma.$executeRaw`
       INSERT INTO listings (
         id, "hostId", title, description, "categoryId", images, "pricePerDay",
         location, address, rules, availability, "isActive", "bookingType", "createdAt", "updatedAt"
       ) VALUES (
-        gen_random_uuid(), ${hostId}, ${createListingDto.title}, ${createListingDto.description},
+        ${listingId}::uuid, ${hostId}, ${createListingDto.title}, ${createListingDto.description},
         ${createListingDto.categoryId}, ARRAY[]::text[], ${createListingDto.pricePerDay},
         ST_SetSRID(ST_GeomFromText(${locationWKT}), 4326), ${createListingDto.address},
         ${createListingDto.rules || null}, ${createListingDto.availability ? JSON.stringify(createListingDto.availability) : null}::jsonb,
-        true, 'DAILY', NOW(), NOW()
+        true, ${bookingType}, NOW(), NOW()
       )
       RETURNING *
     ` as any;
 
     // Get the created listing
-    const listing = await this.prisma.listing.findFirst({
-      where: { hostId, title: createListingDto.title },
-      orderBy: { createdAt: 'desc' },
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
     });
 
     if (!listing) {
@@ -554,11 +561,13 @@ export class ListingsService {
       throw new NotFoundException('Slot configuration not found for this listing');
     }
 
+    // Only fetch bookings that actually block availability
+    // PENDING bookings do NOT block (they can be cancelled)
     const bookings = await this.prisma.booking.findMany({
       where: {
         listingId,
         startDate: date,
-        status: { notIn: ['cancelled'] },
+        status: { in: ['confirmed', 'paid', 'completed'] },
       },
     });
 
