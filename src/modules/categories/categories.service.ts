@@ -58,4 +58,49 @@ export class CategoriesService {
     await this.findOne(id); // Ensure category exists
     await this.prisma.category.delete({ where: { id } });
   }
+
+  /**
+   * Get categories with listing counts within a radius from a location
+   * Uses PostGIS ST_DWithin for geospatial queries
+   */
+  async findNearbyWithCounts(
+    lat: number,
+    lng: number,
+    radiusKm: number = 10,
+    includeEmpty: boolean = false,
+  ): Promise<Array<{ id: string; name: string; slug: string; icon: string | null; count: number }>> {
+    const radiusMeters = radiusKm * 1000;
+
+    // Raw SQL query using PostGIS ST_DWithin
+    // Cast location to geography for accurate distance calculation in meters
+    const result = await this.prisma.$queryRaw<
+      Array<{ id: string; name: string; slug: string; icon: string | null; count: bigint }>
+    >`
+      SELECT 
+        c.id,
+        c.name,
+        c.slug,
+        c.icon,
+        COUNT(l.id) as count
+      FROM categories c
+      LEFT JOIN listings l ON l."categoryId" = c.id
+        AND l."isActive" = true
+        AND l."deletedAt" IS NULL
+        AND l.location IS NOT NULL
+        AND ST_DWithin(
+          l.location::geography,
+          ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography,
+          ${radiusMeters}
+        )
+      GROUP BY c.id, c.name, c.slug, c.icon
+      ${includeEmpty ? this.prisma.$queryRawUnsafe('') : this.prisma.$queryRawUnsafe('HAVING COUNT(l.id) > 0')}
+      ORDER BY COUNT(l.id) DESC, c.name ASC
+    `;
+
+    // Convert bigint count to number
+    return result.map((row) => ({
+      ...row,
+      count: Number(row.count),
+    }));
+  }
 }
