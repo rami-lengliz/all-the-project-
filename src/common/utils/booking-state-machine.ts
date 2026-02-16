@@ -29,12 +29,12 @@ export class BookingStateMachine {
     BookingStatus,
     BookingStatus[]
   > = {
-      ['pending']: ['confirmed', 'cancelled'],
-      ['confirmed']: ['paid', 'cancelled'],
-      ['paid']: ['completed', 'cancelled'],
-      ['completed']: [], // Terminal state
-      ['cancelled']: [], // Terminal state
-    };
+    ['pending']: ['confirmed', 'cancelled'],
+    ['confirmed']: ['paid', 'cancelled'],
+    ['paid']: ['completed', 'cancelled'],
+    ['completed']: [], // Terminal state
+    ['cancelled']: [], // Terminal state
+  };
 
   /**
    * Check if a state transition is valid
@@ -69,7 +69,7 @@ export class BookingStateMachine {
     if (!this.isValidTransition(from, to)) {
       throw new BadRequestException(
         `Cannot ${actionName}: Invalid state transition from ${from} to ${to}. ` +
-        `Valid transitions from ${from} are: ${this.VALID_TRANSITIONS[from]?.join(', ') || 'none'}`,
+          `Valid transitions from ${from} are: ${this.VALID_TRANSITIONS[from]?.join(', ') || 'none'}`,
       );
     }
   }
@@ -80,11 +80,7 @@ export class BookingStateMachine {
    * @returns true if booking can be cancelled
    */
   static canCancel(status: BookingStatus): boolean {
-    return [
-      'pending',
-      'confirmed',
-      'paid',
-    ].includes(status);
+    return ['pending', 'confirmed', 'paid'].includes(status);
   }
 
   /**

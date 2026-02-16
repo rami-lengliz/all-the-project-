@@ -2,7 +2,10 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   async onModuleInit() {
     await this.$connect();
   }
@@ -15,7 +18,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
    * Enable raw SQL transaction with FOR UPDATE locking
    * Used for preventing race conditions in bookings
    */
-  async executeInTransaction<T>(callback: (prisma: PrismaClient) => Promise<T>): Promise<T> {
+  async executeInTransaction<T>(
+    callback: (prisma: PrismaClient) => Promise<T>,
+  ): Promise<T> {
     return this.$transaction(callback);
   }
 }

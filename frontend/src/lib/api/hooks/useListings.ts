@@ -51,19 +51,25 @@ export function useListings(filters: ListingsFilters) {
       // A) If distance requested but lat/lng missing, skip distance on first call
       if (initialDistanceDisabled) {
         const res = await call('date');
-        const items: Listing[] = Array.isArray(res) ? (res as Listing[]) : ((res as any).items ?? []);
+        const items: Listing[] = Array.isArray(res)
+          ? (res as Listing[])
+          : ((res as any).items ?? (res as any).data ?? []);
         return { raw: res, items, distanceDisabled: true as const };
       }
 
       try {
         const res = await call(filters.sortBy);
-        const items: Listing[] = Array.isArray(res) ? (res as Listing[]) : ((res as any).items ?? []);
+        const items: Listing[] = Array.isArray(res)
+          ? (res as Listing[])
+          : ((res as any).items ?? (res as any).data ?? []);
         return { raw: res, items, distanceDisabled: false as const };
       } catch (err) {
         // B) If backend fails (500) on distance sorting, retry once without distance
         if (wantsDistance && err instanceof ApiError && err.status === 500) {
           const res = await call('date');
-          const items: Listing[] = Array.isArray(res) ? (res as Listing[]) : ((res as any).items ?? []);
+          const items: Listing[] = Array.isArray(res)
+            ? (res as Listing[])
+            : ((res as any).items ?? (res as any).data ?? []);
           return { raw: res, items, distanceDisabled: true as const };
         }
         throw err;

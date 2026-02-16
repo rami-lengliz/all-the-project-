@@ -51,22 +51,22 @@ export default function HostListingsPage() {
           ) : myListings.length === 0 ? (
             <EmptyState icon="fa-solid fa-layer-group" title="No listings yet" message="Create your first listing to start hosting." cta={{ label: 'Create new listing', href: '/host/create' }} />
           ) : (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Listing</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Status</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Price/Day</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Bookings</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Earnings</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Rating</th>
-                    <th className="text-right px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {myListings.map((l: any) => {
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Listing</th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Status</th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Price/Day</th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Bookings</th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Earnings</th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Rating</th>
+                      <th className="text-right px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {myListings.map((l: any) => {
                       const statusActive = l.isActive !== false;
                       const bookingsCount = hostBookings.filter((b: any) => (b.listing?.id ?? b.listingId) === l.id)
                         .length;
@@ -137,10 +137,10 @@ export default function HostListingsPage() {
                         </tr>
                       );
                     })}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
           )}
 
           <div className="mt-6">
@@ -148,6 +148,7 @@ export default function HostListingsPage() {
               ← Back to dashboard
             </Link>
           </div>
+
         </div>
       </section>
     </HostLayout>

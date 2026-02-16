@@ -15,7 +15,7 @@ export class AppController {
     private readonly prisma: PrismaService,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   @Get()
   @Public()

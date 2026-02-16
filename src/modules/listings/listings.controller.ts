@@ -73,7 +73,7 @@ const multerOptions = {
 @ApiTags('listings')
 @Controller('api/listings')
 export class ListingsController {
-  constructor(private readonly listingsService: ListingsService) { }
+  constructor(private readonly listingsService: ListingsService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, HostGuard)
@@ -136,7 +136,9 @@ export class ListingsController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, HostGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete a listing (soft delete for hosts, hard delete for admins)' })
+  @ApiOperation({
+    summary: 'Delete a listing (soft delete for hosts, hard delete for admins)',
+  })
   async remove(@Param('id') id: string, @Request() req) {
     return this.listingsService.remove(id, req.user.id, req.user.role);
   }

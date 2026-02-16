@@ -26,7 +26,7 @@ export class PaymentsService {
     @Inject(forwardRef(() => BookingsService))
     private bookingsService: BookingsService,
     private cancellationPolicyService: CancellationPolicyService,
-  ) { }
+  ) {}
 
   /**
    * Create a payment intent for a booking
@@ -44,9 +44,10 @@ export class PaymentsService {
       return existing;
     }
 
-    const totalPrice = typeof booking.totalPrice === 'number'
-      ? booking.totalPrice
-      : Number(booking.totalPrice);
+    const totalPrice =
+      typeof booking.totalPrice === 'number'
+        ? booking.totalPrice
+        : Number(booking.totalPrice);
 
     return this.prisma.paymentIntent.create({
       data: {
@@ -187,10 +188,12 @@ export class PaymentsService {
       }
 
       // Policy validation: Refunds only allowed if payment is CAPTURED
-      if (!this.cancellationPolicyService.canRefund(paymentIntent.status as any)) {
+      if (
+        !this.cancellationPolicyService.canRefund(paymentIntent.status as any)
+      ) {
         throw new BadRequestException(
           `Cannot refund payment: Payment status is ${paymentIntent.status}. ` +
-          `Only CAPTURED payments can be refunded.`,
+            `Only CAPTURED payments can be refunded.`,
         );
       }
 

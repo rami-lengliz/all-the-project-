@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsArray,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateListingDto {
@@ -29,14 +30,17 @@ export class CreateListingDto {
   @ApiProperty({ example: 25.0, description: 'Price per day in TND' })
   @IsNumber()
   @Min(0)
+  @Type(() => Number)
   pricePerDay: number;
 
   @ApiProperty({ example: 36.8475 })
   @IsLatitude()
+  @Type(() => Number)
   latitude: number;
 
   @ApiProperty({ example: 11.0939 })
   @IsLongitude()
+  @Type(() => Number)
   longitude: number;
 
   @ApiProperty({ example: '123 Main St, Kelibia, Tunisia' })
@@ -53,7 +57,8 @@ export class CreateListingDto {
     required: false,
     enum: ['DAILY', 'SLOT'],
     default: 'DAILY',
-    description: 'Booking type: DAILY for day-based rentals, SLOT for hourly/time-slot bookings'
+    description:
+      'Booking type: DAILY for day-based rentals, SLOT for hourly/time-slot bookings',
   })
   @IsOptional()
   @IsString()

@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class SeedService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async seed() {
     console.log('Starting seed proces...');
@@ -22,7 +22,6 @@ export class SeedService {
     await this.prisma.listing.deleteMany({});
     await this.prisma.category.deleteMany({});
     await this.prisma.user.deleteMany({});
-
 
     // Create categories
     console.log('Creating categories...');
@@ -60,7 +59,6 @@ export class SeedService {
       { name: 'Tools', slug: 'tools', icon: '🔧', allowedForPrivate: true },
       { name: 'Other', slug: 'other', icon: '📦', allowedForPrivate: true },
     ];
-
 
     const savedCategories = await Promise.all(
       categories.map((cat) => this.prisma.category.create({ data: cat })),
@@ -147,7 +145,9 @@ export class SeedService {
 
     // Create slot-based sports facility listings
     console.log('Creating slot-based sports facility listings...');
-    const sportsFacilityCategory = savedCategories.find(c => c.slug === 'sports-facilities');
+    const sportsFacilityCategory = savedCategories.find(
+      (c) => c.slug === 'sports-facilities',
+    );
 
     if (sportsFacilityCategory) {
       const sportsFacilities = [
@@ -184,7 +184,7 @@ export class SeedService {
             ${host.id}::uuid,
             ARRAY['/uploads/sports-facility-${i + 1}.jpg']::TEXT[],
             true,
-            'SLOT',
+            'SLOT'::"BookingType",
             NOW(),
             NOW()
           )
@@ -218,12 +218,13 @@ export class SeedService {
 
         savedListings.push(slotListing[0]);
       }
-      console.log(`Created ${sportsFacilities.length} slot-based sports facilities`);
+      console.log(
+        `Created ${sportsFacilities.length} slot-based sports facilities`,
+      );
     }
 
     // Fetch created listings
     const allListings = await this.prisma.listing.findMany();
-
 
     // Create bookings
     console.log('Creating bookings...');
@@ -244,9 +245,10 @@ export class SeedService {
       const days = Math.ceil(
         (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
       );
-      const pricePerDay = typeof listing.pricePerDay === 'number'
-        ? listing.pricePerDay
-        : Number(listing.pricePerDay);
+      const pricePerDay =
+        typeof listing.pricePerDay === 'number'
+          ? listing.pricePerDay
+          : Number(listing.pricePerDay);
       const totalPrice = pricePerDay * days;
       const commission = totalPrice * 0.1;
 

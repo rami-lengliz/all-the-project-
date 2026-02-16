@@ -16,7 +16,7 @@ export class ReviewsService {
     private prisma: PrismaService,
     private bookingsService: BookingsService,
     private usersService: UsersService,
-  ) { }
+  ) {}
 
   async create(
     createReviewDto: CreateReviewDto,

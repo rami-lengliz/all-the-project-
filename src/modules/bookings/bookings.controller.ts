@@ -21,7 +21,7 @@ import { HostGuard } from '../../common/guards/host.guard';
 @Controller('api/bookings')
 @UseGuards(JwtAuthGuard)
 export class BookingsController {
-  constructor(private readonly bookingsService: BookingsService) { }
+  constructor(private readonly bookingsService: BookingsService) {}
 
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute

@@ -170,6 +170,7 @@ export default function ProfilePage() {
                       Your account needs to be verified before you can become a host.
                     </p>
                     <button
+                      type="button"
                       onClick={handleVerifyAccount}
                       disabled={verifyUserMutation.isPending}
                       className="flex items-center rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-yellow-600 disabled:cursor-not-allowed disabled:opacity-50"
@@ -182,6 +183,7 @@ export default function ProfilePage() {
 
                 {isVerified && (
                   <button
+                    type="button"
                     onClick={handleBecomeHost}
                     disabled={becomeHostMutation.isPending}
                     className="flex items-center rounded-xl bg-blue-500 px-6 py-3 font-medium text-white shadow-md transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
@@ -414,9 +416,8 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div
-                      className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full ${
-                        isVerified ? 'bg-green-100' : 'bg-gray-200'
-                      }`}
+                      className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full ${isVerified ? 'bg-green-100' : 'bg-gray-200'
+                        }`}
                     >
                       <i
                         className={`fa-solid ${isVerified ? 'fa-check text-green-500' : 'fa-times text-gray-400'}`}
@@ -440,9 +441,8 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div
-                      className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full ${
-                        isVerified ? 'bg-green-100' : 'bg-gray-200'
-                      }`}
+                      className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full ${isVerified ? 'bg-green-100' : 'bg-gray-200'
+                        }`}
                     >
                       <i
                         className={`fa-solid ${isVerified ? 'fa-check text-green-500' : 'fa-times text-gray-400'}`}

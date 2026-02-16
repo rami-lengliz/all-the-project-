@@ -10,7 +10,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     // Check if email or phone already exists
@@ -73,10 +73,7 @@ export class UsersService {
     // Try email first, then phone
     const user = await this.prisma.user.findFirst({
       where: {
-        OR: [
-          { email: identifier },
-          { phone: identifier },
-        ],
+        OR: [{ email: identifier }, { phone: identifier }],
       },
     });
     return user;

@@ -16,7 +16,7 @@ import { Public } from '../../common/decorators/public.decorator';
 @ApiTags('reviews')
 @Controller('api/reviews')
 export class ReviewsController {
-  constructor(private readonly reviewsService: ReviewsService) { }
+  constructor(private readonly reviewsService: ReviewsService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)

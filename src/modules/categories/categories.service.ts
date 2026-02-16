@@ -6,7 +6,7 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     // Generate slug from name if not provided
@@ -68,13 +68,27 @@ export class CategoriesService {
     lng: number,
     radiusKm: number = 10,
     includeEmpty: boolean = false,
-  ): Promise<Array<{ id: string; name: string; slug: string; icon: string | null; count: number }>> {
+  ): Promise<
+    Array<{
+      id: string;
+      name: string;
+      slug: string;
+      icon: string | null;
+      count: number;
+    }>
+  > {
     const radiusMeters = radiusKm * 1000;
 
     // Raw SQL query using PostGIS ST_DWithin
     // Cast location to geography for accurate distance calculation in meters
     const result = await this.prisma.$queryRaw<
-      Array<{ id: string; name: string; slug: string; icon: string | null; count: bigint }>
+      Array<{
+        id: string;
+        name: string;
+        slug: string;
+        icon: string | null;
+        count: bigint;
+      }>
     >`
       SELECT 
         c.id,

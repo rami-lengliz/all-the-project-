@@ -12,7 +12,7 @@ import { JwtRefreshGuard } from '../../common/guards/jwt-refresh.guard';
 @ApiTags('auth')
 @Controller('api/auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute

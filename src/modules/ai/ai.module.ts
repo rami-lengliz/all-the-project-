@@ -7,9 +7,9 @@ import { ListingsModule } from '../listings/listings.module';
 import { CategoriesModule } from '../categories/categories.module';
 
 @Module({
-    imports: [ListingsModule, CategoriesModule],
-    controllers: [AiController],
-    providers: [AiService, ListingAssistantService, AiSearchService],
-    exports: [AiService, ListingAssistantService, AiSearchService],
+  imports: [ListingsModule, CategoriesModule],
+  controllers: [AiController],
+  providers: [AiService, ListingAssistantService, AiSearchService],
+  exports: [AiService, ListingAssistantService, AiSearchService],
 })
-export class AiModule { }
+export class AiModule {}

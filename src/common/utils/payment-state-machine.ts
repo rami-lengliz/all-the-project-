@@ -30,15 +30,12 @@ export class PaymentStateMachine {
     PaymentIntentStatus,
     PaymentIntentStatus[]
   > = {
-      ['created']: ['authorized'],
-      ['authorized']: [
-        'captured',
-        'cancelled',
-      ],
-      ['captured']: ['refunded'],
-      ['refunded']: [], // Terminal state
-      ['cancelled']: [], // Terminal state
-    };
+    ['created']: ['authorized'],
+    ['authorized']: ['captured', 'cancelled'],
+    ['captured']: ['refunded'],
+    ['refunded']: [], // Terminal state
+    ['cancelled']: [], // Terminal state
+  };
 
   /**
    * Check if a state transition is valid
@@ -69,7 +66,7 @@ export class PaymentStateMachine {
     if (!this.isValidTransition(from, to)) {
       throw new BadRequestException(
         `Cannot ${actionName}: Invalid state transition from ${from} to ${to}. ` +
-        `Valid transitions from ${from} are: ${this.VALID_TRANSITIONS[from]?.join(', ') || 'none'}`,
+          `Valid transitions from ${from} are: ${this.VALID_TRANSITIONS[from]?.join(', ') || 'none'}`,
       );
     }
   }
@@ -106,10 +103,7 @@ export class PaymentStateMachine {
    * Check if state is terminal (no further transitions)
    */
   static isTerminal(status: PaymentIntentStatus): boolean {
-    return [
-      'refunded',
-      'cancelled',
-    ].includes(status);
+    return ['refunded', 'cancelled'].includes(status);
   }
 
   /**

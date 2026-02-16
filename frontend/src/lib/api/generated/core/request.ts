@@ -100,7 +100,9 @@ const getUrl = (config: OpenAPIConfig, options: ApiRequestOptions): string => {
                 return encoder(String(options.path[group]));
             }
             return substring;
-        });
+        })
+        // PATCH: Fix double //api/api prefix from generated code
+        .replace(/^\/api\/api\//, '/api/');
 
     const url = `${config.BASE}${path}`;
     if (options.query) {
@@ -161,11 +163,11 @@ export const getHeaders = async (config: OpenAPIConfig, options: ApiRequestOptio
         ...options.headers,
         ...formHeaders,
     })
-    .filter(([_, value]) => isDefined(value))
-    .reduce((headers, [key, value]) => ({
-        ...headers,
-        [key]: String(value),
-    }), {} as Record<string, string>);
+        .filter(([_, value]) => isDefined(value))
+        .reduce((headers, [key, value]) => ({
+            ...headers,
+            [key]: String(value),
+        }), {} as Record<string, string>);
 
     if (isStringWithValue(token)) {
         headers['Authorization'] = `Bearer ${token}`;

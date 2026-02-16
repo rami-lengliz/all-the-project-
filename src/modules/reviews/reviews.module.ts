@@ -10,4 +10,4 @@ import { UsersModule } from '../users/users.module';
   providers: [ReviewsService],
   exports: [ReviewsService],
 })
-export class ReviewsModule { }
+export class ReviewsModule {}

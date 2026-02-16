@@ -3,6 +3,7 @@ import { toast } from '@/components/ui/Toaster';
 
 export const AUTH_STORAGE_KEY = 're_auth_v1';
 
+// Hardcoding for now to fix persistent double //api/api issue
 const baseURL = 'http://localhost:3000/api';
 
 export const api = axios.create({

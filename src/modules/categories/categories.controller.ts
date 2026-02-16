@@ -9,7 +9,12 @@ import {
   UseGuards,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -22,7 +27,7 @@ import { Public } from '../../common/decorators/public.decorator';
 @ApiTags('categories')
 @Controller('api/categories')
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) { }
+  constructor(private readonly categoriesService: CategoriesService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -43,36 +48,38 @@ export class CategoriesController {
   @Get('nearby')
   @Public()
   @ApiOperation({
-    summary: 'Get categories with listing counts within radius (location-aware)',
-    description: 'Returns categories that have active listings within the specified radius. Ordered by count (desc) then name (asc).'
+    summary:
+      'Get categories with listing counts within radius (location-aware)',
+    description:
+      'Returns categories that have active listings within the specified radius. Ordered by count (desc) then name (asc).',
   })
   @ApiQuery({
     name: 'lat',
     required: true,
     type: Number,
     example: 36.8578,
-    description: 'Latitude'
+    description: 'Latitude',
   })
   @ApiQuery({
     name: 'lng',
     required: true,
     type: Number,
     example: 11.092,
-    description: 'Longitude'
+    description: 'Longitude',
   })
   @ApiQuery({
     name: 'radiusKm',
     required: false,
     type: Number,
     example: 10,
-    description: 'Search radius in kilometers (0-50, default: 10)'
+    description: 'Search radius in kilometers (0-50, default: 10)',
   })
   @ApiQuery({
     name: 'includeEmpty',
     required: false,
     type: Boolean,
     example: false,
-    description: 'Include categories with zero listings (default: false)'
+    description: 'Include categories with zero listings (default: false)',
   })
   async findNearby(@Query() dto: NearbyCategoriesDto) {
     return this.categoriesService.findNearbyWithCounts(

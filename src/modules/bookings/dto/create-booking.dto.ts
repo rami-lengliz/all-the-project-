@@ -1,4 +1,10 @@
-import { IsUUID, IsDateString, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsUUID,
+  IsDateString,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateBookingDto {

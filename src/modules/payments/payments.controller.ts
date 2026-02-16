@@ -17,7 +17,7 @@ import { AuthorizePaymentDto } from './dto/authorize-payment.dto';
 @Controller('api/payments')
 @UseGuards(JwtAuthGuard)
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) { }
+  constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post('booking/:bookingId/authorize')
   @ApiOperation({ summary: 'Authorize payment for a booking (renter only)' })

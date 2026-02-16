@@ -65,7 +65,12 @@ export class BookingsService {
 
     // Handle SLOT-based bookings
     if (listing.bookingType === 'SLOT') {
-      return this.createSlotBooking(createBookingDto, renterId, listing, startDate);
+      return this.createSlotBooking(
+        createBookingDto,
+        renterId,
+        listing,
+        startDate,
+      );
     }
 
     // Handle DAILY bookings (existing logic)
@@ -73,7 +78,10 @@ export class BookingsService {
     const days = Math.ceil(
       (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
     );
-    const pricePerDay = typeof listing.pricePerDay === 'number' ? listing.pricePerDay : Number(listing.pricePerDay);
+    const pricePerDay =
+      typeof listing.pricePerDay === 'number'
+        ? listing.pricePerDay
+        : Number(listing.pricePerDay);
     const totalPrice = pricePerDay * days;
     const commission = totalPrice * this.commissionPercentage;
 
@@ -120,10 +128,7 @@ export class BookingsService {
   async findAll(userId: string): Promise<Booking[]> {
     return this.prisma.booking.findMany({
       where: {
-        OR: [
-          { renterId: userId },
-          { hostId: userId },
-        ],
+        OR: [{ renterId: userId }, { hostId: userId }],
       },
       include: {
         listing: {
@@ -255,7 +260,7 @@ export class BookingsService {
       if (!BookingStateMachine.canPay(booking.status as any, booking.paid)) {
         throw new BadRequestException(
           `Cannot pay booking: Current status is ${booking.status}. ` +
-          `Booking must be CONFIRMED to be paid.`,
+            `Booking must be CONFIRMED to be paid.`,
         );
       }
 
@@ -379,7 +384,6 @@ export class BookingsService {
         await this.paymentsService.refund(id);
       }
 
-
       // Update booking status
       return tx.booking.update({
         where: { id },
@@ -410,7 +414,9 @@ export class BookingsService {
       );
     }
 
-    const dayOfWeek = startDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const dayOfWeek = startDate
+      .toLocaleDateString('en-US', { weekday: 'long' })
+      .toLowerCase();
     const operatingHours = slotConfig.operatingHours[dayOfWeek];
 
     if (!operatingHours) {

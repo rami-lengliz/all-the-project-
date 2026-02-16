@@ -13,7 +13,6 @@ import { CategoriesService } from '../categories/categories.service';
 import { MlService } from '../ml/ml.service';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
-import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
@@ -37,130 +36,135 @@ export class ListingsService {
     private categoriesService: CategoriesService,
     private mlService: MlService,
     private configService: ConfigService,
-  ) { }
+  ) {}
 
   async create(
     createListingDto: CreateListingDto,
     hostId: string,
     imageFiles?: Express.Multer.File[],
   ): Promise<{ listing: Listing; mlSuggestions: any }> {
-    // Validate category allows private listings and is in allowed list
-    const category = await this.categoriesService.findOne(
-      createListingDto.categoryId,
-    );
-
-    if (!category.allowedForPrivate) {
-      throw new BadRequestException(
-        'This category does not allow private listings',
+    try {
+      // Validate category allows private listings and is in allowed list
+      const category = await this.categoriesService.findOne(
+        createListingDto.categoryId,
       );
-    }
 
-    // Note: Category restriction removed to support full MVP scope
-    // All categories with allowedForPrivate=true are now permitted
-
-    // Create listing first to get ID for image folder
-    // Note: PostGIS geometry is stored as WKT (Well-Known Text) in Prisma
-    const locationWKT = `POINT(${createListingDto.longitude} ${createListingDto.latitude})`;
-
-    // Determine booking type (default to DAILY if not specified)
-    const bookingType = createListingDto.bookingType || 'DAILY';
-
-    // Generate UUID in Node.js for portability (no pgcrypto extension needed)
-    const listingId = crypto.randomUUID();
-
-    const savedListing = await this.prisma.$executeRaw`
-      INSERT INTO listings (
-        id, "hostId", title, description, "categoryId", images, "pricePerDay",
-        location, address, rules, availability, "isActive", "bookingType", "createdAt", "updatedAt"
-      ) VALUES (
-        ${listingId}::uuid, ${hostId}, ${createListingDto.title}, ${createListingDto.description},
-        ${createListingDto.categoryId}, ARRAY[]::text[], ${createListingDto.pricePerDay},
-        ST_SetSRID(ST_GeomFromText(${locationWKT}), 4326), ${createListingDto.address},
-        ${createListingDto.rules || null}, ${createListingDto.availability ? JSON.stringify(createListingDto.availability) : null}::jsonb,
-        true, ${bookingType}, NOW(), NOW()
-      )
-      RETURNING *
-    ` as any;
-
-    // Get the created listing
-    const listing = await this.prisma.listing.findUnique({
-      where: { id: listingId },
-    });
-
-    if (!listing) {
-      throw new Error('Failed to create listing');
-    }
-
-    // Process image files and save to listing-specific folder
-    const imageUrls: string[] = [];
-    if (imageFiles && imageFiles.length > 0) {
-      const baseDir =
-        this.configService.get<string>('upload.dir') || './uploads';
-      const listingDir = path.join(baseDir, 'listings', listing.id);
-
-      // Ensure listing directory exists
-      if (!fs.existsSync(listingDir)) {
-        fs.mkdirSync(listingDir, { recursive: true });
+      if (!category.allowedForPrivate) {
+        throw new BadRequestException(
+          'This category does not allow private listings',
+        );
       }
 
-      for (const file of imageFiles) {
-        // Generate unique filename
-        const timestamp = Date.now();
-        const randomStr = Array(8)
-          .fill(null)
-          .map(() => Math.round(Math.random() * 16).toString(16))
-          .join('');
-        const ext = path.extname(file.originalname);
-        const fileName = `${timestamp}-${randomStr}${ext}`;
-        const filePath = path.join(listingDir, fileName);
+      // Note: Category restriction removed to support full MVP scope
+      // All categories with allowedForPrivate=true are now permitted
 
-        // Move file from temp to listing folder
-        const tempPath = file.path;
-        if (fs.existsSync(tempPath)) {
-          fs.renameSync(tempPath, filePath);
-        } else {
-          // If file wasn't saved to temp (shouldn't happen), write buffer
-          fs.writeFileSync(filePath, file.buffer);
+      // Create listing first to get ID for image folder
+      // Note: PostGIS geometry is stored as WKT (Well-Known Text) in Prisma
+      const locationWKT = `POINT(${createListingDto.longitude} ${createListingDto.latitude})`;
+
+      // Determine booking type (default to DAILY if not specified)
+      const bookingType = createListingDto.bookingType || 'DAILY';
+
+      // Generate UUID in Node.js for portability (no pgcrypto extension needed)
+      const listingId = crypto.randomUUID();
+
+      const savedListing = (await this.prisma.$executeRaw`
+        INSERT INTO listings (
+          id, "hostId", title, description, "categoryId", images, "pricePerDay",
+          location, address, rules, availability, "isActive", "bookingType", "createdAt", "updatedAt"
+        ) VALUES (
+          ${listingId}::uuid, ${hostId}, ${createListingDto.title}, ${createListingDto.description},
+          ${createListingDto.categoryId}, ARRAY[]::text[], ${createListingDto.pricePerDay},
+          ST_SetSRID(ST_GeomFromText(${locationWKT}), 4326), ${createListingDto.address},
+          ${createListingDto.rules || null}, ${createListingDto.availability ? JSON.stringify(createListingDto.availability) : null}::jsonb,
+          true, ${bookingType}::"BookingType", NOW(), NOW()
+        )
+        RETURNING *
+      `) as any;
+
+      // Get the created listing
+      const listing = await this.prisma.listing.findUnique({
+        where: { id: listingId },
+      });
+
+      if (!listing) {
+        throw new Error('Failed to create listing');
+      }
+
+      // Process image files and save to listing-specific folder
+      const imageUrls: string[] = [];
+      if (imageFiles && imageFiles.length > 0) {
+        const baseDir =
+          this.configService.get<string>('upload.dir') || './uploads';
+        const listingDir = path.join(baseDir, 'listings', listing.id);
+
+        // Ensure listing directory exists
+        if (!fs.existsSync(listingDir)) {
+          fs.mkdirSync(listingDir, { recursive: true });
         }
 
-        // Store relative URL for public access
-        imageUrls.push(`/uploads/listings/${listing.id}/${fileName}`);
+        for (const file of imageFiles) {
+          // Generate unique filename
+          const timestamp = Date.now();
+          const randomStr = Array(8)
+            .fill(null)
+            .map(() => Math.round(Math.random() * 16).toString(16))
+            .join('');
+          const ext = path.extname(file.originalname);
+          const fileName = `${timestamp}-${randomStr}${ext}`;
+          const filePath = path.join(listingDir, fileName);
+
+          // Move file from temp to listing folder
+          const tempPath = file.path;
+          if (fs.existsSync(tempPath)) {
+            fs.renameSync(tempPath, filePath);
+          } else {
+            // If file wasn't saved to temp (shouldn't happen), write buffer
+            fs.writeFileSync(filePath, file.buffer);
+          }
+
+          // Store relative URL for public access
+          imageUrls.push(`/uploads/listings/${listing.id}/${fileName}`);
+        }
+
+        // Update listing with image URLs
+        await this.prisma.listing.update({
+          where: { id: listing.id },
+          data: { images: imageUrls },
+        });
       }
 
-      // Update listing with image URLs
-      await this.prisma.listing.update({
+      // Require at least one image
+      if (imageUrls.length === 0) {
+        throw new BadRequestException('At least one image is required');
+      }
+
+      // Get updated listing with images
+      const finalListing = await this.prisma.listing.findUnique({
         where: { id: listing.id },
-        data: { images: imageUrls },
       });
+
+      // Call ML service for suggestions
+      const mlSuggestions = {
+        category: await this.mlService.suggestCategory({
+          title: createListingDto.title,
+          images: imageUrls,
+        }),
+        price: await this.mlService.suggestPrice({
+          categorySlug: category.slug,
+          location: {
+            latitude: createListingDto.latitude,
+            longitude: createListingDto.longitude,
+          },
+          images: imageUrls,
+        }),
+      };
+
+      return { listing: finalListing!, mlSuggestions };
+    } catch (error) {
+      this.logger.error('Failed to create listing', error.stack);
+      throw error;
     }
-
-    // Require at least one image
-    if (imageUrls.length === 0) {
-      throw new BadRequestException('At least one image is required');
-    }
-
-    // Get updated listing with images
-    const finalListing = await this.prisma.listing.findUnique({
-      where: { id: listing.id },
-    });
-
-    // Call ML service for suggestions
-    const mlSuggestions = {
-      category: await this.mlService.suggestCategory({
-        title: createListingDto.title,
-        images: imageUrls,
-      }),
-      price: await this.mlService.suggestPrice({
-        categorySlug: category.slug,
-        location: {
-          latitude: createListingDto.latitude,
-          longitude: createListingDto.longitude,
-        },
-        images: imageUrls,
-      }),
-    };
-
-    return { listing: finalListing!, mlSuggestions };
   }
 
   async findAll(filters: FilterListingsDto = {}): Promise<any[]> {
@@ -171,14 +175,23 @@ export class ListingsService {
       Number.isFinite(filters.lng);
 
     try {
+      fs.appendFileSync(
+        'debug_findAll.log',
+        `findAll called with filters: ${JSON.stringify(filters)}\n`,
+      );
       // Build conditions
-      const conditions: string[] = ['l."isActive" = true', 'l."deletedAt" IS NULL'];
+      const conditions: string[] = [
+        'l."isActive" = true',
+        'l."deletedAt" IS NULL',
+      ];
       const params: any[] = [];
       let paramIndex = 1;
 
       // Text search
       if (filters.q) {
-        conditions.push(`(l.title ILIKE $${paramIndex} OR l.description ILIKE $${paramIndex})`);
+        conditions.push(
+          `(l.title ILIKE $${paramIndex} OR l.description ILIKE $${paramIndex})`,
+        );
         params.push(`%${filters.q}%`);
         paramIndex++;
       }
@@ -239,12 +252,13 @@ export class ListingsService {
       const offset = (page - 1) * limit;
 
       // Build query
-      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      const whereClause =
+        conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
       const query = `
         SELECT 
           l.id, l.title, l.description, l."pricePerDay",
-          l.location, l.address, l.images, l."createdAt", l."bookingType",
+          ST_AsGeoJSON(l.location)::text as location, l.address, l.images, l."createdAt", l."bookingType",
           c.id as "category_id", c.name as "category_name", c.icon as "category_icon", c.slug as "category_slug",
           h.id as "host_id", h.name as "host_name", h."ratingAvg" as "host_ratingAvg"
           ${distanceSelect}
@@ -261,12 +275,12 @@ export class ListingsService {
       const results = await this.prisma.$queryRawUnsafe(query, ...params);
 
       // Transform results to match expected format
-      return (results as any[]).map(row => ({
+      return (results as any[]).map((row) => ({
         id: row.id,
         title: row.title,
         description: row.description,
         pricePerDay: row.pricePerDay,
-        location: row.location,
+        location: row.location ? JSON.parse(row.location) : null,
         address: row.address,
         images: row.images,
         createdAt: row.createdAt,
@@ -357,7 +371,11 @@ export class ListingsService {
     }
   }
 
-  async findOne(id: string): Promise<Listing & { category?: any; host?: any; bookings?: any[]; reviews?: any[] }> {
+  async findOne(
+    id: string,
+  ): Promise<
+    Listing & { category?: any; host?: any; bookings?: any[]; reviews?: any[] }
+  > {
     const listing = await this.prisma.listing.findUnique({
       where: { id },
       include: {
@@ -519,7 +537,9 @@ export class ListingsService {
     }
 
     if (listing.bookingType !== 'SLOT') {
-      throw new BadRequestException('Listing must be SLOT type to configure slots');
+      throw new BadRequestException(
+        'Listing must be SLOT type to configure slots',
+      );
     }
 
     const existing = await this.prisma.slotConfiguration.findUnique({
@@ -527,7 +547,9 @@ export class ListingsService {
     });
 
     if (existing) {
-      throw new BadRequestException('Slot configuration already exists for this listing');
+      throw new BadRequestException(
+        'Slot configuration already exists for this listing',
+      );
     }
 
     return this.prisma.slotConfiguration.create({
@@ -554,11 +576,15 @@ export class ListingsService {
     }
 
     if (listing.bookingType !== 'SLOT') {
-      throw new BadRequestException('This endpoint is only for slot-based listings');
+      throw new BadRequestException(
+        'This endpoint is only for slot-based listings',
+      );
     }
 
     if (!listing.slotConfiguration) {
-      throw new NotFoundException('Slot configuration not found for this listing');
+      throw new NotFoundException(
+        'Slot configuration not found for this listing',
+      );
     }
 
     // Only fetch bookings that actually block availability
@@ -571,7 +597,8 @@ export class ListingsService {
       },
     });
 
-    const { AvailabilityService } = await import('../../common/utils/availability.service');
+    const { AvailabilityService } =
+      await import('../../common/utils/availability.service');
     const availabilityService = new AvailabilityService(this.prisma);
 
     return availabilityService.generateAvailableSlots(

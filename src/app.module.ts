@@ -57,4 +57,4 @@ import { AiModule } from './modules/ai/ai.module';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

@@ -15,7 +15,7 @@ import { Booking, BookingStatus, Prisma } from '@prisma/client';
  */
 @Injectable()
 export class AvailabilityService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Check if a listing is available for the given date range
@@ -218,19 +218,33 @@ export class AvailabilityService {
     slotConfig: any,
     date: Date,
     existingBookings: Booking[],
-  ): Array<{ startTime: string; endTime: string; price: number; available: boolean }> {
-    const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  ): Array<{
+    startTime: string;
+    endTime: string;
+    price: number;
+    available: boolean;
+  }> {
+    const dayOfWeek = date
+      .toLocaleDateString('en-US', { weekday: 'long' })
+      .toLowerCase();
     const operatingHours = slotConfig.operatingHours[dayOfWeek];
 
     if (!operatingHours) {
       return [];
     }
 
-    const slots: Array<{ startTime: string; endTime: string; price: number; available: boolean }> = [];
+    const slots: Array<{
+      startTime: string;
+      endTime: string;
+      price: number;
+      available: boolean;
+    }> = [];
     const slotDuration = slotConfig.slotDurationMinutes;
     const bufferTime = slotConfig.bufferMinutes;
 
-    const [startHour, startMinute] = operatingHours.start.split(':').map(Number);
+    const [startHour, startMinute] = operatingHours.start
+      .split(':')
+      .map(Number);
     const [endHour, endMinute] = operatingHours.end.split(':').map(Number);
 
     let currentMinutes = startHour * 60 + startMinute;
@@ -238,17 +252,23 @@ export class AvailabilityService {
 
     while (currentMinutes + slotDuration <= endMinutes) {
       const slotStartTime = this.minutesToTimeString(currentMinutes);
-      const slotEndTime = this.minutesToTimeString(currentMinutes + slotDuration);
+      const slotEndTime = this.minutesToTimeString(
+        currentMinutes + slotDuration,
+      );
 
       const effectiveEndMinutes = currentMinutes + slotDuration + bufferTime;
 
       const isAvailable = !existingBookings.some((booking) => {
         if (!booking.startTime || !booking.endTime) return false;
 
-        const bookingStart = this.timeStringToMinutes(booking.startTime.toString());
+        const bookingStart = this.timeStringToMinutes(
+          booking.startTime.toString(),
+        );
         const bookingEnd = this.timeStringToMinutes(booking.endTime.toString());
 
-        return (currentMinutes < bookingEnd && effectiveEndMinutes > bookingStart);
+        return (
+          currentMinutes < bookingEnd && effectiveEndMinutes > bookingStart
+        );
       });
 
       slots.push({

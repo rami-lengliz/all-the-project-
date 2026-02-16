@@ -6,20 +6,20 @@ import { ChatGateway } from './chat.gateway';
 import { ChatController } from './chat.controller';
 
 @Module({
-    imports: [
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            useFactory: async (configService: ConfigService) => ({
-                secret: configService.get<string>('jwt.secret'),
-                signOptions: {
-                    expiresIn: configService.get<string>('jwt.expiresIn', '7d'),
-                },
-            }),
-            inject: [ConfigService],
-        }),
-    ],
-    controllers: [ChatController],
-    providers: [ChatService, ChatGateway],
-    exports: [ChatService],
+  imports: [
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('jwt.secret'),
+        signOptions: {
+          expiresIn: configService.get<string>('jwt.expiresIn', '7d'),
+        },
+      }),
+      inject: [ConfigService],
+    }),
+  ],
+  controllers: [ChatController],
+  providers: [ChatService, ChatGateway],
+  exports: [ChatService],
 })
-export class ChatModule { }
+export class ChatModule {}

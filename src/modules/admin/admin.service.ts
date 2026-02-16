@@ -11,7 +11,7 @@ export class AdminService {
     private prisma: PrismaService,
     private usersService: UsersService,
     private listingsService: ListingsService,
-  ) { }
+  ) {}
 
   async logAction(
     actorId: string,

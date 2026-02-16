@@ -6,13 +6,9 @@ import { MlModule } from '../ml/ml.module';
 import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [
-    CategoriesModule,
-    MlModule,
-    UsersModule,
-  ],
+  imports: [CategoriesModule, MlModule, UsersModule],
   controllers: [ListingsController],
   providers: [ListingsService],
   exports: [ListingsService],
 })
-export class ListingsModule { }
+export class ListingsModule {}

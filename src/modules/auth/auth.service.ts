@@ -18,11 +18,14 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) { }
+  ) {}
 
   async register(registerDto: RegisterDto) {
     try {
-      console.log('[AuthService] Registration attempt:', { email: registerDto.email, name: registerDto.name });
+      console.log('[AuthService] Registration attempt:', {
+        email: registerDto.email,
+        name: registerDto.name,
+      });
 
       if (!registerDto.email && !registerDto.phone) {
         throw new BadRequestException('Either email or phone must be provided');
