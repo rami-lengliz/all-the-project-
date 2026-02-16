@@ -4,6 +4,7 @@ import {
   ApiOperation,
   ApiBearerAuth,
   ApiResponse,
+  ApiOkResponse,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
@@ -16,30 +17,33 @@ import {
 } from './dto/listing-assistant.dto';
 import { AiSearchRequestDto } from './dto/ai-search.dto';
 
-@ApiTags('AI - Listing Assistant')
-@Controller('ai/listing')
+@ApiTags('AI')
+@Controller('api/ai')
 export class AiController {
   constructor(
     private listingAssistantService: ListingAssistantService,
     private aiSearchService: AiSearchService,
-  ) {}
+  ) { }
 
   @Post('search')
   @Public()
   @ApiOperation({
-    summary: 'AI-powered search with single-shot + max 1 follow-up',
+    summary: 'AI-powered search with natural language',
     description:
-      'Converts natural language query to structured filters. Returns either FOLLOW_UP (if clarification needed, max once) or RESULT with listings.',
+      'Converts natural language queries into structured filters. ' +
+      'Supports max 1 follow-up question for clarification. ' +
+      'Returns either FOLLOW_UP mode (if clarification needed) or RESULT mode with listings. ' +
+      'All responses have stable keys: mode, filters, chips, followUp, results.',
   })
-  @ApiResponse({
-    status: 201,
+  @ApiOkResponse({
     description: 'Search results or follow-up question',
     schema: {
       oneOf: [
         {
+          title: 'FOLLOW_UP Mode',
           type: 'object',
           properties: {
-            mode: { type: 'string', enum: ['FOLLOW_UP'] },
+            mode: { type: 'string', enum: ['FOLLOW_UP'], example: 'FOLLOW_UP' },
             followUp: {
               type: 'object',
               properties: {
@@ -57,25 +61,169 @@ export class AiController {
                     'location',
                     'other',
                   ],
+                  example: 'dates',
                 },
                 options: {
                   type: 'array',
                   items: { type: 'string' },
-                  example: ['Today', 'Tomorrow'],
+                  example: ['Today', 'Tomorrow', 'This weekend'],
                 },
               },
             },
-            filters: { type: 'object' },
-            chips: { type: 'array', items: { type: 'object' } },
+            filters: {
+              type: 'object',
+              properties: {
+                q: { type: 'string', example: 'villa' },
+                categorySlug: { type: 'string', example: 'accommodation' },
+                minPrice: { type: 'number', nullable: true },
+                maxPrice: { type: 'number', example: 250 },
+                bookingType: {
+                  type: 'string',
+                  enum: ['DAILY', 'SLOT', 'ANY'],
+                  nullable: true,
+                },
+                availableFrom: { type: 'string', nullable: true },
+                availableTo: { type: 'string', nullable: true },
+                sortBy: {
+                  type: 'string',
+                  enum: ['distance', 'date', 'price_asc', 'price_desc'],
+                  example: 'distance',
+                },
+                radiusKm: { type: 'number', example: 10 },
+              },
+            },
+            chips: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  key: { type: 'string' },
+                  label: { type: 'string' },
+                },
+              },
+              example: [
+                { key: 'q', label: 'villa' },
+                { key: 'category', label: 'Accommodation' },
+                { key: 'price', label: 'Up to 250 TND' },
+              ],
+            },
+            results: {
+              type: 'array',
+              example: [],
+              description: 'Always empty in FOLLOW_UP mode',
+            },
+          },
+          example: {
+            mode: 'FOLLOW_UP',
+            followUp: {
+              question: 'Which dates do you need?',
+              field: 'dates',
+              options: ['Today', 'Tomorrow', 'This weekend'],
+            },
+            filters: {
+              q: 'villa',
+              categorySlug: 'accommodation',
+              maxPrice: 250,
+              sortBy: 'distance',
+              radiusKm: 10,
+            },
+            chips: [
+              { key: 'q', label: 'villa' },
+              { key: 'category', label: 'Accommodation' },
+              { key: 'price', label: 'Up to 250 TND' },
+            ],
+            results: [],
           },
         },
         {
+          title: 'RESULT Mode',
           type: 'object',
           properties: {
-            mode: { type: 'string', enum: ['RESULT'] },
-            filters: { type: 'object' },
-            chips: { type: 'array', items: { type: 'object' } },
-            results: { type: 'array' },
+            mode: { type: 'string', enum: ['RESULT'], example: 'RESULT' },
+            filters: {
+              type: 'object',
+              properties: {
+                q: { type: 'string', example: 'villa' },
+                categorySlug: { type: 'string', example: 'accommodation' },
+                minPrice: { type: 'number', nullable: true },
+                maxPrice: { type: 'number', example: 250 },
+                bookingType: {
+                  type: 'string',
+                  enum: ['DAILY', 'SLOT', 'ANY'],
+                  example: 'DAILY',
+                },
+                availableFrom: { type: 'string', example: '2026-02-17' },
+                availableTo: { type: 'string', example: '2026-02-19' },
+                sortBy: {
+                  type: 'string',
+                  enum: ['distance', 'date', 'price_asc', 'price_desc'],
+                  example: 'distance',
+                },
+                radiusKm: { type: 'number', example: 10 },
+              },
+            },
+            chips: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  key: { type: 'string' },
+                  label: { type: 'string' },
+                },
+              },
+              example: [
+                { key: 'q', label: 'villa' },
+                { key: 'category', label: 'Accommodation' },
+                { key: 'price', label: 'Up to 250 TND' },
+                { key: 'dates', label: '2026-02-17 to 2026-02-19' },
+              ],
+            },
+            followUp: {
+              type: 'null',
+              example: null,
+              description: 'Always null in RESULT mode',
+            },
+            results: {
+              type: 'array',
+              items: { type: 'object' },
+              description: 'Array of listing summaries',
+              example: [
+                {
+                  id: '123e4567-e89b-12d3-a456-426614174000',
+                  title: 'Luxury Beach Villa',
+                  pricePerDay: 200,
+                  category: 'accommodation',
+                },
+              ],
+            },
+          },
+          example: {
+            mode: 'RESULT',
+            filters: {
+              q: 'villa',
+              categorySlug: 'accommodation',
+              maxPrice: 250,
+              bookingType: 'DAILY',
+              availableFrom: '2026-02-17',
+              availableTo: '2026-02-19',
+              sortBy: 'distance',
+              radiusKm: 10,
+            },
+            chips: [
+              { key: 'q', label: 'villa' },
+              { key: 'category', label: 'Accommodation' },
+              { key: 'price', label: 'Up to 250 TND' },
+              { key: 'dates', label: '2026-02-17 to 2026-02-19' },
+            ],
+            followUp: null,
+            results: [
+              {
+                id: '123e4567-e89b-12d3-a456-426614174000',
+                title: 'Luxury Beach Villa',
+                pricePerDay: 200,
+                category: 'accommodation',
+              },
+            ],
           },
         },
       ],

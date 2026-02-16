@@ -1,12 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { Category } from '@prisma/client';
+import { Category, Prisma } from '@prisma/client';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     // Generate slug from name if not provided
@@ -79,23 +79,14 @@ export class CategoriesService {
   > {
     const radiusMeters = radiusKm * 1000;
 
-    // Raw SQL query using PostGIS ST_DWithin
-    // Cast location to geography for accurate distance calculation in meters
-    const result = await this.prisma.$queryRaw<
-      Array<{
-        id: string;
-        name: string;
-        slug: string;
-        icon: string | null;
-        count: bigint;
-      }>
-    >`
+    // Build the SQL query using Prisma.sql for safe parameterization
+    const baseQuery = Prisma.sql`
       SELECT 
         c.id,
         c.name,
         c.slug,
         c.icon,
-        COUNT(l.id) as count
+        CAST(COUNT(l.id) AS INTEGER) as count
       FROM categories c
       LEFT JOIN listings l ON l."categoryId" = c.id
         AND l."isActive" = true
@@ -107,14 +98,24 @@ export class CategoriesService {
           ${radiusMeters}
         )
       GROUP BY c.id, c.name, c.slug, c.icon
-      ${includeEmpty ? this.prisma.$queryRawUnsafe('') : this.prisma.$queryRawUnsafe('HAVING COUNT(l.id) > 0')}
-      ORDER BY COUNT(l.id) DESC, c.name ASC
     `;
 
-    // Convert bigint count to number
-    return result.map((row) => ({
-      ...row,
-      count: Number(row.count),
-    }));
+    // Add HAVING clause and ORDER BY
+    const finalQuery = includeEmpty
+      ? Prisma.sql`${baseQuery} ORDER BY COUNT(l.id) DESC, c.name ASC`
+      : Prisma.sql`${baseQuery} HAVING COUNT(l.id) > 0 ORDER BY COUNT(l.id) DESC, c.name ASC`;
+
+    const result = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        name: string;
+        slug: string;
+        icon: string | null;
+        count: number;
+      }>
+    >(finalQuery);
+
+    // Return results (count is already a number due to CAST)
+    return result;
   }
 }

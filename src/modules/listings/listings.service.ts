@@ -15,6 +15,7 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
 
 @Injectable()
 export class ListingsService {
@@ -36,7 +37,7 @@ export class ListingsService {
     private categoriesService: CategoriesService,
     private mlService: MlService,
     private configService: ConfigService,
-  ) {}
+  ) { }
 
   async create(
     createListingDto: CreateListingDto,

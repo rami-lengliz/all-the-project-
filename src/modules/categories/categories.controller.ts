@@ -14,6 +14,7 @@ import {
   ApiOperation,
   ApiBearerAuth,
   ApiQuery,
+  ApiOkResponse,
 } from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -27,7 +28,7 @@ import { Public } from '../../common/decorators/public.decorator';
 @ApiTags('categories')
 @Controller('api/categories')
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) {}
+  constructor(private readonly categoriesService: CategoriesService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -48,24 +49,25 @@ export class CategoriesController {
   @Get('nearby')
   @Public()
   @ApiOperation({
-    summary:
-      'Get categories with listing counts within radius (location-aware)',
+    summary: 'Get nearby categories with listing counts',
     description:
-      'Returns categories that have active listings within the specified radius. Ordered by count (desc) then name (asc).',
+      'Returns categories that have active listings within the specified radius from a geographic location. ' +
+      'Uses PostGIS for accurate geospatial queries. Results are ordered by listing count (descending) then category name (ascending). ' +
+      'Only includes active, non-deleted listings with valid location data.',
   })
   @ApiQuery({
     name: 'lat',
     required: true,
     type: Number,
     example: 36.8578,
-    description: 'Latitude',
+    description: 'Latitude coordinate (-90 to 90)',
   })
   @ApiQuery({
     name: 'lng',
     required: true,
     type: Number,
     example: 11.092,
-    description: 'Longitude',
+    description: 'Longitude coordinate (-180 to 180)',
   })
   @ApiQuery({
     name: 'radiusKm',
@@ -80,6 +82,80 @@ export class CategoriesController {
     type: Boolean,
     example: false,
     description: 'Include categories with zero listings (default: false)',
+  })
+  @ApiOkResponse({
+    description: 'Categories with listing counts successfully retrieved',
+    schema: {
+      type: 'object',
+      properties: {
+        success: {
+          type: 'boolean',
+          example: true,
+        },
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+                example: '123e4567-e89b-12d3-a456-426614174000',
+                description: 'Category UUID',
+              },
+              name: {
+                type: 'string',
+                example: 'Electronics',
+                description: 'Category name',
+              },
+              slug: {
+                type: 'string',
+                example: 'electronics',
+                description: 'URL-friendly category identifier',
+              },
+              icon: {
+                type: 'string',
+                nullable: true,
+                example: 'fa-laptop',
+                description: 'Icon identifier (FontAwesome class)',
+              },
+              count: {
+                type: 'number',
+                example: 15,
+                description: 'Number of active listings within radius',
+              },
+            },
+          },
+          example: [
+            {
+              id: '123e4567-e89b-12d3-a456-426614174000',
+              name: 'Electronics',
+              slug: 'electronics',
+              icon: 'fa-laptop',
+              count: 15,
+            },
+            {
+              id: '223e4567-e89b-12d3-a456-426614174001',
+              name: 'Sports Equipment',
+              slug: 'sports-equipment',
+              icon: 'fa-football',
+              count: 8,
+            },
+            {
+              id: '323e4567-e89b-12d3-a456-426614174002',
+              name: 'Vehicles',
+              slug: 'vehicles',
+              icon: 'fa-car',
+              count: 5,
+            },
+          ],
+        },
+        timestamp: {
+          type: 'string',
+          format: 'date-time',
+          example: '2026-02-16T20:27:06.496Z',
+        },
+      },
+    },
   })
   async findNearby(@Query() dto: NearbyCategoriesDto) {
     return this.categoriesService.findNearbyWithCounts(

@@ -20,7 +20,7 @@ export class AiSearchService {
     private readonly listingsService: ListingsService,
     private readonly categoriesService: CategoriesService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   async search(dto: AiSearchRequestDto): Promise<AiSearchResponseDto> {
     const openaiKey = this.configService.get<string>('OPENAI_API_KEY');
@@ -54,6 +54,7 @@ export class AiSearchService {
           followUp: aiResponse.followUp!,
           filters: aiResponse.filters,
           chips: aiResponse.chips,
+          results: [],
         } as AiSearchResponseDto;
       }
 
@@ -68,6 +69,7 @@ export class AiSearchService {
         mode: 'RESULT',
         filters: aiResponse.filters,
         chips: aiResponse.chips,
+        followUp: null,
         results,
       } as AiSearchResponseDto;
     } catch (error) {
@@ -206,6 +208,7 @@ Remember: Output JSON only!`;
     followUp?: FollowUpDto;
     filters: SearchFiltersDto;
     chips: SearchChipDto[];
+    results: any[];
   } {
     // Force RESULT mode if followUpUsed
     const mode = dto.followUpUsed ? 'RESULT' : parsed.mode || 'RESULT';
@@ -226,6 +229,7 @@ Remember: Output JSON only!`;
         },
         filters,
         chips,
+        results: [],
       };
     }
 
@@ -233,6 +237,8 @@ Remember: Output JSON only!`;
       mode: 'RESULT',
       filters,
       chips,
+      followUp: null,
+      results: [],
     };
   }
 
@@ -388,6 +394,7 @@ Remember: Output JSON only!`;
       mode: 'RESULT',
       filters,
       chips,
+      followUp: null,
       results,
     };
   }

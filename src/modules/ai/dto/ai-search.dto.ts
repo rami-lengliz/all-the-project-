@@ -153,6 +153,9 @@ export class AiSearchResponseFollowUpDto {
 
   @ApiProperty({ type: [SearchChipDto] })
   chips: SearchChipDto[];
+
+  @ApiProperty({ type: Object, isArray: true, example: [] })
+  results: any[];
 }
 
 export class AiSearchResponseResultDto {
@@ -164,6 +167,9 @@ export class AiSearchResponseResultDto {
 
   @ApiProperty({ type: [SearchChipDto] })
   chips: SearchChipDto[];
+
+  @ApiProperty({ type: FollowUpDto, nullable: true, example: null })
+  followUp: null;
 
   @ApiProperty({ type: Object, isArray: true })
   results: any[];
