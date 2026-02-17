@@ -181,22 +181,119 @@ Remember: Output JSON only!`;
     return prompt;
   }
 
+  /**
+   * Safe JSON extraction and parsing
+   * 1. Try direct JSON parse
+   * 2. Extract JSON between first '{' and last '}'
+   * 3. Validate with Zod schema
+   * 4. Return null if all fail
+   */
   private safeJsonParse(text: string): any {
+    // Try 1: Direct parse
     try {
-      // Try direct parse
-      return JSON.parse(text);
+      const parsed = JSON.parse(text);
+      return this.validateAiResponse(parsed);
     } catch (e) {
-      // Try to extract JSON from markdown code blocks
+      // Continue to extraction
+    }
+
+    // Try 2: Extract JSON from text (between first '{' and last '}')
+    try {
+      const firstBrace = text.indexOf('{');
+      const lastBrace = text.lastIndexOf('}');
+
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const extracted = text.substring(firstBrace, lastBrace + 1);
+        const parsed = JSON.parse(extracted);
+        return this.validateAiResponse(parsed);
+      }
+    } catch (e) {
+      this.logger.error('Failed to extract and parse JSON', e);
+    }
+
+    // Try 3: Legacy markdown code block extraction (fallback)
+    try {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        try {
-          return JSON.parse(jsonMatch[0]);
-        } catch (e2) {
-          this.logger.error('Failed to parse extracted JSON', e2);
-        }
+        const parsed = JSON.parse(jsonMatch[0]);
+        return this.validateAiResponse(parsed);
       }
+    } catch (e) {
+      this.logger.error('Failed to parse from markdown extraction', e);
+    }
+
+    return null;
+  }
+
+  /**
+   * Validate AI response structure using Zod
+   * Returns validated object or null if invalid
+   */
+  private validateAiResponse(parsed: any): any {
+    try {
+      // Import Zod schema dynamically to avoid circular deps
+      const { AiResponseSchema } = require('./schemas/ai-response.schema');
+
+      const result = AiResponseSchema.safeParse(parsed);
+
+      if (result.success) {
+        return result.data;
+      } else {
+        this.logger.warn('AI response validation failed', {
+          errors: result.error.errors,
+          parsed,
+        });
+
+        // Check if it's at least a valid object with mode
+        if (parsed && typeof parsed === 'object' && parsed.mode) {
+          // Allow partial validation for backward compatibility
+          return parsed;
+        }
+
+        return null;
+      }
+    } catch (error) {
+      this.logger.error('Zod validation error', error);
+      // Fallback: if Zod fails, do basic validation
+      return this.basicValidation(parsed);
+    }
+  }
+
+  /**
+   * Basic validation fallback (if Zod fails)
+   */
+  private basicValidation(parsed: any): any {
+    if (!parsed || typeof parsed !== 'object') {
       return null;
     }
+
+    const mode = parsed.mode;
+
+    // Validate FOLLOW_UP mode
+    if (mode === 'FOLLOW_UP') {
+      if (!parsed.followUp || typeof parsed.followUp.question !== 'string') {
+        this.logger.warn('Invalid FOLLOW_UP: missing followUp.question');
+        return null;
+      }
+      return parsed;
+    }
+
+    // Validate RESULT mode
+    if (mode === 'RESULT') {
+      if (!parsed.filters || typeof parsed.filters !== 'object') {
+        this.logger.warn('Invalid RESULT: missing filters object');
+        return null;
+      }
+      if (!Array.isArray(parsed.chips)) {
+        // Chips is optional but should be array if present
+        parsed.chips = [];
+      }
+      return parsed;
+    }
+
+    // Invalid mode
+    this.logger.warn(`Invalid mode: ${mode}`);
+    return null;
   }
 
   private normalizeAiResponse(
@@ -254,9 +351,22 @@ Remember: Output JSON only!`;
       normalized.q = filters.q.trim();
     }
 
-    // Category - only use if in available slugs
-    if (filters.categorySlug && availableSlugs.includes(filters.categorySlug)) {
-      normalized.categorySlug = filters.categorySlug;
+    // Category - validate against available slugs
+    if (filters.categorySlug) {
+      if (availableSlugs.length > 0) {
+        // If we have a restricted list, validate against it
+        if (availableSlugs.includes(filters.categorySlug)) {
+          normalized.categorySlug = filters.categorySlug;
+        } else {
+          this.logger.warn(
+            `AI suggested category "${filters.categorySlug}" not in available slugs [${availableSlugs.join(', ')}], discarding`,
+          );
+          // Discard invalid category (do not hallucinate)
+        }
+      } else {
+        // No restriction, accept any valid slug
+        normalized.categorySlug = filters.categorySlug;
+      }
     }
 
     // Price
