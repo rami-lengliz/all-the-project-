@@ -73,7 +73,7 @@ const multerOptions = {
 @ApiTags('listings')
 @Controller('api/listings')
 export class ListingsController {
-  constructor(private readonly listingsService: ListingsService) {}
+  constructor(private readonly listingsService: ListingsService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard, HostGuard)

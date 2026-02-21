@@ -15,7 +15,7 @@ import { Booking, BookingStatus, Prisma } from '@prisma/client';
  */
 @Injectable()
 export class AvailabilityService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * Check if a listing is available for the given date range
@@ -96,19 +96,23 @@ export class AvailabilityService {
       throw new Error('Start date must be before end date');
     }
 
-    // Use raw SQL with FOR UPDATE to lock rows
+    // Use raw SQL with FOR UPDATE to lock rows.
+    // Prisma binds all parameters as text — cast COLUMNS to text for comparison,
+    // and use literal enum values in the IN clause.
     const excludeClause = excludeBookingId
-      ? Prisma.sql`AND id != ${excludeBookingId}::uuid`
+      ? Prisma.sql`AND id::text != ${excludeBookingId}`
       : Prisma.empty;
 
-    const conflictingBookings = await tx.$queryRaw<Booking[]>`
+    const query = Prisma.sql`
       SELECT * FROM bookings
-      WHERE "listingId" = ${listingId}::uuid
-        AND status IN ('CONFIRMED', 'PAID')
+      WHERE "listingId"::text = ${listingId}
+        AND status IN ('confirmed'::"BookingStatus", 'paid'::"BookingStatus")
         AND NOT ("endDate" <= ${normalizedStart} OR "startDate" >= ${normalizedEnd})
         ${excludeClause}
       FOR UPDATE
     `;
+
+    const conflictingBookings = await tx.$queryRaw<Booking[]>(query);
 
     return conflictingBookings.length === 0;
   }
@@ -185,7 +189,9 @@ export class AvailabilityService {
   }
 
   /**
-   * Check if a time slot is available for booking
+   * Check if a time slot is available for booking.
+   * Uses raw SQL OVERLAPS so Postgres handles time comparison natively,
+   * avoiding the Prisma @db.Time → Date timezone-offset issue on non-UTC servers.
    */
   async checkSlotAvailability(
     listingId: string,
@@ -194,18 +200,28 @@ export class AvailabilityService {
     endTime: string,
     excludeBookingId?: string,
   ): Promise<boolean> {
-    const normalizedDate = this.normalizeDate(date);
+    // Use ISO date string to avoid Date timezone-offset issues when Postgres
+    // casts the parameter to ::date
+    const dateStr = date.toISOString().substring(0, 10);
+
+    const excludeClause = excludeBookingId
+      ? Prisma.sql`AND id::text <> ${excludeBookingId}`
+      : Prisma.empty;
 
     const conflicts = await this.prisma.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM bookings
-      WHERE listing_id = ${listingId}::uuid
-        AND start_date = ${normalizedDate}::date
-        AND start_time IS NOT NULL
-        AND end_time IS NOT NULL
-        AND status IN ('confirmed', 'paid', 'completed')
-        AND (start_time, end_time) OVERLAPS (${startTime}::time, ${endTime}::time)
-        ${excludeBookingId ? Prisma.sql`AND id != ${excludeBookingId}::uuid` : Prisma.empty}
-      FOR UPDATE
+      WHERE "listingId"::text = ${listingId}
+        AND "startDate" = ${dateStr}::date
+        AND "startTime" IS NOT NULL
+        AND "endTime" IS NOT NULL
+        AND status IN (
+          'confirmed'::"BookingStatus",
+          'paid'::"BookingStatus",
+          'completed'::"BookingStatus"
+        )
+        AND ("startTime"::time, "endTime"::time)
+            OVERLAPS (${startTime}::time, ${endTime}::time)
+        ${excludeClause}
     `;
 
     return conflicts.length === 0;
@@ -261,10 +277,16 @@ export class AvailabilityService {
       const isAvailable = !existingBookings.some((booking) => {
         if (!booking.startTime || !booking.endTime) return false;
 
-        const bookingStart = this.timeStringToMinutes(
-          booking.startTime.toString(),
-        );
-        const bookingEnd = this.timeStringToMinutes(booking.endTime.toString());
+        // @db.Time is returned as a Date object by Prisma;
+        // extract HH:mm from UTC parts to avoid local-timezone string issues.
+        const toHHmm = (t: any): string => {
+          if (t instanceof Date) {
+            return `${t.getUTCHours().toString().padStart(2, '0')}:${t.getUTCMinutes().toString().padStart(2, '0')}`;
+          }
+          return String(t).substring(0, 5);
+        };
+        const bookingStart = this.timeStringToMinutes(toHHmm(booking.startTime));
+        const bookingEnd = this.timeStringToMinutes(toHHmm(booking.endTime));
 
         return (
           currentMinutes < bookingEnd && effectiveEndMinutes > bookingStart

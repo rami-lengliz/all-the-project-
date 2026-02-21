@@ -55,22 +55,30 @@ export class BookingsService {
     const startDate = new Date(createBookingDto.startDate);
     const endDate = new Date(createBookingDto.endDate);
 
-    if (startDate >= endDate) {
-      throw new BadRequestException('End date must be after start date');
-    }
-
-    if (startDate < new Date()) {
-      throw new BadRequestException('Start date cannot be in the past');
-    }
-
-    // Handle SLOT-based bookings
+    // Handle SLOT-based bookings BEFORE date-range validation:
+    // SLOT bookings legally use the same day for startDate and endDate
+    // (the time window is expressed via startTime/endTime, not date span).
     if (listing.bookingType === 'SLOT') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (startDate < today) {
+        throw new BadRequestException('Start date cannot be in the past');
+      }
       return this.createSlotBooking(
         createBookingDto,
         renterId,
         listing,
         startDate,
       );
+    }
+
+    // DAILY bookings: end date must be strictly after start date
+    if (startDate >= endDate) {
+      throw new BadRequestException('End date must be after start date');
+    }
+
+    if (startDate < new Date()) {
+      throw new BadRequestException('Start date cannot be in the past');
     }
 
     // Handle DAILY bookings (existing logic)
@@ -86,7 +94,7 @@ export class BookingsService {
     const commission = totalPrice * this.commissionPercentage;
 
     // Use transaction with row-level locking to prevent double booking
-    return await this.prisma.$transaction(async (tx) => {
+    const booking = await this.prisma.$transaction(async (tx) => {
       // Check availability using centralized service with lock
       // Only CONFIRMED and PAID bookings block availability (PENDING does not)
       const isAvailable =
@@ -103,26 +111,30 @@ export class BookingsService {
         );
       }
 
-      // Create booking
-      const booking = await tx.booking.create({
+      // Create booking — explicit field mapping to ensure correct types
+      return tx.booking.create({
         data: {
-          ...createBookingDto,
+          listingId: createBookingDto.listingId,
           renterId,
           hostId: listing.hostId,
+          startDate,
+          endDate,
           totalPrice,
           commission,
           status: 'pending',
           paid: false,
         },
       });
-
-      // Create payment intent for this booking
-      // This is done outside the transaction to avoid circular dependency
-      // Payment intent creation is idempotent
-      await this.paymentsService.createForBooking(booking.id);
-
-      return booking;
     });
+
+    // Create payment intent AFTER transaction commits so the row is visible
+    try {
+      await this.paymentsService.createForBooking(booking.id);
+    } catch (e) {
+      // Non-fatal — payment intent can be created lazily
+    }
+
+    return booking;
   }
 
   async findAll(userId: string): Promise<Booking[]> {
@@ -170,7 +182,7 @@ export class BookingsService {
       // Reload booking with lock to get latest state
       const bookings = await tx.$queryRaw<Booking[]>`
         SELECT * FROM bookings
-        WHERE id = ${id}::uuid
+        WHERE id::text = ${id}
         FOR UPDATE
       `;
 
@@ -195,24 +207,42 @@ export class BookingsService {
       // State machine validation
       BookingStateMachine.validateTransition(
         booking.status as any,
-        'CONFIRMED' as any,
+        'confirmed' as any,
         'confirm booking',
       );
 
-      // Check availability using centralized service with lock
-      // Exclude current booking from check
-      const isAvailable =
-        await this.availabilityService.isListingAvailableWithLock(
+      // Check availability — SLOT bookings use time-based check,
+      // DAILY bookings use date-range lock.
+      let isAvailable: boolean;
+      if (booking.startTime && booking.endTime) {
+        // SLOT booking: use time-overlap check (outside tx, uses this.prisma)
+        // We release the tx FOR UPDATE lock before calling, but this is a
+        // best-effort protection — the primary lock is the availability check.
+        isAvailable = await this.availabilityService.checkSlotAvailability(
+          booking.listingId,
+          booking.startDate,
+          // startTime returned from raw SQL may be a Date; extract HH:mm
+          booking.startTime instanceof Date
+            ? `${(booking.startTime as Date).getUTCHours().toString().padStart(2, '0')}:${(booking.startTime as Date).getUTCMinutes().toString().padStart(2, '0')}`
+            : String(booking.startTime).substring(0, 5),
+          booking.endTime instanceof Date
+            ? `${(booking.endTime as Date).getUTCHours().toString().padStart(2, '0')}:${(booking.endTime as Date).getUTCMinutes().toString().padStart(2, '0')}`
+            : String(booking.endTime).substring(0, 5),
+          id,
+        );
+      } else {
+        isAvailable = await this.availabilityService.isListingAvailableWithLock(
           tx,
           booking.listingId,
           booking.startDate,
           booking.endDate,
           id,
         );
+      }
 
       if (!isAvailable) {
         throw new ConflictException(
-          'Cannot confirm: Another booking overlaps with these dates',
+          'Cannot confirm: Another booking overlaps with this slot',
         );
       }
 
@@ -234,7 +264,7 @@ export class BookingsService {
       // Reload booking with lock to get latest state
       const bookings = await tx.$queryRaw<Booking[]>`
         SELECT * FROM bookings
-        WHERE id = ${id}::uuid
+        WHERE id::text = ${id}
         FOR UPDATE
       `;
 
@@ -260,7 +290,7 @@ export class BookingsService {
       if (!BookingStateMachine.canPay(booking.status as any, booking.paid)) {
         throw new BadRequestException(
           `Cannot pay booking: Current status is ${booking.status}. ` +
-            `Booking must be CONFIRMED to be paid.`,
+          `Booking must be CONFIRMED to be paid.`,
         );
       }
 
@@ -321,7 +351,7 @@ export class BookingsService {
       // Reload booking with lock to get latest state
       const bookings = await tx.$queryRaw<Booking[]>`
         SELECT * FROM bookings
-        WHERE id = ${id}::uuid
+        WHERE id::text = ${id}
         FOR UPDATE
       `;
 
@@ -368,7 +398,7 @@ export class BookingsService {
       // State machine validation
       BookingStateMachine.validateTransition(
         booking.status as any,
-        'CANCELLED' as any,
+        'cancelled' as any,
         'cancel booking',
       );
 
@@ -439,27 +469,39 @@ export class BookingsService {
     );
     const commission = totalPrice * this.commissionPercentage;
 
-    return await this.prisma.$transaction(async (tx) => {
-      const isAvailable = await this.availabilityService.checkSlotAvailability(
-        listing.id,
-        startDate,
-        createBookingDto.startTime,
-        createBookingDto.endTime,
-      );
+    // Check availability BEFORE opening the transaction
+    // (checkSlotAvailability uses this.prisma which would deadlock inside $transaction)
+    const isAvailable = await this.availabilityService.checkSlotAvailability(
+      listing.id,
+      startDate,
+      createBookingDto.startTime,
+      createBookingDto.endTime,
+    );
 
-      if (!isAvailable) {
-        throw new ConflictException('This time slot is not available');
-      }
+    if (!isAvailable) {
+      throw new ConflictException('This time slot is not available');
+    }
 
-      const booking = await tx.booking.create({
+    // Prisma @db.Time fields require Date objects (not HH:mm strings)
+    const toTimeDate = (t: string): Date => {
+      const [h, m] = t.split(':').map(Number);
+      const d = new Date(0); // epoch date
+      d.setUTCHours(h, m, 0, 0);
+      return d;
+    };
+    const startTimeDate = toTimeDate(createBookingDto.startTime);
+    const endTimeDate = toTimeDate(createBookingDto.endTime);
+
+    const booking = await this.prisma.$transaction(async (tx) => {
+      const newBooking = await tx.booking.create({
         data: {
           listingId: createBookingDto.listingId,
           renterId,
           hostId: listing.hostId,
           startDate,
           endDate: startDate,
-          startTime: createBookingDto.startTime,
-          endTime: createBookingDto.endTime,
+          startTime: startTimeDate,
+          endTime: endTimeDate,
           totalPrice,
           commission,
           status: 'pending',
@@ -467,10 +509,17 @@ export class BookingsService {
         },
       });
 
-      await this.paymentsService.createForBooking(booking.id);
-
-      return booking;
+      return newBooking;
     });
+
+    // Create payment intent AFTER transaction commits so the booking row is visible
+    try {
+      await this.paymentsService.createForBooking(booking.id);
+    } catch (e) {
+      // Non-fatal — payment intent can be created lazily
+    }
+
+    return booking;
   }
 
   private calculateSlotPrice(

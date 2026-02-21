@@ -26,7 +26,7 @@ export class PaymentsService {
     @Inject(forwardRef(() => BookingsService))
     private bookingsService: BookingsService,
     private cancellationPolicyService: CancellationPolicyService,
-  ) {}
+  ) { }
 
   /**
    * Create a payment intent for a booking
@@ -74,7 +74,7 @@ export class PaymentsService {
       // Load payment intent with lock
       const paymentIntents = await tx.$queryRaw<PaymentIntent[]>`
         SELECT * FROM payment_intents
-        WHERE "bookingId" = ${bookingId}::uuid
+        WHERE "bookingId"::text = ${bookingId}
         FOR UPDATE
       `;
 
@@ -128,7 +128,7 @@ export class PaymentsService {
       // Load payment intent with lock
       const paymentIntents = await tx.$queryRaw<PaymentIntent[]>`
         SELECT * FROM payment_intents
-        WHERE "bookingId" = ${bookingId}::uuid
+        WHERE "bookingId"::text = ${bookingId}
         FOR UPDATE
       `;
 
@@ -170,7 +170,7 @@ export class PaymentsService {
       // Load payment intent with lock
       const paymentIntents = await tx.$queryRaw<PaymentIntent[]>`
         SELECT * FROM payment_intents
-        WHERE "bookingId" = ${bookingId}::uuid
+        WHERE "bookingId"::text = ${bookingId}
         FOR UPDATE
       `;
 
@@ -193,7 +193,7 @@ export class PaymentsService {
       ) {
         throw new BadRequestException(
           `Cannot refund payment: Payment status is ${paymentIntent.status}. ` +
-            `Only CAPTURED payments can be refunded.`,
+          `Only CAPTURED payments can be refunded.`,
         );
       }
 
@@ -221,7 +221,7 @@ export class PaymentsService {
       // Load payment intent with lock
       const paymentIntents = await tx.$queryRaw<PaymentIntent[]>`
         SELECT * FROM payment_intents
-        WHERE "bookingId" = ${bookingId}::uuid
+        WHERE "bookingId"::text = ${bookingId}
         FOR UPDATE
       `;
 

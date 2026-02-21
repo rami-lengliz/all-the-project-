@@ -1,57 +1,16 @@
-import {
-  IsOptional,
-  IsString,
-  IsNumber,
-  Min,
-  IsLatitude,
-  IsLongitude,
-  IsBoolean,
-} from 'class-validator';
+import { PartialType } from '@nestjs/swagger';
+import { IsOptional, IsArray, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { CreateListingDto } from './create-listing.dto';
 
-export class UpdateListingDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  title?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  pricePerDay?: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsLatitude()
-  latitude?: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsLongitude()
-  longitude?: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  address?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  rules?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
-
-  @ApiProperty({ required: false, type: [String] })
-  @IsOptional()
-  imagesToRemove?: string[];
+export class UpdateListingDto extends PartialType(CreateListingDto) {
+    @ApiProperty({
+        required: false,
+        type: [String],
+        description: 'Array of image URLs to remove from the listing',
+    })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    imagesToRemove?: string[];
 }
