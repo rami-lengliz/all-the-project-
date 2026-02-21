@@ -13,6 +13,7 @@ import { CategoriesService } from '../categories/categories.service';
 import { MlService } from '../ml/ml.service';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
+import { BLOCKING_BOOKING_STATUSES } from '../../common/constants/booking-status.constants';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
@@ -594,7 +595,7 @@ export class ListingsService {
       where: {
         listingId,
         startDate: date,
-        status: { in: ['confirmed', 'paid', 'completed'] },
+        status: { in: [...BLOCKING_BOOKING_STATUSES] },
       },
     });
 
