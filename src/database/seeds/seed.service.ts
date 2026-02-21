@@ -68,18 +68,26 @@ export class SeedService {
 
     const KELIBIA_LAT = 36.8578;
     const KELIBIA_LNG = 11.092;
+    const TUNIS_LAT = 36.8065;
+    const TUNIS_LNG = 10.1815;
     const hosts = savedUsers.filter((u) => u.isHost);
 
-    // ── General DAILY listings (20) ───────────────────────────
+    // ── General DAILY listings (35) ───────────────────────────
     console.log('Creating listings...');
     const savedListings: any[] = [];
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 35; i++) {
       const category = savedCategories[i % savedCategories.length];
       const host = hosts[i % hosts.length];
       const offset = (i * 0.015) % 0.1;
-      const lat = KELIBIA_LAT + offset;
-      const lng = KELIBIA_LNG + offset;
+
+      const isKelibia = i < 20;
+      const baseLat = isKelibia ? KELIBIA_LAT : TUNIS_LAT;
+      const baseLng = isKelibia ? KELIBIA_LNG : TUNIS_LNG;
+      const cityName = isKelibia ? 'Kelibia' : 'Tunis';
+
+      const lat = baseLat + offset;
+      const lng = baseLng + offset;
       const newListingId = crypto.randomUUID();
 
       await this.prisma.$executeRaw`
@@ -88,11 +96,11 @@ export class SeedService {
           "categoryId", "hostId", images, "isActive", "createdAt", "updatedAt"
         ) VALUES (
           ${newListingId}::uuid,
-          ${`Listing ${i + 1}`},
-          ${`Description for listing ${i + 1}`},
+          ${`Listing ${i + 1} in ${cityName}`},
+          ${`Description for listing ${i + 1} located in ${cityName}`},
           ${20 + i * 5},
           ST_SetSRID(ST_GeomFromText(${'POINT(' + lng + ' ' + lat + ')'}), 4326),
-          ${`${i + 1} Street, Kelibia`},
+          ${`${i + 1} Street, ${cityName}`},
           ${category.id}::uuid,
           ${host.id}::uuid,
           ARRAY[${`/uploads/placeholder-${i + 1}.jpg`}]::TEXT[],
