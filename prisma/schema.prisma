@@ -312,3 +312,23 @@ model SlotConfiguration {
   @@index([listingId])
   @@map("slot_configurations")
 }
+
+// ===========================
+// AI Search Log
+// ===========================
+model AiSearchLog {
+  id           String   @id @default(uuid())
+  createdAt    DateTime @default(now())
+
+  query        String
+  lat          Float?
+  lng          Float?
+  radiusKm     Float?
+  followUpAsked Boolean @default(false)
+  mode         String   // 'FOLLOW_UP' | 'RESULT'
+  filters      Json     @db.JsonB
+  resultsCount Int      @default(0)
+
+  @@index([createdAt])
+  @@map("ai_search_logs")
+}

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AiService } from './ai.service';
 import { ListingsService } from '../listings/listings.service';
 import { CategoriesService } from '../categories/categories.service';
+import { PrismaService } from '../../database/prisma.service';
 import {
   AiSearchRequestDto,
   AiSearchResponseDto,
@@ -20,6 +21,7 @@ export class AiSearchService {
     private readonly listingsService: ListingsService,
     private readonly categoriesService: CategoriesService,
     private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) { }
 
   async search(dto: AiSearchRequestDto): Promise<AiSearchResponseDto> {
@@ -38,47 +40,69 @@ export class AiSearchService {
       availableSlugs = nearbyCategories.map((c) => c.slug);
     }
 
+    let result: AiSearchResponseDto;
+
     // Fallback mode if no OpenAI key
     if (!openaiKey || openaiKey.trim() === '') {
       this.logger.warn('No OPENAI_API_KEY found, using fallback search');
-      return this.fallbackSearch(dto, availableSlugs);
-    }
+      result = await this.fallbackSearch(dto, availableSlugs);
+    } else {
+      try {
+        // Call AI to parse query
+        const aiResponse = await this.callAiSearch(dto, availableSlugs);
 
-    try {
-      // Call AI to parse query
-      const aiResponse = await this.callAiSearch(dto, availableSlugs);
+        if (aiResponse.mode === 'FOLLOW_UP') {
+          result = {
+            mode: 'FOLLOW_UP',
+            followUp: aiResponse.followUp!,
+            filters: aiResponse.filters,
+            chips: aiResponse.chips,
+            results: [],
+          } as AiSearchResponseDto;
+        } else {
+          // Fetch results based on AI-parsed filters
+          const results = await this.fetchListings(
+            aiResponse.filters,
+            dto.lat,
+            dto.lng,
+          );
 
-      if (aiResponse.mode === 'FOLLOW_UP') {
-        return {
-          mode: 'FOLLOW_UP',
-          followUp: aiResponse.followUp!,
-          filters: aiResponse.filters,
-          chips: aiResponse.chips,
-          results: [],
-        } as AiSearchResponseDto;
+          result = {
+            mode: 'RESULT',
+            filters: aiResponse.filters,
+            chips: aiResponse.chips,
+            followUp: null,
+            results,
+          } as AiSearchResponseDto;
+        }
+      } catch (error) {
+        this.logger.error(
+          'AI search failed, falling back to keyword search',
+          error,
+        );
+        result = await this.fallbackSearch(dto, availableSlugs);
       }
-
-      // Fetch results based on AI-parsed filters
-      const results = await this.fetchListings(
-        aiResponse.filters,
-        dto.lat,
-        dto.lng,
-      );
-
-      return {
-        mode: 'RESULT',
-        filters: aiResponse.filters,
-        chips: aiResponse.chips,
-        followUp: null,
-        results,
-      } as AiSearchResponseDto;
-    } catch (error) {
-      this.logger.error(
-        'AI search failed, falling back to keyword search',
-        error,
-      );
-      return this.fallbackSearch(dto, availableSlugs);
     }
+
+    // Fire-and-forget: log the search (never blocks the response)
+    this.prisma.aiSearchLog
+      .create({
+        data: {
+          query: dto.query,
+          lat: dto.lat ?? null,
+          lng: dto.lng ?? null,
+          radiusKm: dto.radiusKm ?? null,
+          followUpAsked: result.mode === 'FOLLOW_UP',
+          mode: result.mode,
+          filters: (result.filters as any) ?? {},
+          resultsCount: result.results?.length ?? 0,
+        },
+      })
+      .catch((err) =>
+        this.logger.warn(`AiSearchLog write failed: ${err.message}`),
+      );
+
+    return result;
   }
 
   private async callAiSearch(

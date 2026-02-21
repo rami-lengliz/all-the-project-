@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { Booking, BookingStatus, Prisma } from '@prisma/client';
+import { Booking, Prisma } from '@prisma/client';
+import { BLOCKING_BOOKING_STATUSES } from '../constants/booking-status.constants';
 
 /**
  * Centralized Availability Service
@@ -56,7 +57,7 @@ export class AvailabilityService {
     const where: Prisma.BookingWhereInput = {
       listingId,
       status: {
-        in: ['confirmed', 'paid'],
+        in: [...BLOCKING_BOOKING_STATUSES],
       },
       // Overlap condition: NOT (booking ends before request starts OR booking starts after request ends)
       NOT: {
@@ -106,7 +107,7 @@ export class AvailabilityService {
     const query = Prisma.sql`
       SELECT * FROM bookings
       WHERE "listingId"::text = ${listingId}
-        AND status IN ('confirmed'::"BookingStatus", 'paid'::"BookingStatus")
+        AND status IN ('confirmed'::"BookingStatus", 'paid'::"BookingStatus", 'completed'::"BookingStatus")
         AND NOT ("endDate" <= ${normalizedStart} OR "startDate" >= ${normalizedEnd})
         ${excludeClause}
       FOR UPDATE
@@ -138,7 +139,7 @@ export class AvailabilityService {
       where: {
         listingId,
         status: {
-          in: ['confirmed', 'paid'],
+          in: [...BLOCKING_BOOKING_STATUSES],
         },
         endDate: {
           gt: this.normalizeDate(from),

@@ -1,15 +1,17 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiBearerAuth,
   ApiResponse,
   ApiOkResponse,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { ListingAssistantService } from './listing-assistant.service';
 import { AiSearchService } from './ai-search.service';
+import { PrismaService } from '../../database/prisma.service';
 import {
   GenerateListingDto,
   EnhanceDescriptionDto,
@@ -23,6 +25,7 @@ export class AiController {
   constructor(
     private listingAssistantService: ListingAssistantService,
     private aiSearchService: AiSearchService,
+    private prisma: PrismaService,
   ) { }
 
   @Post('search')
@@ -231,6 +234,21 @@ export class AiController {
   })
   async search(@Body() dto: AiSearchRequestDto) {
     return this.aiSearchService.search(dto);
+  }
+
+  @Get('admin/search-logs')
+  @Public()
+  @ApiOperation({
+    summary: '[Dev/Admin] List recent AI search logs',
+    description: 'Returns the last N AI search log entries. Useful for PFE demo and debugging.',
+  })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
+  async getSearchLogs(@Query('limit') limit?: string) {
+    const take = Math.min(parseInt(limit ?? '20', 10) || 20, 100);
+    return this.prisma.aiSearchLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
   }
 
   @Post('generate')
