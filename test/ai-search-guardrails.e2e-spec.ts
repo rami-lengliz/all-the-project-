@@ -180,8 +180,10 @@ describe('POST /api/ai/search — guardrails', () => {
 
     // ─── Test 4: FOLLOW_UP mode also has filters + chips ────────────────────────
 
-    it('TC-4  FOLLOW_UP mode includes filters object and chips array (not just followUp)', async () => {
+    it('TC-4  FOLLOW_UP mode includes filters object AND non-empty chips when filters have data', async () => {
         mockGenerateCompletion.mockResolvedValueOnce(followUpJson());
+        // followUpJson() returns filters: { q: 'villa', ... }
+        // so filtersToChips() must produce at least one chip for 'q'
 
         const res = await request(app.getHttpServer())
             .post('/api/ai/search')
@@ -193,6 +195,16 @@ describe('POST /api/ai/search — guardrails', () => {
         expect(body.mode).toBe('FOLLOW_UP');
         expect(typeof body.filters).toBe('object');
         expect(Array.isArray(body.chips)).toBe(true);
+
+        // Partial filters were provided (q='villa') — chips must not be empty
+        expect(body.chips.length).toBeGreaterThan(0);
+
+        // Each chip must have key and label
+        body.chips.forEach((chip: any) => {
+            expect(typeof chip.key).toBe('string');
+            expect(typeof chip.label).toBe('string');
+            expect(chip.label.length).toBeGreaterThan(0);
+        });
     });
 
     // ─── Test 5: Malformed AI JSON → fallback RESULT (no crash) ─────────────────
@@ -243,5 +255,52 @@ describe('POST /api/ai/search — guardrails', () => {
             .post('/api/ai/search')
             .send({}) // no query
             .expect(400);
+    });
+
+    // ─── Test 8: RESULT chips are non-empty when filters have data ────────────────
+
+    it('TC-8  RESULT mode chips are non-empty when filters carry data', async () => {
+        mockGenerateCompletion.mockResolvedValueOnce(resultJson());
+        // resultJson() returns q='villa', categorySlug='accommodation', maxPrice=250
+        // → 3 chips expected: q, category, price
+
+        const res = await request(app.getHttpServer())
+            .post('/api/ai/search')
+            .send({ query: 'villa under 250', followUpUsed: false })
+            .expect(201);
+
+        const body = res.body.data ?? res.body;
+
+        expect(body.mode).toBe('RESULT');
+        expect(body.chips.length).toBeGreaterThanOrEqual(2);
+
+        const keys = body.chips.map((c: any) => c.key);
+        expect(keys).toContain('q');         // query keyword chip
+        expect(keys).toContain('category'); // category chip
+        expect(keys).toContain('price');    // price chip
+    });
+
+    // ─── Test 9: FOLLOW_UP chip keys match the filter fields returned ─────────────
+
+    it('TC-9  FOLLOW_UP chips are derived from filters (key=q chip exists for q filter)', async () => {
+        mockGenerateCompletion.mockResolvedValueOnce(followUpJson());
+        // followUpJson() has filters: { q: 'villa' }
+
+        const res = await request(app.getHttpServer())
+            .post('/api/ai/search')
+            .send({ query: 'villa near beach', followUpUsed: false })
+            .expect(201);
+
+        const body = res.body.data ?? res.body;
+
+        expect(body.mode).toBe('FOLLOW_UP');
+
+        // Since filters.q = 'villa', there must be a chip with key='q'
+        const qChip = body.chips.find((c: any) => c.key === 'q');
+        expect(qChip).toBeDefined();
+        expect(qChip.label).toBe('villa');
+
+        // And results must always be an empty array in FOLLOW_UP
+        expect(body.results).toHaveLength(0);
     });
 });

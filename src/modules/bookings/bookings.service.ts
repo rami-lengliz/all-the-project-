@@ -19,6 +19,46 @@ import { PaymentsService } from '../payments/payments.service';
 import { PaymentIntentStatus } from '@prisma/client';
 import { CancellationPolicyService } from '../../common/policies/cancellation-policy.service';
 
+/**
+ * Maps internal DB booking statuses to stable MVP-facing vocabulary.
+ *
+ * Internal  → displayStatus
+ * ---------   -------------
+ * pending   → pending
+ * confirmed → accepted
+ * paid      → accepted   (payment is an internal milestone, renter sees "accepted")
+ * completed → completed
+ * cancelled → canceled   (American English used in MVP spec)
+ * rejected  → rejected
+ */
+export type DisplayStatus =
+  | 'pending'
+  | 'accepted'
+  | 'completed'
+  | 'canceled'
+  | 'rejected';
+
+export function toDisplayStatus(internal: string): DisplayStatus {
+  switch (internal) {
+    case 'confirmed':
+    case 'paid':
+      return 'accepted';
+    case 'cancelled':
+      return 'canceled';
+    case 'rejected':
+      return 'rejected';
+    case 'completed':
+      return 'completed';
+    default:
+      return 'pending';
+  }
+}
+
+/** Attaches displayStatus to any booking object. */
+export function withDisplay<T extends { status: string }>(booking: T): T & { displayStatus: DisplayStatus } {
+  return { ...booking, displayStatus: toDisplayStatus(booking.status) };
+}
+
 @Injectable()
 export class BookingsService {
   private readonly commissionPercentage: number;
@@ -134,11 +174,11 @@ export class BookingsService {
       // Non-fatal — payment intent can be created lazily
     }
 
-    return booking;
+    return withDisplay(booking);
   }
 
-  async findAll(userId: string): Promise<Booking[]> {
-    return this.prisma.booking.findMany({
+  async findAll(userId: string) {
+    const bookings = await this.prisma.booking.findMany({
       where: {
         OR: [{ renterId: userId }, { hostId: userId }],
       },
@@ -155,7 +195,9 @@ export class BookingsService {
         createdAt: 'desc',
       },
     });
+    return bookings.map(withDisplay);
   }
+
 
   async findOne(id: string): Promise<Booking> {
     const booking = await this.prisma.booking.findUnique({
@@ -173,7 +215,7 @@ export class BookingsService {
     if (!booking) {
       throw new NotFoundException(`Booking with ID ${id} not found`);
     }
-    return booking;
+    return withDisplay(booking);
   }
 
   async confirm(id: string, userId: string): Promise<Booking> {
@@ -247,10 +289,50 @@ export class BookingsService {
       }
 
       // Update status
-      return tx.booking.update({
+      const updated = await tx.booking.update({
         where: { id },
         data: { status: 'confirmed' },
       });
+      return withDisplay(updated);
+    });
+  }
+
+  /** Host rejects a pending booking (sets status = rejected). */
+  async reject(id: string, userId: string): Promise<Booking & { displayStatus: DisplayStatus }> {
+    return this.prisma.$transaction(async (tx) => {
+      const bookings = await tx.$queryRaw<Booking[]>`
+        SELECT * FROM bookings
+        WHERE id::text = ${id}
+        FOR UPDATE
+      `;
+
+      if (!bookings || bookings.length === 0) {
+        throw new NotFoundException(`Booking with ID ${id} not found`);
+      }
+
+      const booking = bookings[0];
+
+      if (booking.hostId !== userId) {
+        throw new ForbiddenException('Only the listing host can reject bookings');
+      }
+
+      if (booking.status === 'rejected') {
+        return withDisplay(booking); // idempotent
+      }
+
+      // Only pending bookings can be rejected
+      if (booking.status !== 'pending') {
+        throw new BadRequestException(
+          `Cannot reject a booking with status "${booking.status}". Only pending bookings can be rejected.`,
+        );
+      }
+
+      const updated = await tx.booking.update({
+        where: { id },
+        data: { status: 'rejected' as any },
+      });
+
+      return withDisplay(updated);
     });
   }
 
@@ -328,7 +410,7 @@ export class BookingsService {
       }
 
       // Update to PAID status and set paid flag
-      return tx.booking.update({
+      const updated = await tx.booking.update({
         where: { id },
         data: {
           status: 'paid',
@@ -342,6 +424,7 @@ export class BookingsService {
           } as any,
         },
       });
+      return withDisplay(updated);
     });
   }
 
@@ -415,10 +498,11 @@ export class BookingsService {
       }
 
       // Update booking status
-      return tx.booking.update({
+      const updated = await tx.booking.update({
         where: { id },
         data: { status: 'cancelled' },
       });
+      return withDisplay(updated);
     });
   }
 
@@ -519,7 +603,7 @@ export class BookingsService {
       // Non-fatal — payment intent can be created lazily
     }
 
-    return booking;
+    return withDisplay(booking);
   }
 
   private calculateSlotPrice(

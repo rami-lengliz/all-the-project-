@@ -99,19 +99,24 @@ curl -s "http://localhost:3000/api/listings/SLOT_ID/available-slots?date=SLOT_DA
 
 ---
 
-## 🔭 Next Week — Top 2 Priorities
+## 🔭 Next Week — Top 3 Priorities (Locked MVP)
 
-### Priority 1 — Reviews & Rating System (Feature Owner: Backend)
-- `POST /api/reviews` — renter reviews host after `completed` booking
-- `GET /api/listings/:id/reviews` — paginated, with average rating
-- Update `User.ratingAvg` / `ratingCount` atomically on each review
-- **DoD:** Renter can leave a review; host rating updates immediately; reviews visible on listing page.
+### Priority 1 — Thin Demo UI (Frontend)
+- Implement minimal responsive pages needed to showcase the backend features.
+- Integrate the location-aware `categories/nearby` endpoint on the homepage.
+- Build the AI Search interface (search bar + chips display + single follow-up question flow).
+- **DoD:** A user can successfully complete a "least steps" search visually from the browser.
 
-### Priority 2 — Payment Integration (Feature Owner: Backend + Frontend)
-- Integrate Stripe (or mock) for `PaymentIntent` flow
-- `POST /api/bookings/:id/pay` → creates `PaymentIntent`, transitions booking to `paid`
-- Webhook: `payment_intent.succeeded` → set `booking.paid = true`
-- **DoD:** Full DAILY booking lifecycle: pending → paid → host confirms → completed.
+### Priority 2 — Deployment & Hosting
+- Deploy Postgres database with PostGIS enabled.
+- Deploy NestJS API backend.
+- Deploy Next.js frontend web app.
+- **DoD:** A stable, public URL is available that fully executes the demo storyboard.
+
+### Priority 3 — PFE Report Draft
+- Begin drafting the academic PFE report based on the backend architecture.
+- Complete sections on System Architecture, Database Design (PostGIS), and AI Integration.
+- **DoD:** First structural draft of the report is ready for academic review.
 
 ---
 

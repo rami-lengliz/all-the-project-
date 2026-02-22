@@ -1,6 +1,6 @@
 # RentAI — Runbook
 
-> A new developer can follow this document and have the project running in < 15 minutes.
+> A new developer can follow this document and have the project running in < 5 minutes.
 
 ---
 
@@ -47,37 +47,32 @@ OPENAI_API_KEY=""   # optional — leave empty to use fallback keyword search
 
 ---
 
-## 3. Start the Database
+## 3. The "One-Shot" Local Dev Flow
+
+For local development, we use a fresh database state every time to prevent migration drift and guarantee the demo data is intact.
 
 ```bash
-# Starts only the Postgres container (not the full stack)
+# 1. Start Postgres in the background
 docker-compose up -d postgres
 
-# Wait ~5 seconds, then verify:
-docker ps
-# Should show: ...postgres... Up X seconds (healthy)  0.0.0.0:5432->5432/tcp
-```
+# Wait ~5s for Postgres to be ready, then:
 
----
+# 2. Reset database & apply schema
+npx prisma migrate reset --force
 
-## 4. Migrate
-
-```bash
-# Apply all pending migrations (creates all tables)
-npx prisma migrate deploy
-```
-
-> If this is a fresh clone and you see no migrations folder, run `npx prisma migrate dev` instead.
-
----
-
-## 5. Seed
-
-```bash
+# 3. Seed the database with demo scenarios
 npm run seed
+
+# 4. Start both Backend & Frontend concurrently
+npm run dev:all
 ```
 
-**Expected console output (last section):**
+> **Note on `prisma migrate deploy`:** 
+> Do NOT use `prisma migrate deploy` in local development. `deploy` is strictly for **production environments** where you cannot drop data. Locally, always use `reset` (which runs `dev` safely) so your Prisma Client and database state never drift.
+
+---
+
+**Expected Seed Output (save the IDs):**
 ```
   ╔══════════════════════════════════════════════════════╗
   ║       DEMO SEED — Copy for curl / Swagger tests      ║
@@ -91,35 +86,9 @@ npm run seed
   ╚══════════════════════════════════════════════════════╝
 ```
 
-Copy the listing IDs — you'll use them in the curl commands below.
-
 ---
 
-## 6. Start the API
-
-```bash
-# Development mode (hot-reload)
-npm run start:dev
-```
-
-Server starts at **http://localhost:3000** — ready when you see:
-```
-[NestApplication] Nest application successfully started
-```
-
----
-
-## 7. Start the Frontend _(separate terminal)_
-
-```bash
-cd frontend
-npm run dev
-# Opens at http://localhost:3001
-```
-
----
-
-## 8. URLs
+## 4. URLs
 
 | Service | URL |
 |---------|-----|
@@ -131,11 +100,11 @@ npm run dev
 
 ---
 
-## 9. Proof Curls
+## 5. Proof Curls
 
 > These 3 commands prove the core features work. Run them after the server is up.
 
-### 9.1 — Categories Nearby
+### 5.1 — Categories Nearby
 
 ```bash
 curl -s "http://localhost:3000/api/categories/nearby?lat=36.8578&lng=11.092&radiusKm=50" \
@@ -146,7 +115,7 @@ curl -s "http://localhost:3000/api/categories/nearby?lat=36.8578&lng=11.092&radi
 
 ---
 
-### 9.2 — AI Search → RESULT (direct)
+### 5.2 — AI Search → RESULT (direct)
 
 Forces a RESULT response by setting `followUpUsed: true` (prevents the clarification question):
 
@@ -167,7 +136,7 @@ curl -s -X POST http://localhost:3000/api/ai/search \
 
 ---
 
-### 9.3 — AI Search → FOLLOW_UP then RESULT
+### 5.3 — AI Search → FOLLOW_UP then RESULT
 
 **Step 1** — First call (may get FOLLOW_UP asking for clarification):
 
@@ -206,7 +175,7 @@ curl -s -X POST http://localhost:3000/api/ai/search \
 
 ---
 
-### 9.4 — SLOT Conflict Demo _(bonus)_
+### 5.4 — SLOT Conflict Demo _(bonus)_
 
 Replace `SLOT_ID` and `SLOT_DATE` with the values printed during seed.
 
@@ -232,13 +201,13 @@ curl -s -X POST http://localhost:3000/api/bookings \
 
 ---
 
-## 10. Run E2E Tests
+## 6. Run E2E Tests
 
 ```bash
 # DB must be running
 docker-compose up -d postgres
 
-# All 42 tests (~30s)
+# All 44 tests (~30s)
 npx jest --config test/jest-e2e.json --forceExit
 
 # Individual suites
@@ -250,7 +219,7 @@ npx jest --config test/jest-e2e.json "slot-booking-conflict" --forceExit
 
 ---
 
-## 11. Seed Credentials
+## 7. Seed Credentials
 
 | Email | Password | Role |
 |-------|----------|------|

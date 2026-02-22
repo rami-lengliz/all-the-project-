@@ -10,10 +10,12 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
  * - CONFIRMED: Host has confirmed the booking
  * - PAID: Renter has paid for the booking
  * - COMPLETED: Booking period has ended
- * - CANCELLED: Booking was cancelled (can happen from PENDING or CONFIRMED)
+ * - CANCELLED: Booking was cancelled (can happen from PENDING, CONFIRMED, or PAID)
+ * - REJECTED: Host declined the booking (can only happen from PENDING)
  *
  * Valid Transitions:
  * - PENDING → CONFIRMED (host confirms)
+ * - PENDING → REJECTED  (host rejects)
  * - CONFIRMED → PAID (renter pays)
  * - PAID → COMPLETED (automatic or manual after end date)
  * - PENDING → CANCELLED (renter or host cancels)
@@ -29,12 +31,13 @@ export class BookingStateMachine {
     BookingStatus,
     BookingStatus[]
   > = {
-    ['pending']: ['confirmed', 'cancelled'],
-    ['confirmed']: ['paid', 'cancelled'],
-    ['paid']: ['completed', 'cancelled'],
-    ['completed']: [], // Terminal state
-    ['cancelled']: [], // Terminal state
-  };
+      ['pending']: ['confirmed', 'cancelled', 'rejected'],
+      ['confirmed']: ['paid', 'cancelled'],
+      ['paid']: ['completed', 'cancelled'],
+      ['completed']: [], // Terminal state
+      ['cancelled']: [], // Terminal state
+      ['rejected']: [], // Terminal state
+    };
 
   /**
    * Check if a state transition is valid
@@ -69,7 +72,7 @@ export class BookingStateMachine {
     if (!this.isValidTransition(from, to)) {
       throw new BadRequestException(
         `Cannot ${actionName}: Invalid state transition from ${from} to ${to}. ` +
-          `Valid transitions from ${from} are: ${this.VALID_TRANSITIONS[from]?.join(', ') || 'none'}`,
+        `Valid transitions from ${from} are: ${this.VALID_TRANSITIONS[from]?.join(', ') || 'none'}`,
       );
     }
   }
@@ -126,6 +129,6 @@ export class BookingStateMachine {
    * @returns true if state is terminal
    */
   static isTerminal(status: BookingStatus): boolean {
-    return ['completed', 'cancelled'].includes(status);
+    return ['completed', 'cancelled', 'rejected'].includes(status);
   }
 }

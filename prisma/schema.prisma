@@ -117,6 +117,7 @@ enum BookingStatus {
   paid
   completed
   cancelled
+  rejected
 }
 
 model Booking {

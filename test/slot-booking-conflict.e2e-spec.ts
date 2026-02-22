@@ -13,13 +13,8 @@ const request = require('supertest');
  * Proves:
  *  1. A SLOT listing can be booked for a specific time window
  *  2. Once confirmed, that slot appears unavailable in GET /available-slots
- *  3. A second booking for the SAME slot is rejected (4xx)
+ *  3. A second booking for the SAME or overlapping slot is rejected with HTTP 409
  *  4. A booking for a DIFFERENT non-overlapping slot succeeds
- *
- * NOTE: The conflict gate (step 3) returns 409 when checkSlotAvailability
- * correctly detects the overlap.  Due to a Prisma @db.Time deserialization
- * edge-case the check may occasionally return 400 instead; both are accepted
- * as "rejected" for now while the underlying serialisation bug is tracked.
  */
 describe('SLOT Booking — Conflict Prevention (e2e)', () => {
     let app: INestApplication;
@@ -210,30 +205,30 @@ describe('SLOT Booking — Conflict Prevention (e2e)', () => {
         // Slot omitted entirely is also valid
     });
 
-    it('Step 6a — Renter B: exact same slot (10:00–12:00) is rejected (4xx)', async () => {
+    it('Step 6a — Renter B: exact same slot (10:00–12:00) is rejected with 409', async () => {
         const res = await request(app.getHttpServer())
             .post('/api/bookings')
             .set('Authorization', `Bearer ${renterBToken}`)
             .send({
                 listingId, startDate: bookingDate, endDate: bookingDate,
                 startTime: '10:00', endTime: '12:00'
-            });
+            })
+            .expect(409);
 
-        expect(res.status).toBeGreaterThanOrEqual(400);
-        expect(res.status).toBeLessThan(500);
+        expect(res.body.message).toMatch(/not available/i);
     });
 
-    it('Step 6b — Renter B: partial-overlap slot (11:00–13:00) is rejected (4xx)', async () => {
+    it('Step 6b — Renter B: partial-overlap slot (11:00–13:00) is rejected with 409', async () => {
         const res = await request(app.getHttpServer())
             .post('/api/bookings')
             .set('Authorization', `Bearer ${renterBToken}`)
             .send({
                 listingId, startDate: bookingDate, endDate: bookingDate,
                 startTime: '11:00', endTime: '13:00'
-            });
+            })
+            .expect(409);
 
-        expect(res.status).toBeGreaterThanOrEqual(400);
-        expect(res.status).toBeLessThan(500);
+        expect(res.body.message).toMatch(/not available/i);
     });
 
     it('Step 8 — Renter B: non-overlapping slot (16:00–18:00) is accepted (201)', async () => {

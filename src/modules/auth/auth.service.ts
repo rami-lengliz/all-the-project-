@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -14,25 +15,24 @@ import type { JwtPayload, Role } from '../../common/auth/jwt-payload';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {}
+  ) { }
 
   async register(registerDto: RegisterDto) {
     try {
-      console.log('[AuthService] Registration attempt:', {
-        email: registerDto.email,
-        name: registerDto.name,
-      });
+      this.logger.log(`Registration attempt: ${registerDto.email ?? registerDto.phone}`);
 
       if (!registerDto.email && !registerDto.phone) {
         throw new BadRequestException('Either email or phone must be provided');
       }
 
       const hashedPassword = await bcrypt.hash(registerDto.password, 10);
-      console.log('[AuthService] Password hashed successfully');
+      this.logger.debug('Password hashed successfully');
 
       // Exclude password field, only send passwordHash
       const { password, ...userDataWithoutPassword } = registerDto;
@@ -40,14 +40,13 @@ export class AuthService {
         ...userDataWithoutPassword,
         passwordHash: hashedPassword,
       });
-      console.log('[AuthService] User created:', user.id);
+      this.logger.log(`User created: ${user.id}`);
 
       const tokens = await this.generateTokens(
         user.id,
         user.email || user.phone,
         this.getRoleForUser(user),
       );
-      console.log('[AuthService] Tokens generated');
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { passwordHash, ...result } = user;
@@ -57,22 +56,21 @@ export class AuthService {
         ...tokens,
       };
     } catch (error) {
-      console.error('[AuthService] Registration error:', error);
+      this.logger.error(`Registration error: ${error.message}`);
       throw error;
     }
   }
 
   async login(loginDto: LoginDto) {
     try {
-      console.log('[AuthService] Login attempt for:', loginDto.emailOrPhone);
+      this.logger.log(`Login attempt for: ${loginDto.emailOrPhone}`);
 
       const user = await this.usersService.findByEmailOrPhone(
         loginDto.emailOrPhone,
       );
-      console.log('[AuthService] User found:', !!user);
 
       if (!user) {
-        console.log('[AuthService] User not found');
+        this.logger.warn(`Login failed — user not found: ${loginDto.emailOrPhone}`);
         throw new UnauthorizedException('Invalid credentials');
       }
 
@@ -80,10 +78,10 @@ export class AuthService {
         loginDto.password,
         user.passwordHash,
       );
-      console.log('[AuthService] Password valid:', isPasswordValid);
+      this.logger.debug(`Password valid: ${isPasswordValid}`);
 
       if (!isPasswordValid) {
-        console.log('[AuthService] Invalid password');
+        this.logger.warn(`Login failed — invalid password: ${loginDto.emailOrPhone}`);
         throw new UnauthorizedException('Invalid credentials');
       }
 
@@ -92,7 +90,7 @@ export class AuthService {
         user.email || user.phone,
         this.getRoleForUser(user),
       );
-      console.log('[AuthService] Login successful, tokens generated');
+      this.logger.log(`Login successful: ${user.id}`);
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { passwordHash, ...result } = user;
@@ -101,7 +99,8 @@ export class AuthService {
         ...tokens,
       };
     } catch (error) {
-      console.error('[AuthService] Login error:', error.message);
+      if (error instanceof UnauthorizedException) throw error;
+      this.logger.error(`Login error: ${error.message}`);
       throw error;
     }
   }

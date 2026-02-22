@@ -1,106 +1,136 @@
-# RentAI — Demo Storyboard (1 Page Script)
+# RentAI — Demo Storyboard (5-minute script)
 
-This is your exact flow for presenting the project seamlessly in under 5 minutes.
+> Run this in order. Each step flows into the next naturally.
 
 ---
 
-## 💻 0. Setup (Before presenting)
+## ⚙️ Pre-demo Setup (~2 min)
 
-Run this quickly to ensure a fresh, perfect state:
 ```bash
 docker-compose up -d postgres
 npx prisma migrate reset --force
-npm run seed
+npm run seed          # prints DAILY_ID, SLOT_ID, SLOT_DATE — save these
 npm run start:dev
 ```
-*→ Keep the console open — the seed script prints exactly which IDs and dates you need for the conflict demo.*
+
+Open **Swagger** → `http://localhost:3000/api/docs`
 
 ---
 
-## 📍 1. Location-Aware Home Page (Categories + Counts)
+## 📍 Scene 1 — Location-Aware Categories (~60s)
 
-**Goal:** Show that categories change dynamically based on the user's location and radius via PostGIS.
+**Talking point:** *"Our homepage instantly knows what's available near you. Watch how the categories and counts change with location."*
 
-1. Open **Swagger** (`http://localhost:3000/api/docs`).
-2. Go to `GET /api/categories/nearby`.
-3. Enter **Kelibia** coordinates:
-   - `lat`: 36.8578
-   - `lng`: 11.092
-   - `radiusKm`: 50
-   - **Click Execute.**
-   - *→ Show the response: Categories have high counts (e.g., 20+ listings).*
-4. Change to **Tunis** coordinates:
-   - `lat`: 36.8065
-   - `lng`: 10.1815
-   - **Click Execute.**
-   - *→ Show the response: The counts drastically change (e.g., exactly 15 listings) proving the spatial query works instantly.*
+**In Swagger → `GET /api/categories/nearby`**
 
----
+**Call 1 — Kelibia (coastal area)**
+```
+lat: 36.8578  lng: 11.092  radiusKm: 50
+```
+→ Point out the response: categories appear **sorted by listing count DESC**. Show the top 2–3 (accommodation, sports-facilities, mobility).
 
-## 🤖 2. The "AI Search" Magic
+**Call 2 — Tunis (urban area, same radius)**
+```
+lat: 36.8065  lng: 10.1815  radiusKm: 50
+```
+→ The **counts change**. Kelibia ≠ Tunis. This proves PostGIS spatial filtering is live.
 
-**Goal:** Show that RentAI understands messy human language and converts it into pure, executable filters and chips.
-
-### Part A: Direct Result
-1. Go to `POST /api/ai/search`.
-2. Enter Request Body:
-   ```json
-   {
-     "query": "I need a villa with a pool in Kelibia under 250",
-     "lat": 36.8578,
-     "lng": 11.092,
-     "radiusKm": 50,
-     "followUpUsed": true
-   }
-   ```
-   - *→ Highlight the `mode: "RESULT"`. Show how it perfectly extracted `categorySlug: "accommodation"`, `maxPrice: 250`, and created clean UI `chips`.*
-
-### Part B: The Conversational Follow-Up
-1. Enter a vague query:
-   ```json
-   {
-     "query": "I want to rent a tennis court",
-     "lat": 36.8578,
-     "lng": 11.092,
-     "followUpUsed": false
-   }
-   ```
-   - *→ Highlight `mode: "FOLLOW_UP"`. The AI stops and asks: "When would you like to book the court?"*
-2. Simulate the user answering:
-   ```json
-   {
-     "query": "I want to rent a tennis court",
-     "lat": 36.8578,
-     "lng": 11.092,
-     "followUpUsed": true,
-     "followUpAnswer": "Tomorrow afternoon"
-   }
-   ```
-   - *→ Highlight `mode: "RESULT"`. The AI merged the original intent with the follow-up answer to define the exact date.*
+**Call 3 — Kelibia, smaller radius**
+```
+lat: 36.8578  lng: 11.092  radiusKm: 5
+```
+→ Some categories **drop off completely**. Radius filtering is working.
 
 ---
 
-## 🛡️ 3. The "No Double Booking" Guarantee
+## 🤖 Scene 2 — AI Search (RESULT mode) (~60s)
 
-**Goal:** Show that the system physically prevents double bookings at the database level.
+**Talking point:** *"Our search understands natural language. It converts messy user text into precise filters and UI chips — with no manual form filling."*
 
-### The Problem (`SLOT` booking conflict)
-1. In Swagger, go to `POST /api/auth/login` and login as the demo renter:
-   - `email`: `user7@example.com` | `password`: `password123`
-   - *Copy the `accessToken` and put it in the Swagger Authorize button (top right).*
-2. Go to `POST /api/bookings`.
-3. Try to book the slot that is *already confirmed* by someone else (Get ID/Date from your seed console output):
-   ```json
-   {
-     "listingId": "PUT_SLOT_ID_HERE",
-     "startDate": "PUT_DATE_HERE",
-     "endDate": "PUT_DATE_HERE",
-     "startTime": "10:00",
-     "endTime": "12:00"
-   }
-   ```
-4. **Click Execute.**
-5. *→ BOOM. `409 Conflict`. Show the error message: "This time slot is not available."* You have prevented a scheduling nightmare.
+**In Swagger → `POST /api/ai/search`**
+
+```json
+{
+  "query": "villa in kelibia under 250",
+  "lat": 36.8578,
+  "lng": 11.092,
+  "radiusKm": 50,
+  "followUpUsed": false
+}
+```
+
+Point out the response structure:
+- `"mode": "RESULT"` → AI went straight to results (query was clear enough)
+- `"filters"` → `{ categorySlug: "accommodation", maxPrice: 250 }` — extracted automatically
+- `"chips"` → ready-made UI tags like `"Villa"`, `"Under 250 TND"` that the frontend shows as dismissible filter badges
+- `"results"` → actual matching listings from your seed data
 
 ---
-**🎉 End of Demo!**
+
+## 💬 Scene 3 — AI Search (FOLLOW_UP → RESULT) (~75s)
+
+**Talking point:** *"When the query is ambiguous, we don't guess — we ask one smart clarifying question, just like a real agent would."*
+
+**Step 1 — vague first query**
+```json
+{
+  "query": "football pitch in kelibia tomorrow",
+  "lat": 36.8578,
+  "lng": 11.092,
+  "radiusKm": 50,
+  "followUpUsed": false
+}
+```
+→ Show `"mode": "FOLLOW_UP"`. AI detected a SLOT-based enquiry and needs to confirm the time. `followUp.question` reads naturally.
+
+**Step 2 — user answers, API returns results**
+```json
+{
+  "query": "football pitch in kelibia tomorrow",
+  "lat": 36.8578,
+  "lng": 11.092,
+  "radiusKm": 50,
+  "followUpUsed": true,
+  "followUpAnswer": "In the afternoon around 3pm"
+}
+```
+→ `"mode": "RESULT"`. The AI merged the original intent + the answer into a precise filter set. Point out `filters.availableFrom` or `filters.bookingType: "SLOT"`.
+
+---
+
+## 🛡️ Scene 4 — No Double Booking (Slot Conflict) (~60s)
+
+**Talking point:** *"The system enforces booking integrity at the database level — not just the UI. Let me prove it."*
+
+**Step 1 — login as renterB (user7)**
+
+In Swagger → `POST /api/auth/login`:
+```json
+{ "emailOrPhone": "user7@example.com", "password": "password123" }
+```
+Copy the `accessToken` → click **Authorize** (top right) → paste it.
+
+**Step 2 — try to book an already-confirmed slot**
+
+From the seed console output, grab `SLOT_ID` and `SLOT_DATE`.
+
+In Swagger → `POST /api/bookings`:
+```json
+{
+  "listingId": "SLOT_ID",
+  "startDate": "SLOT_DATE",
+  "endDate": "SLOT_DATE",
+  "startTime": "10:00",
+  "endTime": "12:00"
+}
+```
+
+→ **`409 Conflict`** — *"This time slot is not available."*
+
+The slot is blocked because renterA already has a `confirmed` booking at 10:00–12:00. The system uses a PostgreSQL `OVERLAPS` check at query time — impossible to bypass.
+
+---
+
+## 🎉 Done!
+
+Total time: **~4 minutes**. Three distinct value propositions demonstrated live, with zero mocking or prepared screenshots.
