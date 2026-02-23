@@ -99,6 +99,7 @@ curl -s "http://localhost:3000/api/listings/SLOT_ID/available-slots?date=SLOT_DA
 
 ---
 
+
 ## 🔭 Next Week — Top 3 Priorities (Locked MVP)
 
 ### Priority 1 — Thin Demo UI (Frontend)
