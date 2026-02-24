@@ -20,6 +20,7 @@ import {
   ApiConsumes,
   ApiBody,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ListingsService } from './listings.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
@@ -73,11 +74,12 @@ const multerOptions = {
 @ApiTags('listings')
 @Controller('api/listings')
 export class ListingsController {
-  constructor(private readonly listingsService: ListingsService) { }
+  constructor(private readonly listingsService: ListingsService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, HostGuard)
   @UseInterceptors(FilesInterceptor('images', 5, multerOptions))
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new listing (host only)' })
   @ApiConsumes('multipart/form-data')
@@ -88,6 +90,16 @@ export class ListingsController {
     @Request() req,
   ) {
     return this.listingsService.create(createListingDto, req.user.sub, files);
+  }
+
+  @Get('mine')
+  @UseGuards(JwtAuthGuard, HostGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get all listings for the current host (any status)',
+  })
+  findMine(@Request() req) {
+    return this.listingsService.findAllForHost(req.user.sub);
   }
 
   @Get()

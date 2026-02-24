@@ -19,7 +19,7 @@ export class ListingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/listings',
+            url: '/api/api/listings',
             formData: formData,
             mediaType: 'multipart/form-data',
         });
@@ -57,7 +57,7 @@ export class ListingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/listings',
+            url: '/api/api/listings',
             query: {
                 'q': q,
                 'category': category,
@@ -85,7 +85,7 @@ export class ListingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/listings/{id}',
+            url: '/api/api/listings/{id}',
             path: {
                 'id': id,
             },
@@ -104,7 +104,7 @@ export class ListingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'PATCH',
-            url: '/api/listings/{id}',
+            url: '/api/api/listings/{id}',
             path: {
                 'id': id,
             },
@@ -123,11 +123,10 @@ export class ListingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'DELETE',
-            url: '/api/listings/{id}',
+            url: '/api/api/listings/{id}',
             path: {
                 'id': id,
             },
         });
     }
 }
-

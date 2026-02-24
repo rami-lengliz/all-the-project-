@@ -6,7 +6,7 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     // Generate slug from name if not provided

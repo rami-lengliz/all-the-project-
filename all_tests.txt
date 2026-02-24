@@ -1,0 +1,94 @@
+﻿     [90m 48 |[39m         app[33m.[39museGlobalPipes([36mnew[39m 
+[33mValidationPipe[39m({ whitelist[33m:[39m [36mtrue[39m[33m,[39m 
+transform[33m:[39m [36mtrue[39m }))[33m;[39m
+     [90m 49 |[39m         [36mawait[39m app[33m.[39minit()[33m;[39m
+     [90m 50 |[39m[0m
+
+      at Object.<anonymous> (refund-guard.e2e-spec.ts:47:28)
+FAIL test/refund-guard.e2e-spec.ts (27.424 s)
+  ÔùÅ Refund Guardrail v1 E2E ÔÇ║ refund after payout is PAID returns 400 with 
+REFUND_AFTER_PAYOUT_NOT_ALLOWED
+
+    thrown: "Exceeded timeout of 5000 ms for a hook.
+    Add a timeout value to this test to increase the timeout, if this is a 
+long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+    [0m [90m 41 |[39m     [36mlet[39m bookingWithoutPayout[33m:[39m 
+string[33m;[39m [90m// will be captured only[39m
+     [90m 42 |[39m
+    [31m[1m>[22m[39m[90m 43 |[39m     beforeAll([36masync[39m () 
+[33m=>[39m {
+     [90m    |[39m     [31m[1m^[22m[39m
+     [90m 44 |[39m         [36mconst[39m moduleFixture[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({ imports[33m:[39m 
+[[33mAppModule[39m] })[33m.[39mcompile()[33m;[39m
+     [90m 45 |[39m         app [33m=[39m 
+moduleFixture[33m.[39mcreateNestApplication()[33m;[39m
+     [90m 46 |[39m         app[33m.[39museGlobalInterceptors([36mnew[39m 
+[33mTransformInterceptor[39m())[33m;[39m[0m
+
+      at refund-guard.e2e-spec.ts:43:5
+      at Object.<anonymous> (refund-guard.e2e-spec.ts:21:1)
+
+  ÔùÅ Refund Guardrail v1 E2E ÔÇ║ refund before payout succeeds normally and 
+creates REFUND ledger entries
+
+    thrown: "Exceeded timeout of 5000 ms for a hook.
+    Add a timeout value to this test to increase the timeout, if this is a 
+long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+    [0m [90m 41 |[39m     [36mlet[39m bookingWithoutPayout[33m:[39m 
+string[33m;[39m [90m// will be captured only[39m
+     [90m 42 |[39m
+    [31m[1m>[22m[39m[90m 43 |[39m     beforeAll([36masync[39m () 
+[33m=>[39m {
+     [90m    |[39m     [31m[1m^[22m[39m
+     [90m 44 |[39m         [36mconst[39m moduleFixture[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({ imports[33m:[39m 
+[[33mAppModule[39m] })[33m.[39mcompile()[33m;[39m
+     [90m 45 |[39m         app [33m=[39m 
+moduleFixture[33m.[39mcreateNestApplication()[33m;[39m
+     [90m 46 |[39m         app[33m.[39museGlobalInterceptors([36mnew[39m 
+[33mTransformInterceptor[39m())[33m;[39m[0m
+
+      at refund-guard.e2e-spec.ts:43:5
+      at Object.<anonymous> (refund-guard.e2e-spec.ts:21:1)
+
+
+  ÔùÅ Test suite failed to run
+
+    TypeError: Cannot read properties of undefined (reading 'booking')
+
+    [0m [90m 119 |[39m     afterAll([36masync[39m () [33m=>[39m {
+     [90m 120 |[39m         [90m// Cleanup in FK-safe order[39m
+    [31m[1m>[22m[39m[90m 121 |[39m         [36mconst[39m bookings 
+[33m=[39m [36mawait[39m prisma[33m.[39mbooking[33m.[39mfindMany({ 
+where[33m:[39m { hostId }[33m,[39m select[33m:[39m { id[33m:[39m 
+[36mtrue[39m } })[33m;[39m
+     [90m     |[39m                                       [31m[1m^[22m[39m
+     [90m 122 |[39m         [36mconst[39m bids [33m=[39m 
+bookings[33m.[39mmap((b) [33m=>[39m b[33m.[39mid)[33m;[39m
+     [90m 123 |[39m         [36mawait[39m 
+prisma[33m.[39mpayoutItem[33m.[39mdeleteMany({ where[33m:[39m { 
+payout[33m:[39m { hostId } } })[33m.[39m[36mcatch[39m(() [33m=>[39m { 
+})[33m;[39m
+     [90m 124 |[39m         [36mawait[39m 
+prisma[33m.[39mpayout[33m.[39mdeleteMany({ where[33m:[39m { hostId } 
+})[33m.[39m[36mcatch[39m(() [33m=>[39m { })[33m;[39m[0m
+
+      at Object.<anonymous> (refund-guard.e2e-spec.ts:121:39)
+
+A worker process has failed to exit gracefully and has been force exited. This is 
+likely caused by tests leaking due to improper teardown. Try running with 
+--detectOpenHandles to find leaks. Active timers can also cause this, ensure that 
+.unref() was called on them.
+Test Suites: 3 failed, 3 total
+Tests:       16 failed, 16 total
+Snapshots:   0 total
+Time:        30.899 s
+Ran all test suites matching /test\\refund-guard.e2e-spec.ts|test\\ledger.e2e-spec.
+ts|test\\payouts.e2e-spec.ts/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect 
+async operations that kept running after all tests finished?

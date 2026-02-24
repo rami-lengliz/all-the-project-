@@ -31,13 +31,13 @@ export class BookingStateMachine {
     BookingStatus,
     BookingStatus[]
   > = {
-      ['pending']: ['confirmed', 'cancelled', 'rejected'],
-      ['confirmed']: ['paid', 'cancelled'],
-      ['paid']: ['completed', 'cancelled'],
-      ['completed']: [], // Terminal state
-      ['cancelled']: [], // Terminal state
-      ['rejected']: [], // Terminal state
-    };
+    ['pending']: ['confirmed', 'cancelled', 'rejected'],
+    ['confirmed']: ['paid', 'cancelled'],
+    ['paid']: ['completed', 'cancelled'],
+    ['completed']: [], // Terminal state
+    ['cancelled']: [], // Terminal state
+    ['rejected']: [], // Terminal state
+  };
 
   /**
    * Check if a state transition is valid
@@ -72,7 +72,7 @@ export class BookingStateMachine {
     if (!this.isValidTransition(from, to)) {
       throw new BadRequestException(
         `Cannot ${actionName}: Invalid state transition from ${from} to ${to}. ` +
-        `Valid transitions from ${from} are: ${this.VALID_TRANSITIONS[from]?.join(', ') || 'none'}`,
+          `Valid transitions from ${from} are: ${this.VALID_TRANSITIONS[from]?.join(', ') || 'none'}`,
       );
     }
   }

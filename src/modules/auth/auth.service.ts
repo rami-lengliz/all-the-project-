@@ -21,11 +21,13 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) { }
+  ) {}
 
   async register(registerDto: RegisterDto) {
     try {
-      this.logger.log(`Registration attempt: ${registerDto.email ?? registerDto.phone}`);
+      this.logger.log(
+        `Registration attempt: ${registerDto.email ?? registerDto.phone}`,
+      );
 
       if (!registerDto.email && !registerDto.phone) {
         throw new BadRequestException('Either email or phone must be provided');
@@ -70,7 +72,9 @@ export class AuthService {
       );
 
       if (!user) {
-        this.logger.warn(`Login failed — user not found: ${loginDto.emailOrPhone}`);
+        this.logger.warn(
+          `Login failed — user not found: ${loginDto.emailOrPhone}`,
+        );
         throw new UnauthorizedException('Invalid credentials');
       }
 
@@ -81,7 +85,9 @@ export class AuthService {
       this.logger.debug(`Password valid: ${isPasswordValid}`);
 
       if (!isPasswordValid) {
-        this.logger.warn(`Login failed — invalid password: ${loginDto.emailOrPhone}`);
+        this.logger.warn(
+          `Login failed — invalid password: ${loginDto.emailOrPhone}`,
+        );
         throw new UnauthorizedException('Invalid credentials');
       }
 

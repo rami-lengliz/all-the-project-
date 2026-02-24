@@ -70,19 +70,19 @@ export class ListingsService {
       // Generate UUID in Node.js for portability (no pgcrypto extension needed)
       const listingId = crypto.randomUUID();
 
-      const savedListing = (await this.prisma.$executeRaw`
+      await this.prisma.$executeRaw`
         INSERT INTO listings (
           id, "hostId", title, description, "categoryId", images, "pricePerDay",
-          location, address, rules, availability, "isActive", "bookingType", "createdAt", "updatedAt"
+          location, address, rules, availability, "isActive", status, "bookingType", "createdAt", "updatedAt"
         ) VALUES (
           ${listingId}::uuid, ${hostId}, ${createListingDto.title}, ${createListingDto.description},
           ${createListingDto.categoryId}, ARRAY[]::text[], ${createListingDto.pricePerDay},
           ST_SetSRID(ST_GeomFromText(${locationWKT}), 4326), ${createListingDto.address},
           ${createListingDto.rules || null}, ${createListingDto.availability ? JSON.stringify(createListingDto.availability) : null}::jsonb,
-          true, ${bookingType}::"BookingType", NOW(), NOW()
+          true, 'PENDING_REVIEW'::"ListingStatus", ${bookingType}::"BookingType", NOW(), NOW()
         )
         RETURNING *
-      `) as any;
+      `;
 
       // Get the created listing
       const listing = await this.prisma.listing.findUnique({
@@ -177,14 +177,11 @@ export class ListingsService {
       Number.isFinite(filters.lng);
 
     try {
-      fs.appendFileSync(
-        'debug_findAll.log',
-        `findAll called with filters: ${JSON.stringify(filters)}\n`,
-      );
       // Build conditions
       const conditions: string[] = [
         'l."isActive" = true',
         'l."deletedAt" IS NULL',
+        'l."status" = \'ACTIVE\'',
       ];
       const params: any[] = [];
       let paramIndex = 1;
@@ -320,6 +317,8 @@ export class ListingsService {
         if (filters.category) {
           where.categoryId = filters.category;
         }
+        // Only show ACTIVE listings in public fallback
+        (where as any).status = 'ACTIVE';
         if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
           where.pricePerDay = {};
           if (filters.minPrice) {
@@ -608,5 +607,37 @@ export class ListingsService {
       date,
       bookings,
     );
+  }
+
+  /**
+   * Return all listings for a given host, regardless of status.
+   * Used by the host dashboard (GET /api/listings/mine).
+   */
+  async findAllForHost(hostId: string): Promise<any[]> {
+    return this.prisma.listing.findMany({
+      where: {
+        hostId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        pricePerDay: true,
+        address: true,
+        images: true,
+        createdAt: true,
+        bookingType: true,
+        isActive: true,
+        status: true,
+        category: {
+          select: { id: true, name: true, icon: true, slug: true },
+        },
+        host: {
+          select: { id: true, name: true, ratingAvg: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 }

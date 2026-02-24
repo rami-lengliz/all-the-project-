@@ -15,7 +15,7 @@ export class AdminService {
     public static adminControllerGetAllUsers(): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/admin/users',
+            url: '/api/api/admin/users',
         });
     }
     /**
@@ -26,7 +26,7 @@ export class AdminService {
     public static adminControllerGetAllListings(): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/admin/listings',
+            url: '/api/api/admin/listings',
         });
     }
     /**
@@ -40,7 +40,7 @@ export class AdminService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/admin/flag',
+            url: '/api/api/admin/flag',
             body: requestBody,
             mediaType: 'application/json',
         });
@@ -56,11 +56,10 @@ export class AdminService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/admin/logs',
+            url: '/api/api/admin/logs',
             query: {
                 'limit': limit,
             },
         });
     }
 }
-

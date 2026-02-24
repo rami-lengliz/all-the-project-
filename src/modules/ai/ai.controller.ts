@@ -26,7 +26,7 @@ export class AiController {
     private listingAssistantService: ListingAssistantService,
     private aiSearchService: AiSearchService,
     private prisma: PrismaService,
-  ) { }
+  ) {}
 
   @Post('search')
   @Public()
@@ -240,7 +240,8 @@ export class AiController {
   @Public()
   @ApiOperation({
     summary: '[Dev/Admin] List recent AI search logs',
-    description: 'Returns the last N AI search log entries. Useful for PFE demo and debugging.',
+    description:
+      'Returns the last N AI search log entries. Useful for PFE demo and debugging.',
   })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
   async getSearchLogs(@Query('limit') limit?: string) {

@@ -22,7 +22,7 @@ export class AiSearchService {
     private readonly categoriesService: CategoriesService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
-  ) { }
+  ) {}
 
   async search(dto: AiSearchRequestDto): Promise<AiSearchResponseDto> {
     const openaiKey = this.configService.get<string>('OPENAI_API_KEY');

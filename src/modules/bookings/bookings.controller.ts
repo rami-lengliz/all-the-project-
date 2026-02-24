@@ -9,7 +9,12 @@ import {
   Request,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { PayBookingDto } from './dto/pay-booking.dto';
@@ -21,7 +26,7 @@ import { HostGuard } from '../../common/guards/host.guard';
 @Controller('api/bookings')
 @UseGuards(JwtAuthGuard)
 export class BookingsController {
-  constructor(private readonly bookingsService: BookingsService) { }
+  constructor(private readonly bookingsService: BookingsService) {}
 
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
@@ -38,7 +43,8 @@ export class BookingsController {
   @ApiOperation({ summary: 'Get all bookings for the current user' })
   @ApiResponse({
     status: 200,
-    description: 'Each booking includes a `displayStatus` field: pending | accepted | completed | canceled | rejected.',
+    description:
+      'Each booking includes a `displayStatus` field: pending | accepted | completed | canceled | rejected.',
   })
   findAll(@Request() req) {
     return this.bookingsService.findAll(req.user.sub);
@@ -57,11 +63,13 @@ export class BookingsController {
   @Patch(':id/confirm')
   @UseGuards(HostGuard)
   @ApiOperation({
-    summary: 'Host accepts a pending booking (internal: confirmed → displayStatus: accepted)',
+    summary:
+      'Host accepts a pending booking (internal: confirmed → displayStatus: accepted)',
   })
   @ApiResponse({
     status: 200,
-    description: 'Booking internal status set to `confirmed`. displayStatus = "accepted".',
+    description:
+      'Booking internal status set to `confirmed`. displayStatus = "accepted".',
   })
   confirm(@Param('id') id: string, @Request() req) {
     return this.bookingsService.confirm(id, req.user.sub);
@@ -70,7 +78,8 @@ export class BookingsController {
   @Patch(':id/reject')
   @UseGuards(HostGuard)
   @ApiOperation({
-    summary: 'Host rejects a pending booking (internal: rejected → displayStatus: rejected)',
+    summary:
+      'Host rejects a pending booking (internal: rejected → displayStatus: rejected)',
     description:
       'Only the host of the listing can reject a booking. ' +
       'Only `pending` bookings can be rejected. ' +
@@ -78,21 +87,27 @@ export class BookingsController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Booking internal status set to `rejected`. displayStatus = "rejected".',
+    description:
+      'Booking internal status set to `rejected`. displayStatus = "rejected".',
   })
   @ApiResponse({ status: 400, description: 'Booking is not in pending state.' })
-  @ApiResponse({ status: 403, description: 'Only the host can reject bookings.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Only the host can reject bookings.',
+  })
   reject(@Param('id') id: string, @Request() req) {
     return this.bookingsService.reject(id, req.user.sub);
   }
 
   @Post(':id/pay')
   @ApiOperation({
-    summary: 'Simulate payment for a confirmed booking (internal: paid → displayStatus: accepted)',
+    summary:
+      'Simulate payment for a confirmed booking (internal: paid → displayStatus: accepted)',
   })
   @ApiResponse({
     status: 200,
-    description: 'Payment processed. displayStatus stays "accepted" (paid is an internal milestone).',
+    description:
+      'Payment processed. displayStatus stays "accepted" (paid is an internal milestone).',
   })
   pay(
     @Param('id') id: string,
@@ -104,7 +119,8 @@ export class BookingsController {
 
   @Patch(':id/cancel')
   @ApiOperation({
-    summary: 'Renter or host cancels a booking (internal: cancelled → displayStatus: canceled)',
+    summary:
+      'Renter or host cancels a booking (internal: cancelled → displayStatus: canceled)',
   })
   @ApiResponse({
     status: 200,

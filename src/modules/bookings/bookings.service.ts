@@ -16,7 +16,6 @@ import { ConfigService } from '@nestjs/config';
 import { AvailabilityService } from '../../common/utils/availability.service';
 import { BookingStateMachine } from '../../common/utils/booking-state-machine';
 import { PaymentsService } from '../payments/payments.service';
-import { PaymentIntentStatus } from '@prisma/client';
 import { CancellationPolicyService } from '../../common/policies/cancellation-policy.service';
 
 /**
@@ -55,7 +54,9 @@ export function toDisplayStatus(internal: string): DisplayStatus {
 }
 
 /** Attaches displayStatus to any booking object. */
-export function withDisplay<T extends { status: string }>(booking: T): T & { displayStatus: DisplayStatus } {
+export function withDisplay<T extends { status: string }>(
+  booking: T,
+): T & { displayStatus: DisplayStatus } {
   return { ...booking, displayStatus: toDisplayStatus(booking.status) };
 }
 
@@ -163,6 +164,11 @@ export class BookingsService {
           commission,
           status: 'pending',
           paid: false,
+          // Immutable snapshot — never updated after creation
+          snapshotTitle: listing.title,
+          snapshotPricePerDay: pricePerDay,
+          snapshotCommissionRate: this.commissionPercentage,
+          snapshotCurrency: 'TND',
         },
       });
     });
@@ -197,7 +203,6 @@ export class BookingsService {
     });
     return bookings.map(withDisplay);
   }
-
 
   async findOne(id: string): Promise<Booking> {
     const booking = await this.prisma.booking.findUnique({
@@ -298,7 +303,10 @@ export class BookingsService {
   }
 
   /** Host rejects a pending booking (sets status = rejected). */
-  async reject(id: string, userId: string): Promise<Booking & { displayStatus: DisplayStatus }> {
+  async reject(
+    id: string,
+    userId: string,
+  ): Promise<Booking & { displayStatus: DisplayStatus }> {
     return this.prisma.$transaction(async (tx) => {
       const bookings = await tx.$queryRaw<Booking[]>`
         SELECT * FROM bookings
@@ -313,7 +321,9 @@ export class BookingsService {
       const booking = bookings[0];
 
       if (booking.hostId !== userId) {
-        throw new ForbiddenException('Only the listing host can reject bookings');
+        throw new ForbiddenException(
+          'Only the listing host can reject bookings',
+        );
       }
 
       if (booking.status === 'rejected') {
@@ -590,6 +600,11 @@ export class BookingsService {
           commission,
           status: 'pending',
           paid: false,
+          // Immutable snapshot — never updated after creation
+          snapshotTitle: listing.title,
+          snapshotPricePerDay: Number(listing.pricePerDay),
+          snapshotCommissionRate: this.commissionPercentage,
+          snapshotCurrency: 'TND',
         },
       });
 

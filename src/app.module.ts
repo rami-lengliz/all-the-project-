@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -18,6 +18,9 @@ import { AdminModule } from './modules/admin/admin.module';
 import { MlModule } from './modules/ml/ml.module';
 import { ChatModule } from './chat/chat.module';
 import { AiModule } from './modules/ai/ai.module';
+import { LedgerModule } from './modules/ledger/ledger.module';
+import { PayoutsModule } from './modules/payouts/payouts.module';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
   imports: [
@@ -47,6 +50,8 @@ import { AiModule } from './modules/ai/ai.module';
     MlModule,
     ChatModule,
     AiModule,
+    LedgerModule,
+    PayoutsModule,
   ],
   controllers: [AppController],
   providers: [
@@ -57,4 +62,8 @@ import { AiModule } from './modules/ai/ai.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}

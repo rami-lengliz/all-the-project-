@@ -19,7 +19,7 @@ export class CategoriesService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/categories',
+            url: '/api/api/categories',
             body: requestBody,
             mediaType: 'application/json',
         });
@@ -32,7 +32,7 @@ export class CategoriesService {
     public static categoriesControllerFindAll(): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/categories',
+            url: '/api/api/categories',
         });
     }
     /**
@@ -46,7 +46,7 @@ export class CategoriesService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/categories/{id}',
+            url: '/api/api/categories/{id}',
             path: {
                 'id': id,
             },
@@ -65,7 +65,7 @@ export class CategoriesService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'PATCH',
-            url: '/api/categories/{id}',
+            url: '/api/api/categories/{id}',
             path: {
                 'id': id,
             },
@@ -84,11 +84,10 @@ export class CategoriesService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'DELETE',
-            url: '/api/categories/{id}',
+            url: '/api/api/categories/{id}',
             path: {
                 'id': id,
             },
         });
     }
 }
-

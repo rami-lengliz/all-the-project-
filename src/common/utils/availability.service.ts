@@ -16,7 +16,7 @@ import { BLOCKING_BOOKING_STATUSES } from '../constants/booking-status.constants
  */
 @Injectable()
 export class AvailabilityService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Check if a listing is available for the given date range
@@ -286,7 +286,9 @@ export class AvailabilityService {
           }
           return String(t).substring(0, 5);
         };
-        const bookingStart = this.timeStringToMinutes(toHHmm(booking.startTime));
+        const bookingStart = this.timeStringToMinutes(
+          toHHmm(booking.startTime),
+        );
         const bookingEnd = this.timeStringToMinutes(toHHmm(booking.endTime));
 
         return (

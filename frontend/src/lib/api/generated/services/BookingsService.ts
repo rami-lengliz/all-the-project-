@@ -19,7 +19,7 @@ export class BookingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/bookings',
+            url: '/api/api/bookings',
             body: requestBody,
             mediaType: 'application/json',
         });
@@ -32,7 +32,7 @@ export class BookingsService {
     public static bookingsControllerFindAll(): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/bookings/me',
+            url: '/api/api/bookings/me',
         });
     }
     /**
@@ -46,7 +46,7 @@ export class BookingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/bookings/{id}',
+            url: '/api/api/bookings/{id}',
             path: {
                 'id': id,
             },
@@ -63,7 +63,7 @@ export class BookingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'PATCH',
-            url: '/api/bookings/{id}/confirm',
+            url: '/api/api/bookings/{id}/confirm',
             path: {
                 'id': id,
             },
@@ -82,7 +82,7 @@ export class BookingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/bookings/{id}/pay',
+            url: '/api/api/bookings/{id}/pay',
             path: {
                 'id': id,
             },
@@ -101,11 +101,10 @@ export class BookingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'PATCH',
-            url: '/api/bookings/{id}/cancel',
+            url: '/api/api/bookings/{id}/cancel',
             path: {
                 'id': id,
             },
         });
     }
 }
-

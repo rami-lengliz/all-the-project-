@@ -43,6 +43,7 @@ model User {
   renterConversations Conversation[] @relation("RenterConversations")
   hostConversations   Conversation[] @relation("HostConversations")
   sentMessages        Message[]
+  payoutsAsHost       Payout[]       @relation("HostPayouts")
 
   @@index([email])
   @@index([phone])
@@ -75,6 +76,13 @@ enum BookingType {
   SLOT
 }
 
+enum ListingStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  SUSPENDED
+}
+
 model Listing {
   id           String                               @id @default(uuid())
   hostId       String
@@ -88,6 +96,7 @@ model Listing {
   rules        String?                              @db.Text
   availability Json?                                @db.JsonB
   isActive     Boolean                              @default(true)
+  status       ListingStatus                        @default(PENDING_REVIEW)
   bookingType  BookingType                          @default(DAILY)
   deletedAt    DateTime?
   createdAt    DateTime                             @default(now())
@@ -104,6 +113,7 @@ model Listing {
   @@index([pricePerDay])
   @@index([categoryId])
   @@index([isActive])
+  @@index([status])
   @@index([deletedAt])
   @@map("listings")
 }
@@ -118,6 +128,12 @@ enum BookingStatus {
   completed
   cancelled
   rejected
+}
+
+enum DisputeStatus {
+  NONE
+  OPEN
+  RESOLVED
 }
 
 model Booking {
@@ -140,12 +156,22 @@ model Booking {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  // Immutable snapshot: captured at booking creation, never updated
+  snapshotTitle          String?       @db.VarChar(255)
+  snapshotPricePerDay    Decimal?      @db.Decimal(10, 2)
+  snapshotCommissionRate Decimal?      @db.Decimal(5, 4)
+  snapshotCurrency       String?       @default("TND") @db.VarChar(3)
+
+  // Dispute
+  disputeStatus DisputeStatus @default(NONE)
+
   // Relations
   listing       Listing        @relation(fields: [listingId], references: [id])
   renter        User           @relation("RenterBookings", fields: [renterId], references: [id])
   host          User           @relation("HostBookings", fields: [hostId], references: [id])
   review        Review?
   paymentIntent PaymentIntent?
+  ledgerEntries LedgerEntry[]
   Conversation  Conversation[]
 
   @@index([startDate, endDate])
@@ -219,9 +245,10 @@ model PaymentIntent {
   updatedAt DateTime            @updatedAt
 
   // Relations
-  booking Booking @relation(fields: [bookingId], references: [id])
-  renter  User    @relation("RenterPayments", fields: [renterId], references: [id])
-  host    User    @relation("HostPayments", fields: [hostId], references: [id])
+  booking       Booking       @relation(fields: [bookingId], references: [id])
+  renter        User          @relation("RenterPayments", fields: [renterId], references: [id])
+  host          User          @relation("HostPayments", fields: [hostId], references: [id])
+  ledgerEntries LedgerEntry[]
 
   @@index([bookingId])
   @@index([status])
@@ -332,4 +359,98 @@ model AiSearchLog {
 
   @@index([createdAt])
   @@map("ai_search_logs")
+}
+
+// ===========================
+// Ledger Models
+// ===========================
+enum LedgerEntryType {
+  RENT_PAID
+  COMMISSION
+  HOST_PAYOUT_DUE
+  REFUND
+  ADJUSTMENT
+  HOST_PAYOUT
+}
+
+enum LedgerDirection {
+  CREDIT
+  DEBIT
+}
+
+enum LedgerStatus {
+  POSTED
+  REVERSED
+}
+
+model LedgerEntry {
+  id              String          @id @default(uuid())
+  bookingId       String
+  paymentIntentId String?
+  actorId         String?
+  type            LedgerEntryType
+  direction       LedgerDirection
+  amount          Decimal         @db.Decimal(10, 2)
+  currency        String          @default("TND") @db.VarChar(3)
+  status          LedgerStatus    @default(POSTED)
+  reversedEntryId String?         @unique
+  metadata        Json?           @db.JsonB
+  createdAt       DateTime        @default(now())
+
+  // Relations
+  booking          Booking        @relation(fields: [bookingId], references: [id])
+  paymentIntent    PaymentIntent? @relation(fields: [paymentIntentId], references: [id])
+  reversedEntry    LedgerEntry?   @relation("Reversal", fields: [reversedEntryId], references: [id])
+  reversedBy       LedgerEntry?   @relation("Reversal")
+  payoutItem       PayoutItem?
+
+  @@index([bookingId])
+  @@index([paymentIntentId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("ledger_entries")
+}
+
+// ===========================
+// Payout Models
+// ===========================
+enum PayoutStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+model Payout {
+  id        String       @id @default(uuid())
+  hostId    String
+  amount    Decimal      @db.Decimal(10, 2)
+  currency  String       @default("TND") @db.VarChar(3)
+  status    PayoutStatus @default(PENDING)
+  method    String?      @db.VarChar(100)
+  reference String?      @db.VarChar(255)
+  notes     String?      @db.Text
+  createdAt DateTime     @default(now())
+  paidAt    DateTime?
+  adminId   String?      // who created/approved
+
+  host        User         @relation("HostPayouts", fields: [hostId], references: [id])
+  items       PayoutItem[]
+
+  @@index([hostId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("payouts")
+}
+
+model PayoutItem {
+  id             String   @id @default(uuid())
+  payoutId       String
+  ledgerEntryId  String   @unique
+  createdAt      DateTime @default(now())
+
+  payout       Payout      @relation(fields: [payoutId], references: [id])
+  ledgerEntry  LedgerEntry @relation(fields: [ledgerEntryId], references: [id])
+
+  @@index([payoutId])
+  @@map("payout_items")
 }

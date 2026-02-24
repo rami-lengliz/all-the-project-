@@ -3,7 +3,6 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
-  ConflictException,
   Inject,
   forwardRef,
 } from '@nestjs/common';
@@ -18,15 +17,25 @@ import {
 import { PaymentStateMachine } from '../../common/utils/payment-state-machine';
 import { BookingsService } from '../bookings/bookings.service';
 import { CancellationPolicyService } from '../../common/policies/cancellation-policy.service';
+import { LedgerService } from '../ledger/ledger.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class PaymentsService {
+  /** Default commission rate read from env, fallback 0.10 */
+  private readonly defaultCommissionRate: number;
+
   constructor(
     private prisma: PrismaService,
     @Inject(forwardRef(() => BookingsService))
     private bookingsService: BookingsService,
     private cancellationPolicyService: CancellationPolicyService,
-  ) { }
+    private ledgerService: LedgerService,
+    private configService: ConfigService,
+  ) {
+    this.defaultCommissionRate =
+      Number(this.configService.get<string>('COMMISSION_PERCENTAGE')) || 0.1;
+  }
 
   /**
    * Create a payment intent for a booking
@@ -101,7 +110,7 @@ export class PaymentsService {
       // State machine validation
       PaymentStateMachine.validateTransition(
         paymentIntent.status as any,
-        'AUTHORIZED' as any,
+        'authorized',
         'authorize payment',
       );
 
@@ -122,6 +131,7 @@ export class PaymentsService {
    * Capture payment (system captures authorized payment)
    * Only system can capture (no userId required)
    * This is called when booking moves to PAID status
+   * Also posts 3 ledger entries atomically in the same transaction.
    */
   async capture(bookingId: string): Promise<PaymentIntent> {
     return await this.prisma.$transaction(async (tx) => {
@@ -148,15 +158,35 @@ export class PaymentsService {
       // State machine validation
       PaymentStateMachine.validateTransition(
         paymentIntent.status as any,
-        'CAPTURED' as any,
+        'captured',
         'capture payment',
       );
 
       // Update status
-      return tx.paymentIntent.update({
+      const updated = await tx.paymentIntent.update({
         where: { id: paymentIntent.id },
         data: { status: 'captured' },
       });
+
+      // Load booking for commission rate
+      const booking = await tx.booking.findUniqueOrThrow({
+        where: { id: bookingId },
+      });
+
+      const commissionRate = booking.snapshotCommissionRate
+        ? Number(booking.snapshotCommissionRate)
+        : this.defaultCommissionRate;
+
+      // Post 3 ledger entries atomically (idempotent by design)
+      await this.ledgerService.postCapture(
+        paymentIntent.id,
+        bookingId,
+        Number(paymentIntent.amount),
+        commissionRate,
+        tx,
+      );
+
+      return updated;
     });
   }
 
@@ -164,6 +194,7 @@ export class PaymentsService {
    * Refund payment
    * Can only refund captured payments
    * Policy validation ensures refunds follow cancellation rules
+   * Also reverses ledger entries atomically.
    */
   async refund(bookingId: string): Promise<PaymentIntent> {
     return await this.prisma.$transaction(async (tx) => {
@@ -197,18 +228,55 @@ export class PaymentsService {
         );
       }
 
+      // ── Refund Guardrail v1 ──────────────────────────────────────────────
+      // Check whether a HOST_PAYOUT ledger entry exists for this booking,
+      // which means the host has already been paid out for it.
+      // Design choice: BLOCK the refund rather than allow a negative balance.
+      // Rationale: silently creating platform loss (paying out a host then
+      // also refunding the renter without recovering the host payout) violates
+      // financial integrity. An explicit error forces admins to reconcile
+      // manually (e.g. clawback from host, platform absorbs loss, etc.).
+      const existingPayout = await tx.ledgerEntry.findFirst({
+        where: {
+          bookingId,
+          type: 'HOST_PAYOUT',
+          status: 'POSTED',
+        },
+      });
+
+      if (existingPayout) {
+        throw new BadRequestException(
+          JSON.stringify({
+            code: 'REFUND_AFTER_PAYOUT_NOT_ALLOWED',
+            message:
+              'Cannot refund: the host payout for this booking has already been ' +
+              'marked as PAID. Refunding now would create a platform loss. ' +
+              'Please reconcile manually (clawback from host or absorb loss) ' +
+              'before issuing a refund.',
+            payoutLedgerEntryId: existingPayout.id,
+            bookingId,
+          }),
+        );
+      }
+      // ── End Refund Guardrail ─────────────────────────────────────────────
+
       // State machine validation
       PaymentStateMachine.validateTransition(
         paymentIntent.status as any,
-        'REFUNDED' as any,
+        'refunded',
         'refund payment',
       );
 
       // Update status
-      return tx.paymentIntent.update({
+      const updated = await tx.paymentIntent.update({
         where: { id: paymentIntent.id },
         data: { status: 'refunded' },
       });
+
+      // Reverse ledger entries atomically (idempotent by design)
+      await this.ledgerService.postRefund(paymentIntent.id, bookingId, tx);
+
+      return updated;
     });
   }
 
@@ -251,7 +319,7 @@ export class PaymentsService {
       // State machine validation
       PaymentStateMachine.validateTransition(
         paymentIntent.status as any,
-        'CANCELLED' as any,
+        'cancelled',
         'cancel payment intent',
       );
 

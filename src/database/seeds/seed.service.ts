@@ -27,11 +27,36 @@ export class SeedService {
     // ── Categories ────────────────────────────────────────────
     console.log('Creating categories...');
     const categories = [
-      { name: 'Accommodation', slug: 'accommodation', icon: '🏠', allowedForPrivate: true },
-      { name: 'Mobility', slug: 'mobility', icon: '🚗', allowedForPrivate: true },
-      { name: 'Water & Beach Activities', slug: 'water-beach-activities', icon: '🏖️', allowedForPrivate: true },
-      { name: 'Sports Facilities', slug: 'sports-facilities', icon: '🏟️', allowedForPrivate: true },
-      { name: 'Sports Equipment', slug: 'sports-equipment', icon: '⚽', allowedForPrivate: true },
+      {
+        name: 'Accommodation',
+        slug: 'accommodation',
+        icon: '🏠',
+        allowedForPrivate: true,
+      },
+      {
+        name: 'Mobility',
+        slug: 'mobility',
+        icon: '🚗',
+        allowedForPrivate: true,
+      },
+      {
+        name: 'Water & Beach Activities',
+        slug: 'water-beach-activities',
+        icon: '🏖️',
+        allowedForPrivate: true,
+      },
+      {
+        name: 'Sports Facilities',
+        slug: 'sports-facilities',
+        icon: '🏟️',
+        allowedForPrivate: true,
+      },
+      {
+        name: 'Sports Equipment',
+        slug: 'sports-equipment',
+        icon: '⚽',
+        allowedForPrivate: true,
+      },
       { name: 'Tools', slug: 'tools', icon: '🔧', allowedForPrivate: true },
       { name: 'Other', slug: 'other', icon: '📦', allowedForPrivate: true },
     ];
@@ -59,7 +84,7 @@ export class SeedService {
           verifiedPhone: i % 2 === 0,
           ratingAvg: isHost ? Math.random() * 2 + 3 : 0,
           ratingCount: isHost ? Math.floor(Math.random() * 10) : 0,
-          roles: i === 1 ? ['user', 'admin'] : ['user'],
+          roles: i === 1 ? ['user', 'host', 'ADMIN'] : ['user'],
         },
       });
       savedUsers.push(user);
@@ -93,7 +118,7 @@ export class SeedService {
       await this.prisma.$executeRaw`
         INSERT INTO listings (
           id, title, description, "pricePerDay", location, address,
-          "categoryId", "hostId", images, "isActive", "createdAt", "updatedAt"
+          "categoryId", "hostId", images, "isActive", status, "createdAt", "updatedAt"
         ) VALUES (
           ${newListingId}::uuid,
           ${`Listing ${i + 1} in ${cityName}`},
@@ -104,7 +129,7 @@ export class SeedService {
           ${category.id}::uuid,
           ${host.id}::uuid,
           ARRAY[${`/uploads/placeholder-${i + 1}.jpg`}]::TEXT[],
-          true,
+          true, 'ACTIVE'::"ListingStatus",
           NOW(), NOW()
         )
       `;
@@ -115,7 +140,9 @@ export class SeedService {
 
     // ── SLOT sports facilities (3) ────────────────────────────
     console.log('Creating slot-based sports facility listings...');
-    const sportsCat = savedCategories.find((c) => c.slug === 'sports-facilities')!;
+    const sportsCat = savedCategories.find(
+      (c) => c.slug === 'sports-facilities',
+    )!;
     const sportsFacilities = [
       { name: 'Tennis Court', price: 25 },
       { name: 'Football Field', price: 50 },
@@ -125,14 +152,14 @@ export class SeedService {
     for (let i = 0; i < sportsFacilities.length; i++) {
       const fac = sportsFacilities[i];
       const host = hosts[i % hosts.length];
-      const lat = KELIBIA_LAT + (i * 0.02) % 0.1;
-      const lng = KELIBIA_LNG + (i * 0.02) % 0.1;
+      const lat = KELIBIA_LAT + ((i * 0.02) % 0.1);
+      const lng = KELIBIA_LNG + ((i * 0.02) % 0.1);
       const listingId = crypto.randomUUID();
 
       await this.prisma.$executeRaw`
         INSERT INTO listings (
           id, title, description, "pricePerDay", location, address,
-          "categoryId", "hostId", images, "isActive", "bookingType", "createdAt", "updatedAt"
+          "categoryId", "hostId", images, "isActive", status, "bookingType", "createdAt", "updatedAt"
         ) VALUES (
           ${listingId}::uuid,
           ${fac.name},
@@ -143,7 +170,7 @@ export class SeedService {
           ${sportsCat.id}::uuid,
           ${host.id}::uuid,
           ARRAY[${`/uploads/sports-facility-${i + 1}.jpg`}]::TEXT[],
-          true,
+          true, 'ACTIVE'::"ListingStatus",
           'SLOT'::"BookingType",
           NOW(), NOW()
         )
@@ -175,62 +202,133 @@ export class SeedService {
     }
     console.log(`Created ${savedListings.length} listings total`);
 
-    // ── General bookings (10) ─────────────────────────────────
-    console.log('Creating bookings...');
-    const allListings = await this.prisma.listing.findMany();
-    const renters = savedUsers.filter((u) => !u.isHost);
-    let bookingCount = 0;
+    // ── 1 PENDING_REVIEW listing for host user2 ──────────────
+    console.log('Creating PENDING_REVIEW listing...');
+    const pendingListingId = crypto.randomUUID();
+    const pendingHost = hosts[1]; // user2
+    await this.prisma.$executeRaw`
+      INSERT INTO listings (
+        id, title, description, "pricePerDay", location, address,
+        "categoryId", "hostId", images, "isActive", status, "createdAt", "updatedAt"
+      ) VALUES (
+        ${pendingListingId}::uuid,
+        ${'[PENDING] Beach House Awaiting Approval'},
+        ${'This listing is pending admin review and should NOT appear in public search.'},
+        ${80},
+        ST_SetSRID(ST_GeomFromText(${'POINT(' + KELIBIA_LNG + ' ' + KELIBIA_LAT + ')'}), 4326),
+        ${'Pending Street, Kelibia'},
+        ${savedCategories[0].id}::uuid,
+        ${pendingHost.id}::uuid,
+        ARRAY['/uploads/placeholder-pending.jpg']::TEXT[],
+        true, 'PENDING_REVIEW'::"ListingStatus",
+        NOW(), NOW()
+      )
+    `;
+    console.log(`  ✓ PENDING listing: ${pendingListingId} (host: ${pendingHost.email})`);
 
-    for (let i = 0; i < 10; i++) {
+    // ── Guaranteed bookings (one per status) ───────────────────
+    console.log('Creating guaranteed bookings...');
+    const allListings = await this.prisma.listing.findMany({
+      where: { status: 'ACTIVE' },
+    });
+    const renters = savedUsers.filter((u) => !u.isHost);
+
+    // Helper to pick listing where host != renter
+    const pickListing = (renter: any, idx: number) => {
+      for (let j = 0; j < allListings.length; j++) {
+        const l = allListings[(idx + j) % allListings.length];
+        if (l.hostId !== renter.id) return l;
+      }
+      return allListings[0];
+    };
+
+    const makeBooking = async (
+      statusVal: string,
+      paid: boolean,
+      renter: any,
+      offsetDays: number,
+    ) => {
+      const listing = pickListing(renter, offsetDays);
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() + offsetDays);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 3);
+      const pricePerDay = Number(listing.pricePerDay);
+      const totalPrice = pricePerDay * 3;
+      return this.prisma.booking.create({
+        data: {
+          startDate,
+          endDate,
+          status: statusVal as any,
+          renterId: renter.id,
+          hostId: listing.hostId,
+          listingId: listing.id,
+          totalPrice,
+          commission: totalPrice * 0.1,
+          paid,
+          snapshotTitle: listing.title,
+          snapshotPricePerDay: pricePerDay,
+          snapshotCommissionRate: 0.1,
+          snapshotCurrency: 'TND',
+        },
+      });
+    };
+
+    const pendingBooking = await makeBooking('pending', false, renters[0], 14);
+    const confirmedBooking = await makeBooking('confirmed', false, renters[1], 21);
+    const paidBooking = await makeBooking('paid', true, renters[2], 28);
+    const cancelledBooking = await makeBooking('cancelled', false, renters[3], 35);
+    console.log('  ✓ Bookings: pending, confirmed, paid, cancelled');
+
+    // ── 1 review linked to the paid booking ───────────────────
+    console.log('Creating guaranteed review...');
+    await this.prisma.review.create({
+      data: {
+        rating: 5,
+        comment: 'Excellent experience, highly recommended!',
+        authorId: paidBooking.renterId,
+        targetUserId: paidBooking.hostId,
+        listingId: paidBooking.listingId,
+        bookingId: paidBooking.id,
+      },
+    });
+    console.log('  ✓ Review linked to paid booking');
+
+    // ── Additional general bookings ───────────────────────────
+    for (let i = 0; i < 6; i++) {
       const listing = allListings[i % allListings.length];
       const renter = renters[i % renters.length];
       if (listing.hostId === renter.id) continue;
 
       const startDate = new Date();
-      startDate.setDate(startDate.getDate() + i * 7);
+      startDate.setDate(startDate.getDate() + (i + 1) * 7 + 50);
       const endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 3);
 
-      const days = 3;
       const pricePerDay = Number(listing.pricePerDay);
-      const totalPrice = pricePerDay * days;
-      const statusOptions = ['confirmed', 'pending', 'completed'] as const;
+      const totalPrice = pricePerDay * 3;
+      const statuses = ['confirmed', 'pending', 'completed'] as const;
 
       await this.prisma.booking.create({
         data: {
           startDate,
           endDate,
-          status: statusOptions[i % 3] as any,
+          status: statuses[i % 3] as any,
           renterId: renter.id,
           hostId: listing.hostId,
           listingId: listing.id,
           totalPrice,
           commission: totalPrice * 0.1,
           paid: i % 2 === 0,
-        },
-      });
-      bookingCount++;
-    }
-    console.log(`Created ${bookingCount} bookings`);
-
-    // ── Reviews ───────────────────────────────────────────────
-    console.log('Creating reviews...');
-    const completedBookings = await this.prisma.booking.findMany({
-      where: { status: 'completed' },
-    });
-    for (const booking of completedBookings.slice(0, 5)) {
-      await this.prisma.review.create({
-        data: {
-          rating: Math.floor(Math.random() * 3) + 3,
-          comment: 'Great experience with the listing!',
-          authorId: booking.renterId,
-          targetUserId: booking.hostId,
-          listingId: booking.listingId,
-          bookingId: booking.id,
+          snapshotTitle: listing.title,
+          snapshotPricePerDay: pricePerDay,
+          snapshotCommissionRate: 0.1,
+          snapshotCurrency: 'TND',
         },
       });
     }
-    console.log(`Created ${completedBookings.length} reviews`);
+    console.log('  ✓ 6 additional bookings');
 
     // ─────────────────────────────────────────────────────────
     // DEMO SCENARIOS (guaranteed conflict cases for PFE demo)
@@ -256,7 +354,9 @@ export class SeedService {
     const renterA = users[5]; // user6
     const renterB = users[6]; // user7
 
-    const accommodationCat = categories.find((c) => c.slug === 'accommodation')!;
+    const accommodationCat = categories.find(
+      (c) => c.slug === 'accommodation',
+    )!;
     const sportsCat = categories.find((c) => c.slug === 'sports-facilities')!;
 
     const KELIBIA_LAT = 36.8578;
@@ -267,7 +367,7 @@ export class SeedService {
     await this.prisma.$executeRaw`
       INSERT INTO listings (
         id, title, description, "pricePerDay", location, address,
-        "categoryId", "hostId", images, "isActive", "bookingType", "createdAt", "updatedAt"
+        "categoryId", "hostId", images, "isActive", status, "bookingType", "createdAt", "updatedAt"
       ) VALUES (
         ${dailyListingId}::uuid,
         ${'[DEMO] Villa Conflict Demo'},
@@ -278,7 +378,7 @@ export class SeedService {
         ${accommodationCat.id}::uuid,
         ${host.id}::uuid,
         ARRAY['/uploads/demo-villa.jpg']::TEXT[],
-        true,
+        true, 'ACTIVE'::"ListingStatus",
         'DAILY'::"BookingType",
         NOW(), NOW()
       )
@@ -320,14 +420,16 @@ export class SeedService {
       },
     });
 
-    console.log(`  ✓ DAILY demo: ${dailyListingId} — confirmed ${dailyStart.toISOString().substring(0, 10)} → ${dailyEnd.toISOString().substring(0, 10)}`);
+    console.log(
+      `  ✓ DAILY demo: ${dailyListingId} — confirmed ${dailyStart.toISOString().substring(0, 10)} → ${dailyEnd.toISOString().substring(0, 10)}`,
+    );
 
     // ── 2. SLOT demo listing ───────────────────────────────────
     const slotListingId = crypto.randomUUID();
     await this.prisma.$executeRaw`
       INSERT INTO listings (
         id, title, description, "pricePerDay", location, address,
-        "categoryId", "hostId", images, "isActive", "bookingType", "createdAt", "updatedAt"
+        "categoryId", "hostId", images, "isActive", status, "bookingType", "createdAt", "updatedAt"
       ) VALUES (
         ${slotListingId}::uuid,
         ${'[DEMO] Sports Court — Slot Conflict Demo'},
@@ -338,7 +440,7 @@ export class SeedService {
         ${sportsCat.id}::uuid,
         ${host.id}::uuid,
         ARRAY['/uploads/demo-court.jpg']::TEXT[],
-        true,
+        true, 'ACTIVE'::"ListingStatus",
         'SLOT'::"BookingType",
         NOW(), NOW()
       )
@@ -370,10 +472,14 @@ export class SeedService {
     slotDate.setHours(0, 0, 0, 0);
 
     // Time objects (epoch midnight + UTC offset for 10h and 12h)
-    const t10h00 = new Date(0); t10h00.setUTCHours(10, 0, 0, 0);
-    const t12h00 = new Date(0); t12h00.setUTCHours(12, 0, 0, 0);
-    const t11h00 = new Date(0); t11h00.setUTCHours(11, 0, 0, 0);
-    const t13h00 = new Date(0); t13h00.setUTCHours(13, 0, 0, 0);
+    const t10h00 = new Date(0);
+    t10h00.setUTCHours(10, 0, 0, 0);
+    const t12h00 = new Date(0);
+    t12h00.setUTCHours(12, 0, 0, 0);
+    const t11h00 = new Date(0);
+    t11h00.setUTCHours(11, 0, 0, 0);
+    const t13h00 = new Date(0);
+    t13h00.setUTCHours(13, 0, 0, 0);
 
     // Confirmed: 10:00–12:00
     const slotBookingA = await this.prisma.booking.create({
@@ -409,7 +515,9 @@ export class SeedService {
       },
     });
 
-    console.log(`  ✓ SLOT demo:  ${slotListingId} — confirmed 10:00–12:00 on ${slotDate.toISOString().substring(0, 10)}`);
+    console.log(
+      `  ✓ SLOT demo:  ${slotListingId} — confirmed 10:00–12:00 on ${slotDate.toISOString().substring(0, 10)}`,
+    );
 
     // ── 3. Chat messages (49 messages across 5 conversations) ──
     console.log('Creating demo chat messages...');
@@ -426,7 +534,9 @@ export class SeedService {
         const { sender, text } = messages[i];
         const senderId = sender === 'renter' ? renterId : hostId;
         const createdAt = new Date();
-        createdAt.setMinutes(createdAt.getMinutes() - (messages.length - i) * minutesApart);
+        createdAt.setMinutes(
+          createdAt.getMinutes() - (messages.length - i) * minutesApart,
+        );
         await this.prisma.message.create({
           data: { conversationId, senderId, content: text, createdAt },
         });
@@ -435,17 +545,34 @@ export class SeedService {
 
     // Conv 1 — DAILY villa (renterA ↔ host) — 12 messages
     const conv1 = await this.prisma.conversation.create({
-      data: { renterId: renterA.id, hostId: host.id, listingId: dailyListingId, bookingId: dailyBookingA.id },
+      data: {
+        renterId: renterA.id,
+        hostId: host.id,
+        listingId: dailyListingId,
+        bookingId: dailyBookingA.id,
+      },
     });
     await seedMessages(conv1.id, renterA.id, host.id, [
-      { sender: 'renter', text: 'Bonjour ! Je suis intéressé par votre villa pour la période indiquée.' },
-      { sender: 'host', text: 'Bonjour ! La villa est disponible. Des questions ?' },
+      {
+        sender: 'renter',
+        text: 'Bonjour ! Je suis intéressé par votre villa pour la période indiquée.',
+      },
+      {
+        sender: 'host',
+        text: 'Bonjour ! La villa est disponible. Des questions ?',
+      },
       { sender: 'renter', text: 'Le parking est-il inclus ?' },
       { sender: 'host', text: 'Oui, parking privatif pour 2 voitures.' },
       { sender: 'renter', text: 'Y a-t-il une piscine ?' },
       { sender: 'host', text: 'Absolument, ouverte de 8h à 21h.' },
-      { sender: 'renter', text: 'La climatisation est-elle dans toutes les pièces ?' },
-      { sender: 'host', text: 'Oui, chaque chambre a sa propre climatisation.' },
+      {
+        sender: 'renter',
+        text: 'La climatisation est-elle dans toutes les pièces ?',
+      },
+      {
+        sender: 'host',
+        text: 'Oui, chaque chambre a sa propre climatisation.',
+      },
       { sender: 'renter', text: 'Wi-Fi disponible ?' },
       { sender: 'host', text: 'Fibre 200 Mbps dans toute la villa.' },
       { sender: 'renter', text: 'Super, je confirme la réservation !' },
@@ -454,10 +581,18 @@ export class SeedService {
 
     // Conv 2 — SLOT sports court (renterA ↔ host) — 10 messages
     const conv2 = await this.prisma.conversation.create({
-      data: { renterId: renterA.id, hostId: host.id, listingId: slotListingId, bookingId: slotBookingA.id },
+      data: {
+        renterId: renterA.id,
+        hostId: host.id,
+        listingId: slotListingId,
+        bookingId: slotBookingA.id,
+      },
     });
     await seedMessages(conv2.id, renterA.id, host.id, [
-      { sender: 'renter', text: 'Bonjour, je voudrais réserver le terrain de 10h à 12h.' },
+      {
+        sender: 'renter',
+        text: 'Bonjour, je voudrais réserver le terrain de 10h à 12h.',
+      },
       { sender: 'host', text: 'Bonjour ! Le terrain est disponible.' },
       { sender: 'renter', text: 'Combien de joueurs simultanément ?' },
       { sender: 'host', text: "Jusqu'à 4 joueurs confortablement." },
@@ -470,10 +605,17 @@ export class SeedService {
     ]);
 
     // Conv 3 — General booking (renterB ↔ host) — 6 messages
-    const renterBBooking = await this.prisma.booking.findFirst({ where: { renterId: renterB.id } });
+    const renterBBooking = await this.prisma.booking.findFirst({
+      where: { renterId: renterB.id },
+    });
     if (renterBBooking) {
       const conv3 = await this.prisma.conversation.create({
-        data: { renterId: renterB.id, hostId: renterBBooking.hostId, listingId: renterBBooking.listingId, bookingId: renterBBooking.id },
+        data: {
+          renterId: renterB.id,
+          hostId: renterBBooking.hostId,
+          listingId: renterBBooking.listingId,
+          bookingId: renterBBooking.id,
+        },
       });
       await seedMessages(conv3.id, renterB.id, renterBBooking.hostId, [
         { sender: 'renter', text: 'Ma réservation est-elle bien confirmée ?' },
@@ -491,13 +633,23 @@ export class SeedService {
     });
     if (mobilityListing) {
       const conv4 = await this.prisma.conversation.create({
-        data: { renterId: renterA.id, hostId: mobilityListing.hostId, listingId: mobilityListing.id },
+        data: {
+          renterId: renterA.id,
+          hostId: mobilityListing.hostId,
+          listingId: mobilityListing.id,
+        },
       });
       await seedMessages(conv4.id, renterA.id, mobilityListing.hostId, [
-        { sender: 'renter', text: 'Le véhicule est-il disponible ce week-end ?' },
+        {
+          sender: 'renter',
+          text: 'Le véhicule est-il disponible ce week-end ?',
+        },
         { sender: 'host', text: 'Oui, kilométrage illimité inclus.' },
         { sender: 'renter', text: 'Y a-t-il un dépôt de garantie ?' },
-        { sender: 'host', text: '200 TND de caution, remboursée à la restitution.' },
+        {
+          sender: 'host',
+          text: '200 TND de caution, remboursée à la restitution.',
+        },
         { sender: 'renter', text: 'Le GPS est-il inclus ?' },
         { sender: 'host', text: 'GPS intégré + support smartphone.' },
         { sender: 'renter', text: 'Très bien, je fais la réservation.' },
@@ -513,19 +665,35 @@ export class SeedService {
     });
     if (beachListing) {
       const conv5 = await this.prisma.conversation.create({
-        data: { renterId: renterB.id, hostId: beachListing.hostId, listingId: beachListing.id },
+        data: {
+          renterId: renterB.id,
+          hostId: beachListing.hostId,
+          listingId: beachListing.id,
+        },
       });
       await seedMessages(conv5.id, renterB.id, beachListing.hostId, [
-        { sender: 'renter', text: "L'activité est-elle adaptée pour 2 adultes ?" },
+        {
+          sender: 'renter',
+          text: "L'activité est-elle adaptée pour 2 adultes ?",
+        },
         { sender: 'host', text: 'Oui, parfaitement adapté pour 2 personnes.' },
         { sender: 'renter', text: 'Faut-il savoir nager ?' },
-        { sender: 'host', text: 'Niveau débutant suffisant, gilets de sécurité fournis.' },
+        {
+          sender: 'host',
+          text: 'Niveau débutant suffisant, gilets de sécurité fournis.',
+        },
         { sender: 'renter', text: "L'équipement complet est inclus ?" },
-        { sender: 'host', text: 'Palmes, masques, combinaisons — tout est fourni.' },
+        {
+          sender: 'host',
+          text: 'Palmes, masques, combinaisons — tout est fourni.',
+        },
         { sender: 'renter', text: "Durée de l'activité ?" },
         { sender: 'host', text: '2h en mer + 30 min de briefing sécurité.' },
         { sender: 'renter', text: 'On réserve pour samedi !' },
-        { sender: 'host', text: 'Parfait, à samedi ! Pensez à la crème solaire 😊' },
+        {
+          sender: 'host',
+          text: 'Parfait, à samedi ! Pensez à la crème solaire 😊',
+        },
         { sender: 'renter', text: 'Merci du conseil !' },
       ]);
     }
@@ -536,9 +704,13 @@ export class SeedService {
     console.log('  ║       DEMO SEED — Copy for curl / Swagger tests      ║');
     console.log('  ╠══════════════════════════════════════════════════════╣');
     console.log(`  ║  DAILY listing : ${dailyListingId} ║`);
-    console.log(`  ║  Blocked dates : ${dailyStart.toISOString().substring(0, 10)} → ${dailyEnd.toISOString().substring(0, 10)} (confirmed)   ║`);
+    console.log(
+      `  ║  Blocked dates : ${dailyStart.toISOString().substring(0, 10)} → ${dailyEnd.toISOString().substring(0, 10)} (confirmed)   ║`,
+    );
     console.log(`  ║  SLOT listing  : ${slotListingId} ║`);
-    console.log(`  ║  Blocked slot  : 10:00–12:00 on ${slotDate.toISOString().substring(0, 10)}               ║`);
+    console.log(
+      `  ║  Blocked slot  : 10:00–12:00 on ${slotDate.toISOString().substring(0, 10)}               ║`,
+    );
     console.log('  ║  RenterA login : user6@example.com / password123     ║');
     console.log('  ║  Host login    : user1@example.com / password123     ║');
     console.log('  ╚══════════════════════════════════════════════════════╝');

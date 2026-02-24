@@ -1,9 +1,10 @@
 import axios from 'axios';
 import { toast } from '@/components/ui/Toaster';
+import { readAuth, clearAuth } from '@/lib/auth/storage';
 
-export const AUTH_STORAGE_KEY = 're_auth_v1';
+// Re-export for backward compatibility (used by openapi.ts)
+export { AUTH_STORAGE_KEY } from '@/lib/auth/storage';
 
-// Hardcoding for now to fix persistent double //api/api issue
 const baseURL = 'http://localhost:3000/api';
 
 export const api = axios.create({
@@ -11,52 +12,86 @@ export const api = axios.create({
   timeout: 15000,
 });
 
+/* ------------------------------------------------------------------
+ *  Module-scoped refresh queue.
+ *  Only ONE refresh call runs at a time; concurrent 401s share it.
+ * ------------------------------------------------------------------ */
+let refreshPromise: Promise<string> | null = null;
+
+/* ------------------------------------------------------------------
+ *  Request interceptor — attach Bearer token from localStorage
+ * ------------------------------------------------------------------ */
 api.interceptors.request.use((config) => {
   if (typeof window === 'undefined') return config;
-  try {
-    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return config;
-    const parsed = JSON.parse(raw) as { accessToken?: string | null };
-    const token = parsed?.accessToken;
-    if (token) {
-      config.headers = config.headers ?? {};
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-  } catch {
-    // ignore
+  const { accessToken } = readAuth();
+  if (accessToken) {
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${accessToken}`;
   }
-
-  // Defensive logging in dev mode: log become-host request body
-  if (process.env.NODE_ENV === 'development' && config.url?.includes('/become-host')) {
-    console.log('[http interceptor] POST /become-host request body:', JSON.stringify(config.data, null, 2));
-  }
-
   return config;
 });
 
+/* ------------------------------------------------------------------
+ *  Response interceptor — 401 → refresh → retry (once)
+ * ------------------------------------------------------------------ */
 api.interceptors.response.use(
   (r) => r,
-  (error) => {
+  async (error) => {
     const status = error?.response?.status;
+    const originalRequest = error?.config;
 
-    if (status === 401 && typeof window !== 'undefined') {
-      try {
-        window.localStorage.removeItem(AUTH_STORAGE_KEY);
-        // notify listeners (AuthProvider) that auth changed
-        window.dispatchEvent(new StorageEvent('storage', { key: AUTH_STORAGE_KEY } as any));
-      } catch {
-        // ignore
+    /* ---- Non-401 errors: show toast and reject ---- */
+    if (status !== 401 || typeof window === 'undefined') {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        'Request failed';
+      if (message !== 'canceled') {
+        toast({ title: 'Request error', message: String(message), variant: 'error' });
       }
-      window.location.href = '/auth/login';
       return Promise.reject(error);
     }
 
-    const message =
-      error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Request failed';
-    if (message !== 'canceled') {
-      toast({ title: 'Request error', message: String(message), variant: 'error' });
+    /* ---- 401 on auth endpoints: never retry (avoid loop) ---- */
+    const url = originalRequest?.url ?? '';
+    if (
+      url.includes('/auth/login') ||
+      url.includes('/auth/register') ||
+      url.includes('/auth/refresh')
+    ) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+
+    /* ---- Already retried this request: force logout ---- */
+    if (originalRequest?._retry) {
+      clearAuth();
+      window.dispatchEvent(new CustomEvent('auth:logout'));
+      return Promise.reject(error);
+    }
+
+    /* ---- Attempt token refresh + retry original request ---- */
+    originalRequest._retry = true;
+
+    try {
+      if (!refreshPromise) {
+        // Dynamic import breaks the circular dep with refresh.ts
+        refreshPromise = import('@/lib/auth/refresh').then(
+          ({ refreshAccessToken }) => refreshAccessToken(),
+        );
+      }
+      const newToken = await refreshPromise;
+
+      // Retry with the fresh token
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      return api(originalRequest);
+    } catch {
+      // Refresh failed — clear everything and notify AuthProvider
+      clearAuth();
+      window.dispatchEvent(new CustomEvent('auth:logout'));
+      return Promise.reject(error);
+    } finally {
+      refreshPromise = null;
+    }
   },
 );
-

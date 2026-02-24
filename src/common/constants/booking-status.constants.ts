@@ -12,10 +12,9 @@
  *  - ListingsService.getAvailableSlots               (SLOT display)
  */
 export const BLOCKING_BOOKING_STATUSES = [
-    'confirmed',
-    'paid',
-    'completed',
+  'confirmed',
+  'paid',
+  'completed',
 ] as const;
 
-export type BlockingBookingStatus =
-    (typeof BLOCKING_BOOKING_STATUSES)[number];
+export type BlockingBookingStatus = (typeof BLOCKING_BOOKING_STATUSES)[number];

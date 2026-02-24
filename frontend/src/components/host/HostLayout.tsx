@@ -12,7 +12,7 @@ export function HostLayout({
   subtitle,
 }: {
   children: React.ReactNode;
-  activeTab: HostTab;
+  activeTab?: HostTab;
   title?: string;
   subtitle?: string;
 }) {
