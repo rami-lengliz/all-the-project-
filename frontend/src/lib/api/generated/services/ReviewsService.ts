@@ -18,7 +18,7 @@ export class ReviewsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/api/reviews',
+            url: '/api/reviews',
             body: requestBody,
             mediaType: 'application/json',
         });
@@ -34,7 +34,7 @@ export class ReviewsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/api/reviews/user/{userId}',
+            url: '/api/reviews/user/{userId}',
             path: {
                 'userId': userId,
             },
@@ -51,10 +51,11 @@ export class ReviewsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/api/reviews/{id}',
+            url: '/api/reviews/{id}',
             path: {
                 'id': id,
             },
         });
     }
 }
+

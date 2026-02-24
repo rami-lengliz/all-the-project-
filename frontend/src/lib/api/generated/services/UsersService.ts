@@ -16,7 +16,7 @@ export class UsersService {
     public static usersControllerGetProfile(): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/api/users/me',
+            url: '/api/users/me',
         });
     }
     /**
@@ -30,7 +30,7 @@ export class UsersService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'PATCH',
-            url: '/api/api/users/me',
+            url: '/api/users/me',
             body: requestBody,
             mediaType: 'application/json',
         });
@@ -46,7 +46,7 @@ export class UsersService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/api/users/me/become-host',
+            url: '/api/users/me/become-host',
             body: requestBody,
             mediaType: 'application/json',
         });
@@ -62,10 +62,11 @@ export class UsersService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/api/users/{id}',
+            url: '/api/users/{id}',
             path: {
                 'id': id,
             },
         });
     }
 }
+

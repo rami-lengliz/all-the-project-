@@ -1,8 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: true,
-    // Explicitly NOT configuring turbopack to avoid defaults?
-    // Actually, standard config without 'turbopack' key should be enough.
+    async rewrites() {
+        return [
+            {
+                source: '/api/:path*',
+                destination: 'http://localhost:3001/api/:path*',
+            },
+        ];
+    },
 };
 
 module.exports = nextConfig;
