@@ -105,17 +105,25 @@ export class CategoriesService {
       ? Prisma.sql`${baseQuery} ORDER BY COUNT(l.id) DESC, c.name ASC`
       : Prisma.sql`${baseQuery} HAVING COUNT(l.id) > 0 ORDER BY COUNT(l.id) DESC, c.name ASC`;
 
-    const result = await this.prisma.$queryRaw<
+    const raw = await this.prisma.$queryRaw<
       Array<{
         id: string;
         name: string;
         slug: string;
         icon: string | null;
-        count: number;
+        count: bigint | number; // $queryRaw may return COUNT as BigInt
       }>
     >(finalQuery);
 
-    // Return results (count is already a number due to CAST)
-    return result;
+    // Coerce count to plain Number — BigInt is not JSON-serialisable.
+    // The CAST(... AS INTEGER) in the SQL helps but some pg driver versions
+    // still return BigInt for aggregates; Number() is the safe belt-and-suspenders fix.
+    return raw.map((row) => ({
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      icon: row.icon,
+      count: Number(row.count),
+    }));
   }
 }
