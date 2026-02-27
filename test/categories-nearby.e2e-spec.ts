@@ -254,7 +254,69 @@ describe('GET /api/categories/nearby (e2e)', () => {
     });
   });
 
-  // ─── Test 7: validation — missing lat/lng returns 400 ────────────────────
+  // ─── Test 7: includeEmpty=true returns all categories ─────────────────────
+
+  it('includes categories with 0 listings when includeEmpty=true', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/categories/nearby')
+      .query({ lat: LAT, lng: LNG, radiusKm: RADIUS_KM, includeEmpty: true })
+      .expect(200);
+
+    const data: any[] = res.body.data;
+    // We created 2 categories specifically for this test, but there might be others in the DB.
+    // At least our 2 categories should be present, plus any seed categories (which might have 0 count)
+    expect(data.length).toBeGreaterThanOrEqual(2);
+
+    const hasZeroCount = data.some(item => item.count === 0);
+    // If there are other categories in the DB, they will have 0 count near Kelibia (the test location)
+    // since we only created 3 listings near Kelibia for our specific cats.
+    expect(hasZeroCount).toBe(true);
+  });
+
+  // ─── Test 8: sorting is count DESC then name ASC ──────────────────────────
+
+  it('results are sorted by count DESC, then by name ASC', async () => {
+    // 1. Create two categories with the same count (0) near a far-away location
+    const farLat = 0;
+    const farLng = 0;
+
+    const res = await request(app.getHttpServer())
+      .get('/api/categories/nearby')
+      .query({ lat: farLat, lng: farLng, radiusKm: 1, includeEmpty: true })
+      .expect(200);
+
+    const data: any[] = res.body.data;
+
+    for (let i = 0; i < data.length - 1; i++) {
+      if (data[i].count === data[i + 1].count) {
+        // Same count, should be sorted alphabetically by name
+        expect(data[i].name.localeCompare(data[i + 1].name)).toBeLessThanOrEqual(0);
+      } else {
+        expect(data[i].count).toBeGreaterThan(data[i + 1].count);
+      }
+    }
+  });
+
+  // ─── Test 9: different locations return different counts ──────────────────
+
+  it('Tunis location returns 0 listings for our Kelibia-based fixtures', async () => {
+    // Tunis coordinates
+    const tunisLat = 36.8065;
+    const tunisLng = 10.1815;
+
+    const res = await request(app.getHttpServer())
+      .get('/api/categories/nearby')
+      .query({ lat: tunisLat, lng: tunisLng, radiusKm: 20 })
+      .expect(200);
+
+    const data: any[] = res.body.data;
+    // Our categories (Accommodation nearby-...) shouldn't appear because they have 0 count near Tunis
+    // unless there are other seed listings in Tunis.
+    const ourCatsNearTunis = data.filter(d => d.slug.includes(SUFFIX));
+    expect(ourCatsNearTunis.length).toBe(0);
+  });
+
+  // ─── Test 10: validation — missing lat/lng returns 400 ────────────────────
 
   it('returns 400 when lat is missing', async () => {
     await request(app.getHttpServer())
