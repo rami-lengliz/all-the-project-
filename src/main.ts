@@ -10,14 +10,48 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import * as fs from 'fs';
 
-/** ─── Startup Environment Audit ────────────────────────────────────────────
+// ── Startup Environment Audit ────────────────────────────────────────────────
+function auditEnv() {
+  const required = ['DATABASE_URL', 'JWT_SECRET', 'REFRESH_TOKEN_SECRET'];
+  const missing = required.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
+    console.warn(`⚠️  Missing env vars: ${missing.join(', ')}`);
+  } else {
+    console.log('✅  All required env vars present');
+  }
+}
 
-// ... (skipping some lines for brevity in instruction, the regex replacement covers it)
+async function bootstrap() {
+  try {
+    const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-    // Global interceptor
+    const configService = app.get(ConfigService);
+
+    // Static uploads directory
+    const uploadsDir = join(process.cwd(), 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
+
+    // CORS
+    const allowedOrigins = (
+      configService.get<string>('CORS_ORIGINS') ?? 'http://localhost:3001'
+    ).split(',').map((o) => o.trim());
+
+    app.enableCors({
+      origin: allowedOrigins,
+      methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+      credentials: true,
+    });
+
+    // Global exception filter
+    app.useGlobalFilters(new HttpExceptionFilter());
+
+    // Global interceptors
     app.useGlobalInterceptors(
       new TransformInterceptor(),
-      new LoggingInterceptor()
+      new LoggingInterceptor(),
     );
 
     // Global validation pipe
@@ -29,7 +63,7 @@ import * as fs from 'fs';
       }),
     );
 
-    // Swagger/OpenAPI documentation
+    // Swagger / OpenAPI documentation
     const appUrl =
       configService.get<string>('APP_URL') ??
       `http://localhost:${configService.get<number>('port') || 3000}`;
@@ -37,8 +71,8 @@ import * as fs from 'fs';
     const config = new DocumentBuilder()
       .setTitle('RentAI API')
       .setDescription(
-        'Production-grade backend API for RentAI — location-aware AI-powered rental marketplace. \
-Features: PostGIS proximity search, AI natural-language search with chips, booking conflict prevention.',
+        'Production-grade backend API for RentAI — location-aware AI-powered rental marketplace. ' +
+        'Features: PostGIS proximity search, AI natural-language search with chips, booking conflict prevention.',
       )
       .setVersion('1.0')
       .addBearerAuth()
@@ -53,6 +87,7 @@ Features: PostGIS proximity search, AI natural-language search with chips, booki
       .addTag('reviews', 'Review system')
       .addTag('admin', 'Admin operations')
       .build();
+
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document, {
       jsonDocumentUrl: '/api/docs-json',
@@ -71,4 +106,5 @@ Features: PostGIS proximity search, AI natural-language search with chips, booki
     process.exit(1);
   }
 }
+
 bootstrap();

@@ -24,7 +24,8 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "seed": "ts-node src/database/seeds/run-seed.ts"
+    "seed": "ts-node src/database/seeds/run-seed.ts",
+    "seed:demo": "ts-node src/database/seeds/run-seed-demo.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^3.1.3",
