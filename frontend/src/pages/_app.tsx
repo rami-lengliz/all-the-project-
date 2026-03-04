@@ -9,6 +9,7 @@ import { useRouter } from 'next/router';
 import { configureOpenApi } from '@/lib/api/openapi';
 import { isAdminUser, isHostUser } from '@/lib/auth/roleUtils';
 import { LoadingCard } from '@/components/ui/LoadingCard';
+import { EnvCheck } from '@/components/ui/EnvCheck';
 
 function RouteGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -78,6 +79,7 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <EnvCheck />
       <AuthProvider>
         <RouteGuard>
           <Component {...pageProps} />
