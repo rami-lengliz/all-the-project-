@@ -18,7 +18,7 @@ export default function ClientReviewsPage() {
 
   const reviews = useMemo(() => {
     const raw = reviewsQuery.data as any;
-    return Array.isArray(raw) ? raw : raw?.items ?? [];
+    return Array.isArray(raw) ? raw : (raw?.items ?? []);
   }, [reviewsQuery.data]);
 
   const completedBookings = useMemo(() => {
@@ -30,7 +30,8 @@ export default function ClientReviewsPage() {
   const [rating, setRating] = useState<number>(5);
   const [comment, setComment] = useState<string>('');
 
-  const canSubmit = Boolean(bookingId) && rating >= 1 && rating <= 5 && !createReview.isPending;
+  const canSubmit =
+    Boolean(bookingId) && rating >= 1 && rating <= 5 && !createReview.isPending;
 
   return (
     <ClientLayout>
@@ -39,7 +40,9 @@ export default function ClientReviewsPage() {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-3xl font-bold text-gray-900 mb-2">Reviews</h2>
-              <p className="text-gray-600">What others say about {user?.name ?? 'you'}</p>
+              <p className="text-gray-600">
+                What others say about {user?.name ?? 'you'}
+              </p>
             </div>
             <div className="flex items-center space-x-2">
               <button className="w-10 h-10 border border-gray-300 rounded-full flex items-center justify-center hover:bg-white transition">
@@ -56,17 +59,23 @@ export default function ClientReviewsPage() {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h3 className="font-semibold text-gray-900">Leave a review</h3>
-                <p className="text-sm text-gray-500">Select a completed booking and rate your experience</p>
+                <p className="text-sm text-gray-500">
+                  Select a completed booking and rate your experience
+                </p>
               </div>
               <div className="flex items-center">
                 <i className="fa-solid fa-star text-yellow-400 text-sm" />
-                <span className="ml-1 font-semibold text-gray-900">{rating.toFixed(1)}</span>
+                <span className="ml-1 font-semibold text-gray-900">
+                  {rating.toFixed(1)}
+                </span>
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-1">
-                <label className="text-xs font-semibold text-gray-700 block mb-2">Booking</label>
+                <label className="text-xs font-semibold text-gray-700 block mb-2">
+                  Booking
+                </label>
                 <select
                   className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={bookingId}
@@ -75,14 +84,17 @@ export default function ClientReviewsPage() {
                   <option value="">Select booking</option>
                   {completedBookings.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.listing?.title ?? 'Listing'} ({String(b.id).slice(0, 6).toUpperCase()})
+                      {b.listing?.title ?? 'Listing'} (
+                      {String(b.id).slice(0, 6).toUpperCase()})
                     </option>
                   ))}
                 </select>
               </div>
 
               <div className="col-span-1">
-                <label className="text-xs font-semibold text-gray-700 block mb-2">Rating</label>
+                <label className="text-xs font-semibold text-gray-700 block mb-2">
+                  Rating
+                </label>
                 <div className="flex items-center space-x-2">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button
@@ -91,14 +103,18 @@ export default function ClientReviewsPage() {
                       className="w-10 h-10 border border-gray-300 rounded-full flex items-center justify-center hover:bg-gray-50 transition"
                       onClick={() => setRating(n)}
                     >
-                      <i className={`fa-solid fa-star ${n <= rating ? 'text-yellow-400' : 'text-gray-300'}`} />
+                      <i
+                        className={`fa-solid fa-star ${n <= rating ? 'text-yellow-400' : 'text-gray-300'}`}
+                      />
                     </button>
                   ))}
                 </div>
               </div>
 
               <div className="col-span-1">
-                <label className="text-xs font-semibold text-gray-700 block mb-2">Comment</label>
+                <label className="text-xs font-semibold text-gray-700 block mb-2">
+                  Comment
+                </label>
                 <input
                   className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Write a short comment..."
@@ -109,14 +125,18 @@ export default function ClientReviewsPage() {
             </div>
 
             {createReview.isError ? (
-              <div className="mt-3 text-sm text-red-600">Could not submit review. Please try again.</div>
+              <div className="mt-3 text-sm text-red-600">
+                Could not submit review. Please try again.
+              </div>
             ) : null}
 
             <div className="mt-4 flex justify-end">
               <button
                 className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-6 py-3 rounded-lg transition disabled:opacity-60"
                 disabled={!canSubmit}
-                onClick={() => createReview.mutate({ bookingId, rating, comment })}
+                onClick={() =>
+                  createReview.mutate({ bookingId, rating, comment })
+                }
               >
                 Submit review
               </button>
@@ -125,7 +145,10 @@ export default function ClientReviewsPage() {
 
           {reviewsQuery.isError ? (
             <div className="mb-4">
-              <InlineError message="Failed to load reviews." onRetry={() => void reviewsQuery.refetch()} />
+              <InlineError
+                message="Failed to load reviews."
+                onRetry={() => void reviewsQuery.refetch()}
+              />
             </div>
           ) : null}
 
@@ -138,32 +161,52 @@ export default function ClientReviewsPage() {
               </>
             ) : reviews.length === 0 ? (
               <div className="col-span-3">
-                <EmptyState icon="fa-solid fa-star" title="No reviews yet" message="Reviews will show up here once available." />
+                <EmptyState
+                  icon="fa-solid fa-star"
+                  title="No reviews yet"
+                  message="Reviews will show up here once available."
+                />
               </div>
             ) : (
               reviews.map((r: any) => (
-                <div key={r.id} className="bg-white rounded-xl p-6 border border-gray-200">
+                <div
+                  key={r.id}
+                  className="bg-white rounded-xl p-6 border border-gray-200"
+                >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-3">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={r.author?.avatarUrl ?? 'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-5.jpg'}
+                        src={
+                          r.author?.avatarUrl ??
+                          'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-5.jpg'
+                        }
                         alt="Reviewer"
                         className="w-12 h-12 rounded-full object-cover"
                       />
                       <div>
-                        <h4 className="font-semibold text-gray-900">{r.author?.name ?? 'Reviewer'}</h4>
-                        <p className="text-sm text-gray-500">{r.createdAt ? String(r.createdAt).slice(0, 10) : '—'}</p>
+                        <h4 className="font-semibold text-gray-900">
+                          {r.author?.name ?? 'Reviewer'}
+                        </h4>
+                        <p className="text-sm text-gray-500">
+                          {r.createdAt ? String(r.createdAt).slice(0, 10) : '—'}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center">
                       <i className="fa-solid fa-star text-yellow-400 text-sm" />
-                      <span className="ml-1 font-semibold text-gray-900">{Number(r.rating ?? 0).toFixed(1)}</span>
+                      <span className="ml-1 font-semibold text-gray-900">
+                        {Number(r.rating ?? 0).toFixed(1)}
+                      </span>
                     </div>
                   </div>
-                  <p className="text-gray-700 leading-relaxed">“{r.comment ?? ''}”</p>
+                  <p className="text-gray-700 leading-relaxed">
+                    “{r.comment ?? ''}”
+                  </p>
                   <div className="mt-4 pt-4 border-t border-gray-100">
-                    <span className="text-sm text-gray-500">Rented: {r.booking?.listing?.title ?? '—'}</span>
+                    <span className="text-sm text-gray-500">
+                      Rented: {r.booking?.listing?.title ?? '—'}
+                    </span>
                   </div>
                 </div>
               ))
@@ -174,4 +217,3 @@ export default function ClientReviewsPage() {
     </ClientLayout>
   );
 }
-

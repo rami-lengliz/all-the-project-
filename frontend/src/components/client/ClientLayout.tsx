@@ -2,11 +2,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/lib/auth/AuthProvider';
 
-export function ClientLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function ClientLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, logout } = useAuth();
 
@@ -20,7 +16,9 @@ export function ClientLayout({
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
                   <i className="fa-solid fa-circle-nodes text-white text-lg" />
                 </div>
-                <span className="text-xl font-bold text-gray-900">RentLocal</span>
+                <span className="text-xl font-bold text-gray-900">
+                  RentLocal
+                </span>
               </Link>
             </div>
 
@@ -43,7 +41,13 @@ export function ClientLayout({
                 <i className="fa-solid fa-bars text-gray-600 text-sm mr-3" />
                 <div className="w-8 h-8 bg-blue-500 rounded-full overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {user?.avatarUrl ? <img src={user.avatarUrl} alt="User" className="w-full h-full object-cover" /> : null}
+                  {user?.avatarUrl ? (
+                    <img
+                      src={user.avatarUrl}
+                      alt="User"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -162,7 +166,9 @@ export function ClientLayout({
           </div>
 
           <div className="border-t border-gray-800 pt-8 flex items-center justify-between">
-            <p className="text-sm text-gray-400">© 2024 RentLocal. All rights reserved.</p>
+            <p className="text-sm text-gray-400">
+              © 2024 RentLocal. All rights reserved.
+            </p>
             <div className="flex items-center space-x-4">
               <a href="#" className="text-gray-400 hover:text-white">
                 <i className="fa-brands fa-facebook text-xl" />
@@ -180,4 +186,3 @@ export function ClientLayout({
     </div>
   );
 }
-

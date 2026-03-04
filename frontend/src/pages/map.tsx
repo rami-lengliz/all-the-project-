@@ -1,7 +1,11 @@
 export default function MapPage() {
   return (
     <div className="bg-gray-50 font-sans overflow-hidden">
-      <div id="map-container" className="relative" style={{ height: 'calc(100vh - 73px)' }}>
+      <div
+        id="map-container"
+        className="relative"
+        style={{ height: 'calc(100vh - 73px)' }}
+      >
         <div className="absolute inset-0 bg-gray-200">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -19,7 +23,10 @@ export default function MapPage() {
           </div>
         </div>
 
-        <div id="search-bar-map" className="absolute top-6 left-1/2 transform -translate-x-1/2 z-40 w-[600px]">
+        <div
+          id="search-bar-map"
+          className="absolute top-6 left-1/2 transform -translate-x-1/2 z-40 w-[600px]"
+        >
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
             <div className="flex items-stretch">
               <div className="flex-1 p-4 border-r border-gray-200">
@@ -59,11 +66,12 @@ export default function MapPage() {
 
         <div id="results-count" className="absolute top-6 right-6 z-40">
           <div className="bg-white rounded-full px-5 py-3 shadow-lg border border-gray-200">
-            <span className="text-sm font-semibold text-gray-900">Listings in this area</span>
+            <span className="text-sm font-semibold text-gray-900">
+              Listings in this area
+            </span>
           </div>
         </div>
       </div>
     </div>
   );
 }
-

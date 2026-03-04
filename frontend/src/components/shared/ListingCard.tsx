@@ -3,7 +3,10 @@ import type { Listing } from '@/lib/api/types';
 import { formatTnd } from '@/lib/utils/format';
 
 export function ListingCard({ listing }: { listing: Listing }) {
-  const city = listing.address?.split(',').slice(-2).join(',').trim() || listing.address || 'Kelibia';
+  const city =
+    listing.address?.split(',').slice(-2).join(',').trim() ||
+    listing.address ||
+    'Kelibia';
   return (
     <Link
       href={`/listings/${listing.id}`}
@@ -12,9 +15,18 @@ export function ListingCard({ listing }: { listing: Listing }) {
       <div className="aspect-[16/10] bg-slate-100 overflow-hidden">
         {listing.images && listing.images.length > 0 ? (
           <img
-            src={`http://localhost:3000${listing.images[0]}`}
+            src={
+              listing.images[0].startsWith('http') ||
+              listing.images[0].startsWith('/')
+                ? listing.images[0]
+                : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${listing.images[0]}`
+            }
             alt={listing.title}
             className="h-full w-full object-cover transition group-hover:scale-105"
+            onError={(e) => {
+              e.currentTarget.src = '/placeholder.png';
+              e.currentTarget.onerror = null;
+            }}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-slate-400">
@@ -25,11 +37,15 @@ export function ListingCard({ listing }: { listing: Listing }) {
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-slate-900 group-hover:text-primary">{listing.title}</div>
+            <div className="text-sm font-semibold text-slate-900 group-hover:text-primary">
+              {listing.title}
+            </div>
             <div className="mt-1 text-xs text-slate-500">{city}</div>
           </div>
           <div className="text-right">
-            <div className="text-sm font-bold text-slate-900">{formatTnd(listing.pricePerDay)}</div>
+            <div className="text-sm font-bold text-slate-900">
+              {formatTnd(listing.pricePerDay)}
+            </div>
             <div className="text-xs text-slate-500">/ day</div>
           </div>
         </div>
@@ -42,4 +58,3 @@ export function ListingCard({ listing }: { listing: Listing }) {
     </Link>
   );
 }
-

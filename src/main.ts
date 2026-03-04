@@ -21,8 +21,12 @@ async function bootstrap() {
       prefix: '/uploads/',
     });
 
-    // Enable CORS
-    app.enableCors();
+    // Enable CORS to allow local network IPs in development
+    app.enableCors({
+      origin: true,
+      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+      credentials: true,
+    });
 
     // Global exception filter
     app.useGlobalFilters(new HttpExceptionFilter());

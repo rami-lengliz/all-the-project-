@@ -9,14 +9,14 @@ import { BLOCKING_BOOKING_STATUSES } from '../constants/booking-status.constants
  * This service provides a single source of truth for listing availability.
  *
  * Availability Rules:
- * - Only CONFIRMED and PAID bookings block availability
+ * - Only confirmed, paid, and completed bookings block availability
  * - PENDING bookings do NOT block availability (they can be cancelled)
  * - Date ranges are inclusive of start date, exclusive of end date
  *   (e.g., booking from Jan 1 to Jan 5 means Jan 1-4 are unavailable, Jan 5 is available)
  */
 @Injectable()
 export class AvailabilityService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * Check if a listing is available for the given date range
@@ -209,20 +209,57 @@ export class AvailabilityService {
       ? Prisma.sql`AND id::text <> ${excludeBookingId}`
       : Prisma.empty;
 
+    // Use standard Prisma.join for the IN clause.
+    // Casting column to ::text ensures Postgres matches string parameters easily.
+    const statusClause = Prisma.join([...BLOCKING_BOOKING_STATUSES]);
+
     const conflicts = await this.prisma.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM bookings
       WHERE "listingId"::text = ${listingId}
         AND "startDate" = ${dateStr}::date
         AND "startTime" IS NOT NULL
         AND "endTime" IS NOT NULL
-        AND status IN (
-          'confirmed'::"BookingStatus",
-          'paid'::"BookingStatus",
-          'completed'::"BookingStatus"
-        )
+        AND status::text IN (${statusClause})
         AND ("startTime"::time, "endTime"::time)
             OVERLAPS (${startTime}::time, ${endTime}::time)
         ${excludeClause}
+    `;
+
+    return conflicts.length === 0;
+  }
+
+  /**
+   * Check if a time slot is available for booking within a transaction.
+   * Uses raw SQL OVERLAPS and FOR UPDATE to lock the rows,
+   * preventing concurrent double-bookings for the exact same slot.
+   */
+  async checkSlotAvailabilityWithLock(
+    tx: Prisma.TransactionClient,
+    listingId: string,
+    date: Date,
+    startTime: string,
+    endTime: string,
+    excludeBookingId?: string,
+  ): Promise<boolean> {
+    const dateStr = date.toISOString().substring(0, 10);
+
+    const excludeClause = excludeBookingId
+      ? Prisma.sql`AND id::text <> ${excludeBookingId}`
+      : Prisma.empty;
+
+    const statusClause = Prisma.join([...BLOCKING_BOOKING_STATUSES]);
+
+    const conflicts = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM bookings
+      WHERE "listingId"::text = ${listingId}
+        AND "startDate" = ${dateStr}::date
+        AND "startTime" IS NOT NULL
+        AND "endTime" IS NOT NULL
+        AND status::text IN (${statusClause})
+        AND ("startTime"::time, "endTime"::time)
+            OVERLAPS (${startTime}::time, ${endTime}::time)
+        ${excludeClause}
+      FOR UPDATE
     `;
 
     return conflicts.length === 0;

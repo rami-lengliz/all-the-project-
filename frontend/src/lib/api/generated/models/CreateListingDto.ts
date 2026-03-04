@@ -14,6 +14,19 @@ export type CreateListingDto = {
     longitude: number;
     address: string;
     rules?: string;
+    /**
+     * Booking type: DAILY for day-based rentals, SLOT for hourly/time-slot bookings
+     */
+    bookingType?: CreateListingDto.bookingType;
     availability?: Array<string>;
 };
+export namespace CreateListingDto {
+    /**
+     * Booking type: DAILY for day-based rentals, SLOT for hourly/time-slot bookings
+     */
+    export enum bookingType {
+        DAILY = 'DAILY',
+        SLOT = 'SLOT',
+    }
+}
 

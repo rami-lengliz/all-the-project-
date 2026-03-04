@@ -15,17 +15,30 @@ export default function HostDashboardPage() {
   const bookingsQuery = useMyBookings();
 
   const allListings = (listingsQuery.data as any)?.items ?? [];
-  const myListings = meId ? allListings.filter((l: any) => l.host?.id === meId || l.hostId === meId) : [];
+  const myListings = meId
+    ? allListings.filter((l: any) => l.host?.id === meId || l.hostId === meId)
+    : [];
 
   const allBookings = (bookingsQuery.data as any) ?? [];
   const hostBookings = meId
-    ? allBookings.filter((b: any) => b.host?.id === meId || b.hostId === meId || b.listing?.host?.id === meId)
+    ? allBookings.filter(
+        (b: any) =>
+          b.host?.id === meId ||
+          b.hostId === meId ||
+          b.listing?.host?.id === meId,
+      )
     : [];
 
-  const activeBookings = hostBookings.filter((b: any) => b.status === 'confirmed' || b.status === 'pending');
+  const activeBookings = hostBookings.filter(
+    (b: any) => b.status === 'confirmed' || b.status === 'pending',
+  );
   const totalEarnings = hostBookings
     .filter((b: any) => b.paid)
-    .reduce((sum: number, b: any) => sum + Number(b.totalPrice ?? 0) - Number(b.commission ?? 0), 0);
+    .reduce(
+      (sum: number, b: any) =>
+        sum + Number(b.totalPrice ?? 0) - Number(b.commission ?? 0),
+      0,
+    );
 
   return (
     <HostLayout
@@ -36,19 +49,29 @@ export default function HostDashboardPage() {
       <section id="earnings-summary" className="py-8">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-4 gap-6">
-            <div id="earnings-card-total" className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+            <div
+              id="earnings-card-total"
+              className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm"
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                   <i className="fa-solid fa-coins text-green-600 text-xl" />
                 </div>
-                <span className="text-xs text-green-600 font-semibold bg-green-50 px-2 py-1 rounded-full">+0%</span>
+                <span className="text-xs text-green-600 font-semibold bg-green-50 px-2 py-1 rounded-full">
+                  +0%
+                </span>
               </div>
               <h3 className="text-gray-600 text-sm mb-1">Total Earnings</h3>
-              <p className="text-3xl font-bold text-gray-900">{formatTnd(totalEarnings)}</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {formatTnd(totalEarnings)}
+              </p>
               <p className="text-xs text-gray-500 mt-2">This month</p>
             </div>
 
-            <div id="earnings-card-bookings" className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+            <div
+              id="earnings-card-bookings"
+              className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm"
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                   <i className="fa-solid fa-calendar-check text-blue-600 text-xl" />
@@ -58,28 +81,42 @@ export default function HostDashboardPage() {
                 </span>
               </div>
               <h3 className="text-gray-600 text-sm mb-1">Active Bookings</h3>
-              <p className="text-3xl font-bold text-gray-900">{activeBookings.length}</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {activeBookings.length}
+              </p>
               <p className="text-xs text-gray-500 mt-2">Currently rented</p>
             </div>
 
-            <div id="earnings-card-listings" className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+            <div
+              id="earnings-card-listings"
+              className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm"
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                   <i className="fa-solid fa-layer-group text-purple-600 text-xl" />
                 </div>
-                <span className="text-xs text-gray-500 font-medium">{myListings.length} active</span>
+                <span className="text-xs text-gray-500 font-medium">
+                  {myListings.length} active
+                </span>
               </div>
               <h3 className="text-gray-600 text-sm mb-1">Your Listings</h3>
-              <p className="text-3xl font-bold text-gray-900">{myListings.length}</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {myListings.length}
+              </p>
               <p className="text-xs text-gray-500 mt-2">0 paused</p>
             </div>
 
-            <div id="earnings-card-rating" className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+            <div
+              id="earnings-card-rating"
+              className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm"
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
                   <i className="fa-solid fa-star text-yellow-500 text-xl" />
                 </div>
-                <span className="text-xs text-gray-500 font-medium">— reviews</span>
+                <span className="text-xs text-gray-500 font-medium">
+                  — reviews
+                </span>
               </div>
               <h3 className="text-gray-600 text-sm mb-1">Average Rating</h3>
               <p className="text-3xl font-bold text-gray-900">—</p>
@@ -111,34 +148,66 @@ export default function HostDashboardPage() {
           </div>
 
           {listingsQuery.isError ? (
-            <InlineError message="Failed to load your listings." onRetry={() => void listingsQuery.refetch()} />
+            <InlineError
+              message="Failed to load your listings."
+              onRetry={() => void listingsQuery.refetch()}
+            />
           ) : listingsQuery.isLoading ? (
             <LoadingCard variant="table" rows={5} columns={7} />
           ) : myListings.length === 0 ? (
-            <EmptyState icon="fa-solid fa-layer-group" title="No listings yet" message="Create your first listing to start hosting." cta={{ label: 'Create new listing', href: '/host/create' }} />
+            <EmptyState
+              icon="fa-solid fa-layer-group"
+              title="No listings yet"
+              message="Create your first listing to start hosting."
+              cta={{ label: 'Create new listing', href: '/host/create' }}
+            />
           ) : (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Listing</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Status</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Price/Day</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Bookings</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Earnings</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Rating</th>
-                    <th className="text-right px-6 py-4 text-xs font-semibold text-gray-600 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {myListings.slice(0, 5).map((l: any) => {
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">
+                        Listing
+                      </th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">
+                        Status
+                      </th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">
+                        Price/Day
+                      </th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">
+                        Bookings
+                      </th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">
+                        Earnings
+                      </th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">
+                        Rating
+                      </th>
+                      <th className="text-right px-6 py-4 text-xs font-semibold text-gray-600 uppercase">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {myListings.slice(0, 5).map((l: any) => {
                       const statusActive = l.isActive !== false;
-                      const bookingsCount = hostBookings.filter((b: any) => (b.listing?.id ?? b.listingId) === l.id)
-                        .length;
+                      const bookingsCount = hostBookings.filter(
+                        (b: any) => (b.listing?.id ?? b.listingId) === l.id,
+                      ).length;
                       const earnings = hostBookings
-                        .filter((b: any) => (b.listing?.id ?? b.listingId) === l.id && b.paid)
-                        .reduce((sum: number, b: any) => sum + Number(b.totalPrice ?? 0) - Number(b.commission ?? 0), 0);
+                        .filter(
+                          (b: any) =>
+                            (b.listing?.id ?? b.listingId) === l.id && b.paid,
+                        )
+                        .reduce(
+                          (sum: number, b: any) =>
+                            sum +
+                            Number(b.totalPrice ?? 0) -
+                            Number(b.commission ?? 0),
+                          0,
+                        );
 
                       return (
                         <tr key={l.id} className="hover:bg-gray-50 transition">
@@ -147,14 +216,31 @@ export default function HostDashboardPage() {
                               <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
                                 {l.images?.[0] ? (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={l.images[0]} alt={l.title} className="w-full h-full object-cover" />
+                                  <img
+                                    src={
+                                      l.images[0].startsWith('http') ||
+                                      l.images[0].startsWith('/')
+                                        ? l.images[0]
+                                        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${l.images[0]}`
+                                    }
+                                    alt={l.title}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.src = '/placeholder.png';
+                                      e.currentTarget.onerror = null;
+                                    }}
+                                  />
                                 ) : (
                                   <i className="fa-solid fa-image text-gray-400 text-2xl" />
                                 )}
                               </div>
                               <div>
-                                <p className="font-semibold text-gray-900">{l.title}</p>
-                                <p className="text-sm text-gray-500">{l.address}</p>
+                                <p className="font-semibold text-gray-900">
+                                  {l.title}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                  {l.address}
+                                </p>
                               </div>
                             </div>
                           </td>
@@ -172,30 +258,47 @@ export default function HostDashboardPage() {
                             )}
                           </td>
                           <td className="px-6 py-4">
-                            <p className="font-semibold text-gray-900">{formatTnd(Number(l.pricePerDay ?? 0))}</p>
+                            <p className="font-semibold text-gray-900">
+                              {formatTnd(Number(l.pricePerDay ?? 0))}
+                            </p>
                           </td>
                           <td className="px-6 py-4">
-                            <p className="font-medium text-gray-900">{bookingsCount}</p>
+                            <p className="font-medium text-gray-900">
+                              {bookingsCount}
+                            </p>
                             <p className="text-xs text-gray-500">This month</p>
                           </td>
                           <td className="px-6 py-4">
-                            <p className="font-semibold text-gray-900">{formatTnd(earnings)}</p>
+                            <p className="font-semibold text-gray-900">
+                              {formatTnd(earnings)}
+                            </p>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center">
                               <i className="fa-solid fa-star text-yellow-400 text-sm mr-1" />
-                              <span className="font-medium text-gray-900">—</span>
+                              <span className="font-medium text-gray-900">
+                                —
+                              </span>
                             </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-end space-x-2">
-                              <Link href={`/listings/${l.id}`} className="p-2 hover:bg-gray-100 rounded-lg transition">
+                              <Link
+                                href={`/listings/${l.id}`}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                              >
                                 <i className="fa-solid fa-pen text-gray-600 text-sm" />
                               </Link>
-                              <button className="p-2 hover:bg-gray-100 rounded-lg transition" type="button">
+                              <button
+                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                                type="button"
+                              >
                                 <i className="fa-solid fa-pause text-gray-600 text-sm" />
                               </button>
-                              <button className="p-2 hover:bg-gray-100 rounded-lg transition" type="button">
+                              <button
+                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                                type="button"
+                              >
                                 <i className="fa-solid fa-ellipsis-vertical text-gray-600 text-sm" />
                               </button>
                             </div>
@@ -203,14 +306,17 @@ export default function HostDashboardPage() {
                         </tr>
                       );
                     })}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
           )}
 
           <div className="mt-4">
-            <Link href="/host/listings" className="text-blue-500 font-medium hover:text-blue-600 text-sm">
+            <Link
+              href="/host/listings"
+              className="text-blue-500 font-medium hover:text-blue-600 text-sm"
+            >
               View all listings
             </Link>
           </div>
@@ -220,8 +326,13 @@ export default function HostDashboardPage() {
       <section id="bookings-overview" className="py-6">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Recent Bookings</h2>
-            <Link href="/host/bookings" className="text-blue-500 font-medium hover:text-blue-600 text-sm">
+            <h2 className="text-2xl font-bold text-gray-900">
+              Recent Bookings
+            </h2>
+            <Link
+              href="/host/bookings"
+              className="text-blue-500 font-medium hover:text-blue-600 text-sm"
+            >
               View all bookings
             </Link>
           </div>
@@ -229,7 +340,10 @@ export default function HostDashboardPage() {
           <div className="grid grid-cols-2 gap-6">
             {bookingsQuery.isError ? (
               <div className="col-span-2">
-                <InlineError message="Failed to load bookings." onRetry={() => void bookingsQuery.refetch()} />
+                <InlineError
+                  message="Failed to load bookings."
+                  onRetry={() => void bookingsQuery.refetch()}
+                />
               </div>
             ) : bookingsQuery.isLoading ? (
               <>
@@ -238,7 +352,11 @@ export default function HostDashboardPage() {
               </>
             ) : hostBookings.length === 0 ? (
               <div className="col-span-2">
-                <EmptyState icon="fa-solid fa-calendar-check" title="No bookings yet" message="Bookings will appear here once renters request your listings." />
+                <EmptyState
+                  icon="fa-solid fa-calendar-check"
+                  title="No bookings yet"
+                  message="Bookings will appear here once renters request your listings."
+                />
               </div>
             ) : (
               hostBookings.slice(0, 4).map((b: any) => {
@@ -262,16 +380,25 @@ export default function HostDashboardPage() {
                         : 'Upcoming';
 
                 return (
-                  <div key={b.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                  <div
+                    key={b.id}
+                    className="bg-white rounded-xl border border-gray-200 shadow-sm p-6"
+                  >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3">
                         <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200" />
                         <div>
-                          <p className="font-semibold text-gray-900">{renterName}</p>
-                          <p className="text-sm text-gray-500">Renting: {listingTitle}</p>
+                          <p className="font-semibold text-gray-900">
+                            {renterName}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            Renting: {listingTitle}
+                          </p>
                         </div>
                       </div>
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${badge}`}>
+                      <span
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${badge}`}
+                      >
                         {badgeText}
                       </span>
                     </div>
@@ -285,7 +412,9 @@ export default function HostDashboardPage() {
                       </div>
                       <div className="flex items-center text-sm">
                         <i className="fa-solid fa-coins text-gray-400 w-5" />
-                        <span className="text-gray-600 ml-2">{formatTnd(Number(b.totalPrice ?? 0))} total</span>
+                        <span className="text-gray-600 ml-2">
+                          {formatTnd(Number(b.totalPrice ?? 0))} total
+                        </span>
                       </div>
                     </div>
 
@@ -307,4 +436,3 @@ export default function HostDashboardPage() {
     </HostLayout>
   );
 }
-

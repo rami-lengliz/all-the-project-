@@ -26,14 +26,19 @@ import { HostGuard } from '../../common/guards/host.guard';
 @Controller('api/bookings')
 @UseGuards(JwtAuthGuard)
 export class BookingsController {
-  constructor(private readonly bookingsService: BookingsService) {}
+  constructor(private readonly bookingsService: BookingsService) { }
 
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   @ApiOperation({ summary: 'Create a new booking request (status → pending)' })
   @ApiResponse({
     status: 201,
-    description: 'Booking created. displayStatus = "pending".',
+    description:
+      'Booking created. displayStatus = "pending". A pending booking does NOT block availability for other renters.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Listing is not available for requested dates/slots.',
   })
   create(@Body() createBookingDto: CreateBookingDto, @Request() req) {
     return this.bookingsService.create(createBookingDto, req.user.sub);
@@ -65,11 +70,18 @@ export class BookingsController {
   @ApiOperation({
     summary:
       'Host accepts a pending booking (internal: confirmed → displayStatus: accepted)',
+    description:
+      'Accepting a booking locks the availability of the listing. Any other overlapping bookings cannot be accepted once this lock is made. Executed inside an atomic DB transaction to prevent double bookings.',
   })
   @ApiResponse({
     status: 200,
     description:
       'Booking internal status set to `confirmed`. displayStatus = "accepted".',
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Cannot confirm: Another confirmed/paid booking overlaps with this date or time slot.',
   })
   confirm(@Param('id') id: string, @Request() req) {
     return this.bookingsService.confirm(id, req.user.sub);

@@ -12,7 +12,7 @@
     "start:dev": "nest start --watch",
     "dev:all": "npm run dev:setup && npm-run-all --parallel start:dev start:frontend",
     "dev:setup": "npx prisma migrate deploy && npx prisma generate && npm run seed",
-    "start:frontend": "cd frontend && npm run dev",
+    "start:frontend": "cd frontend && npm run dev -- -p 3001",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",

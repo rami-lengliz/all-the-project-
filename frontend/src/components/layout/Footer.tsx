@@ -7,7 +7,9 @@ export function Footer() {
     <footer className="mt-16 bg-slate-900 text-white">
       <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-6 py-12 md:grid-cols-4">
         <div>
-          <h4 className="mb-4 font-semibold">{locale === 'ar' ? 'حول' : 'About'}</h4>
+          <h4 className="mb-4 font-semibold">
+            {locale === 'ar' ? 'حول' : 'About'}
+          </h4>
           <ul className="space-y-2 text-sm text-slate-300">
             <li>
               <Link href="/help" className="hover:text-white">
@@ -22,7 +24,9 @@ export function Footer() {
           </ul>
         </div>
         <div>
-          <h4 className="mb-4 font-semibold">{locale === 'ar' ? 'الدعم' : 'Support'}</h4>
+          <h4 className="mb-4 font-semibold">
+            {locale === 'ar' ? 'الدعم' : 'Support'}
+          </h4>
           <ul className="space-y-2 text-sm text-slate-300">
             <li>
               <Link href="/help" className="hover:text-white">
@@ -37,7 +41,9 @@ export function Footer() {
           </ul>
         </div>
         <div>
-          <h4 className="mb-4 font-semibold">{locale === 'ar' ? 'الاستضافة' : 'Hosting'}</h4>
+          <h4 className="mb-4 font-semibold">
+            {locale === 'ar' ? 'الاستضافة' : 'Hosting'}
+          </h4>
           <ul className="space-y-2 text-sm text-slate-300">
             <li>
               <Link href="/host/create" className="hover:text-white">
@@ -52,7 +58,9 @@ export function Footer() {
           </ul>
         </div>
         <div>
-          <h4 className="mb-4 font-semibold">{locale === 'ar' ? 'قانوني' : 'Legal'}</h4>
+          <h4 className="mb-4 font-semibold">
+            {locale === 'ar' ? 'قانوني' : 'Legal'}
+          </h4>
           <ul className="space-y-2 text-sm text-slate-300">
             <li>
               <a className="hover:text-white" href="#">
@@ -76,4 +84,3 @@ export function Footer() {
     </footer>
   );
 }
-

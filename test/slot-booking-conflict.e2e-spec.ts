@@ -282,4 +282,56 @@ describe('SLOT Booking — Conflict Prevention (e2e)', () => {
     const b = res.body.data ?? res.body;
     expect(b.status).toBe('pending');
   });
+
+  it('Step 9 — Concurrency Proof: two exact same SLOT accepts at the EXACT same time', async () => {
+    // 1. Create two pending bookings for the exact same slot (18:00–20:00)
+    // Renter A
+    const resA = await request(app.getHttpServer())
+      .post('/api/bookings')
+      .set('Authorization', `Bearer ${renterAToken}`)
+      .send({
+        listingId,
+        startDate: bookingDate,
+        endDate: bookingDate,
+        startTime: '18:00',
+        endTime: '20:00',
+      })
+      .expect(201);
+    const pendingAId = (resA.body.data ?? resA.body).id;
+
+    // Renter B
+    const resB = await request(app.getHttpServer())
+      .post('/api/bookings')
+      .set('Authorization', `Bearer ${renterBToken}`)
+      .send({
+        listingId,
+        startDate: bookingDate,
+        endDate: bookingDate,
+        startTime: '18:00',
+        endTime: '20:00',
+      })
+      .expect(201);
+    const pendingBId = (resB.body.data ?? resB.body).id;
+
+    // 2. Both are currently pending and legally overlap
+    // 3. The Host attempts to accept BOTH at the exact same millisecond
+    const p1 = request(app.getHttpServer())
+      .patch(`/api/bookings/${pendingAId}/confirm`)
+      .set('Authorization', `Bearer ${hostToken}`);
+    const p2 = request(app.getHttpServer())
+      .patch(`/api/bookings/${pendingBId}/confirm`)
+      .set('Authorization', `Bearer ${hostToken}`);
+
+    const [out1, out2] = await Promise.all([p1, p2]);
+
+    // 4. Exactly one must succeed (200 OK) and one must safely fail (409 Conflict)
+    const statusCodes = [out1.status, out2.status].sort();
+
+    expect(statusCodes).toEqual([200, 409]); // One 200, one 409
+
+    // The failing one should have the conflict message
+    const failingResponse = out1.status === 409 ? out1 : out2;
+    expect(failingResponse.body.message).toMatch(/not available|overlap/i);
+  });
+
 });

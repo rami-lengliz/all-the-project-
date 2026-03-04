@@ -64,7 +64,23 @@ npx prisma migrate reset --force
 npm run seed
 
 # 4. Start both Backend & Frontend concurrently
-npm run dev:all
+PS C:\Users\MSI\Desktop\all-the-project--main> npm run dev:all
+
+> renteverything-backend@1.0.0 dev:all
+> npm run dev:setup && npm-run-all --parallel start:dev start:frontend
+
+
+> renteverything-backend@1.0.0 dev:setup
+> npx prisma migrate deploy && npx prisma generate && npm run seed
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+Datasource "db": PostgreSQL database "rental_platform", schema "public" at "127.0.0.1:5433"
+
+Error: P1001: Can't reach database server at `127.0.0.1:5433`
+
+Please make sure your database server is running at `127.0.0.1:5433`.
+PS C:\Users\MSI\Desktop\all-the-project--main> 
 ```
 
 > **Note on `prisma migrate deploy`:** 

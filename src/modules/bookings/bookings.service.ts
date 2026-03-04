@@ -258,14 +258,20 @@ export class BookingsService {
         'confirm booking',
       );
 
+      // Lock the listing to serialize concurrent confirms for the same listing
+      await tx.$queryRaw`
+        SELECT id FROM listings
+        WHERE id::text = ${booking.listingId}
+        FOR UPDATE
+      `;
+
       // Check availability — SLOT bookings use time-based check,
-      // DAILY bookings use date-range lock.
+      // DAILY bookings use date-range lock. Both execute WITHIN the transaction context (tx).
       let isAvailable: boolean;
       if (booking.startTime && booking.endTime) {
-        // SLOT booking: use time-overlap check (outside tx, uses this.prisma)
-        // We release the tx FOR UPDATE lock before calling, but this is a
-        // best-effort protection — the primary lock is the availability check.
-        isAvailable = await this.availabilityService.checkSlotAvailability(
+        // SLOT booking
+        isAvailable = await this.availabilityService.checkSlotAvailabilityWithLock(
+          tx,
           booking.listingId,
           booking.startDate,
           // startTime returned from raw SQL may be a Date; extract HH:mm
@@ -278,6 +284,7 @@ export class BookingsService {
           id,
         );
       } else {
+        // DAILY booking
         isAvailable = await this.availabilityService.isListingAvailableWithLock(
           tx,
           booking.listingId,

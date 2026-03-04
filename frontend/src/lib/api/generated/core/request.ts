@@ -5,7 +5,6 @@
 import axios from 'axios';
 import type { AxiosError, AxiosRequestConfig, AxiosResponse, AxiosInstance } from 'axios';
 import FormData from 'form-data';
-import { api as appAxios } from '@/lib/api/http';
 
 import { ApiError } from './ApiError';
 import type { ApiRequestOptions } from './ApiRequestOptions';
@@ -100,9 +99,7 @@ const getUrl = (config: OpenAPIConfig, options: ApiRequestOptions): string => {
                 return encoder(String(options.path[group]));
             }
             return substring;
-        })
-        // PATCH: Fix double //api/api prefix from generated code
-        .replace(/^\/api\/api\//, '/api/');
+        });
 
     const url = `${config.BASE}${path}`;
     if (options.query) {
@@ -163,11 +160,11 @@ export const getHeaders = async (config: OpenAPIConfig, options: ApiRequestOptio
         ...options.headers,
         ...formHeaders,
     })
-        .filter(([_, value]) => isDefined(value))
-        .reduce((headers, [key, value]) => ({
-            ...headers,
-            [key]: String(value),
-        }), {} as Record<string, string>);
+    .filter(([_, value]) => isDefined(value))
+    .reduce((headers, [key, value]) => ({
+        ...headers,
+        [key]: String(value),
+    }), {} as Record<string, string>);
 
     if (isStringWithValue(token)) {
         headers['Authorization'] = `Bearer ${token}`;
@@ -294,11 +291,7 @@ export const catchErrorCodes = (options: ApiRequestOptions, result: ApiResult): 
  * @returns CancelablePromise<T>
  * @throws ApiError
  */
-export const request = <T>(
-    config: OpenAPIConfig,
-    options: ApiRequestOptions,
-    axiosClient: AxiosInstance = appAxios
-): CancelablePromise<T> => {
+export const request = <T>(config: OpenAPIConfig, options: ApiRequestOptions, axiosClient: AxiosInstance = axios): CancelablePromise<T> => {
     return new CancelablePromise(async (resolve, reject, onCancel) => {
         try {
             const url = getUrl(config, options);
