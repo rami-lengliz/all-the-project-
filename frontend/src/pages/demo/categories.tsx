@@ -24,12 +24,12 @@ function CategoryIcon({ icon }: { icon?: string | null }) {
 // ── Category row ──────────────────────────────────────────────────────────────
 function CategoryRow({ cat }: { cat: NearbyCategory }) {
     return (
-        <li className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
-            <div className="flex items-center gap-3">
-                <CategoryIcon icon={cat.icon} />
-                <span className="font-medium text-gray-800">{cat.name}</span>
+        <li className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+            <div className="flex items-center gap-4">
+                <span className="text-3xl leading-none" aria-hidden>{cat.icon ?? '📦'}</span>
+                <span className="text-sm font-semibold text-gray-800">{cat.name}</span>
             </div>
-            <span className="rounded-full bg-blue-100 px-3 py-0.5 text-sm font-semibold text-blue-700">
+            <span className="rounded-full bg-blue-100 px-3.5 py-1 text-sm font-bold text-blue-700">
                 {cat.count} listing{cat.count !== 1 ? 's' : ''}
             </span>
         </li>
@@ -184,8 +184,11 @@ export default function DemoCategoriesPage() {
                     {/* Results */}
                     {!isLoading && !isError && categories.length > 0 && (
                         <>
-                            <p className="mb-3 text-sm text-gray-500">
-                                <span className="font-semibold text-gray-800">{categories.length}</span> categor{categories.length !== 1 ? 'ies' : 'y'} near {selectedCity.label.replace(/^.*?\s/, '')}
+                            <p className="mb-3">
+                                <span className="mr-1 text-2xl font-black text-gray-800">{categories.length}</span>
+                                <span className="text-sm text-gray-500">
+                                    categor{categories.length !== 1 ? 'ies' : 'y'} near {selectedCity.label.replace(/^.*?\s/, '')}
+                                </span>
                             </p>
                             <ul className="space-y-2" id="categories-list">
                                 {categories.map((cat) => (

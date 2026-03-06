@@ -7,6 +7,9 @@ import { LoadingCard } from '@/components/ui/LoadingCard';
 import { InlineError } from '@/components/ui/InlineError';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { toast } from '@/components/ui/Toaster';
+import { API_URL } from '@/lib/api/env';
+
+const resolveImg = (path: string) => path.startsWith('http') ? path : `${API_URL}${path}`;
 
 interface ImagePreview {
   file: File;
@@ -264,7 +267,7 @@ export default function HostEditListingPage() {
                     .map((img, idx) => (
                       <div key={img.id} className="relative group">
                         <img
-                          src={img.url.startsWith('http') ? img.url : `http://localhost:3000${img.url}`}
+                          src={resolveImg(img.url)}
                           alt={`Existing ${idx + 1}`}
                           className="w-full h-48 object-cover rounded-lg border border-gray-200"
                         />

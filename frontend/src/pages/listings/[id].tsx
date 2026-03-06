@@ -8,6 +8,9 @@ import { LoadingCard } from '@/components/ui/LoadingCard';
 import { InlineError } from '@/components/ui/InlineError';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useState } from 'react';
+import { API_URL } from '@/lib/api/env';
+
+const resolveImg = (path: string) => path.startsWith('http') ? path : `${API_URL}${path}`;
 
 export default function ListingDetailsPage() {
   const router = useRouter();
@@ -91,13 +94,12 @@ export default function ListingDetailsPage() {
                   {displayImages.map((img: string, idx: number) => (
                     <div
                       key={idx}
-                      className={`${
-                        idx === 0 ? 'col-span-2 row-span-2' : ''
-                      } cursor-pointer overflow-hidden transition hover:brightness-95`}
+                      className={`${idx === 0 ? 'col-span-2 row-span-2' : ''
+                        } cursor-pointer overflow-hidden transition hover:brightness-95`}
                     >
                       <img
                         className="h-full w-full object-cover"
-                        src={img.startsWith('http') ? img : `http://localhost:3000${img}`}
+                        src={resolveImg(img)}
                         alt={`${listing.title} ${idx + 1}`}
                       />
                     </div>
@@ -237,13 +239,12 @@ export default function ListingDetailsPage() {
                         {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
                           <div
                             key={day}
-                            className={`py-2 text-sm ${
-                              day >= 4 && day <= 14
+                            className={`py-2 text-sm ${day >= 4 && day <= 14
                                 ? 'cursor-pointer rounded-lg bg-gray-200'
                                 : day >= 15 && day <= 25
                                   ? 'cursor-pointer rounded-lg text-gray-900 transition hover:bg-gray-100'
                                   : 'text-gray-400'
-                            }`}
+                              }`}
                           >
                             {day}
                           </div>
@@ -313,9 +314,8 @@ export default function ListingDetailsPage() {
                                   {Array.from({ length: 5 }, (_, i) => (
                                     <i
                                       key={i}
-                                      className={`fa-solid fa-star text-xs ${
-                                        i < review.rating ? 'text-yellow-400' : 'text-gray-300'
-                                      }`}
+                                      className={`fa-solid fa-star text-xs ${i < review.rating ? 'text-yellow-400' : 'text-gray-300'
+                                        }`}
                                     ></i>
                                   ))}
                                 </div>

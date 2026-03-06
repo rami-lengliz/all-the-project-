@@ -13,9 +13,9 @@ import {
 
 function Chip({ chip }: { chip: AiChip }) {
     return (
-        <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-            <span className="mr-1 font-mono text-blue-400">{chip.key}:</span>
-            {chip.label}
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm">
+            <span className="font-mono text-xs font-bold uppercase tracking-wide text-blue-400">{chip.key}</span>
+            <span className="font-medium text-blue-800">{chip.label}</span>
         </span>
     );
 }
@@ -38,9 +38,9 @@ function ListingCard({ listing }: { listing: AiListing }) {
     const categoryIcon = listing.category?.icon ?? '🏷️';
 
     return (
-        <li className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+        <li className="flex items-start gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             {/* Thumbnail */}
-            <div className="h-16 w-20 flex-shrink-0 overflow-hidden rounded-md bg-gray-100">
+            <div className="h-20 w-24 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100">
                 {listing.images?.[0] ? (
                     <img
                         src={listing.images[0]}
@@ -49,7 +49,7 @@ function ListingCard({ listing }: { listing: AiListing }) {
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center text-2xl">
+                    <div className="flex h-full w-full items-center justify-center text-3xl">
                         {categoryIcon}
                     </div>
                 )}
@@ -57,29 +57,25 @@ function ListingCard({ listing }: { listing: AiListing }) {
 
             {/* Info */}
             <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold text-gray-800">{listing.title}</p>
+                <p className="text-base font-semibold leading-snug text-gray-900">{listing.title}</p>
 
                 {/* Category + location row */}
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                     {categoryLabel && (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
                             {categoryLabel}
                         </span>
                     )}
                     {locationLabel && (
-                        <span className="truncate text-xs text-gray-400">📍 {locationLabel}</span>
+                        <span className="text-xs text-gray-400">📍 {locationLabel}</span>
                     )}
                 </div>
-
-                {listing.description && (
-                    <p className="mt-1 line-clamp-1 text-xs text-gray-400">{listing.description}</p>
-                )}
             </div>
 
-            {/* Price */}
+            {/* Price — right-aligned, prominent */}
             <div className="flex-shrink-0 text-right">
-                <span className="text-sm font-bold text-gray-800">{listing.pricePerDay}</span>
-                <span className="ml-0.5 text-xs text-gray-400">TND{priceUnitLabel(listing.priceUnit)}</span>
+                <span className="text-lg font-bold text-gray-900">{listing.pricePerDay}</span>
+                <span className="block text-xs text-gray-400">TND{priceUnitLabel(listing.priceUnit)}</span>
             </div>
         </li>
     );
@@ -113,9 +109,9 @@ function FollowUpSection({
                             disabled={loading}
                             onClick={() => onAnswer(opt)}
                             className="rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-gray-700
-                         transition hover:border-amber-500 hover:text-amber-700 disabled:opacity-50"
+                         transition hover:border-amber-500 hover:text-amber-700 disabled:opacity-50 disabled:cursor-wait"
                         >
-                            {opt}
+                            {loading ? '…' : opt}
                         </button>
                     ))}
                 </div>
@@ -137,9 +133,9 @@ function FollowUpSection({
                         disabled={loading || !freeText.trim()}
                         onClick={() => onAnswer(freeText.trim())}
                         className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white
-                       transition hover:bg-amber-600 disabled:opacity-40"
+                       transition hover:bg-amber-600 disabled:opacity-40 disabled:cursor-wait"
                     >
-                        Send
+                        {loading ? 'Sending…' : 'Send'}
                     </button>
                 </div>
             )}
@@ -370,14 +366,17 @@ export default function DemoAiSearchPage() {
                     </div>
 
                     {/* Active location + radius label */}
-                    <p id="ai-location-label" className="mt-2 text-xs text-gray-400">
-                        Searching near{' '}
-                        <span className="font-medium text-purple-600">{selectedLocation.label}</span>
-                        {' '}within{' '}
-                        <span className="font-medium text-purple-600">{radiusKm} km</span>
-                        {' '}·{' '}
-                        <span className="font-mono">{selectedLocation.lat.toFixed(4)}, {selectedLocation.lng.toFixed(4)}</span>
-                    </p>
+                    <div
+                        id="ai-location-label"
+                        className="mt-3 inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-3 py-1.5 text-sm"
+                    >
+                        <span className="font-semibold text-purple-700">📍 {selectedLocation.label}</span>
+                        <span className="text-purple-400">·</span>
+                        <span className="font-medium text-purple-600">{radiusKm} km radius</span>
+                        <span className="font-mono text-xs text-purple-300">
+                            {selectedLocation.lat.toFixed(4)}, {selectedLocation.lng.toFixed(4)}
+                        </span>
+                    </div>
 
                     {/* ── Debug panel ───────────────────────────────────────── */}
                     {lastPayload && (
@@ -478,8 +477,8 @@ export default function DemoAiSearchPage() {
                         {/* Chips */}
                         {chips.length > 0 && (
                             <section id="ai-chips-section" aria-label="Search filters">
-                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                                    Extracted filters
+                                <p className="mb-2 text-xs font-bold uppercase tracking-widest text-gray-400">
+                                    🔍 Extracted filters
                                 </p>
                                 <div className="flex flex-wrap gap-2">
                                     {chips.map((c) => <Chip key={c.key} chip={c} />)}
@@ -515,10 +514,11 @@ export default function DemoAiSearchPage() {
                         {/* Listings */}
                         {listings.length > 0 && (
                             <section id="ai-results-section" aria-label="Listings">
-                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                                    {listings.length} result{listings.length !== 1 ? 's' : ''}
+                                <p className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-400">
+                                    <span className="mr-1 text-xl font-black text-gray-700">{listings.length}</span>
+                                    result{listings.length !== 1 ? 's' : ''}
                                 </p>
-                                <ul id="ai-results-list" className="space-y-2">
+                                <ul id="ai-results-list" className="space-y-3">
                                     {listings.map((l) => (
                                         <ListingCard key={l.id} listing={l} />
                                     ))}

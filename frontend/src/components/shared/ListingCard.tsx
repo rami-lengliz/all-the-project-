@@ -1,6 +1,13 @@
 import Link from 'next/link';
 import type { Listing } from '@/lib/api/types';
 import { formatTnd } from '@/lib/utils/format';
+import { API_URL } from '@/lib/api/env';
+
+/** Convert a relative image path to an absolute URL using the configured API base. */
+function resolveImageUrl(path: string): string {
+  if (path.startsWith('http')) return path;
+  return `${API_URL}${path}`;
+}
 
 export function ListingCard({ listing }: { listing: Listing }) {
   const city = listing.address?.split(',').slice(-2).join(',').trim() || listing.address || 'Kelibia';
@@ -12,7 +19,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
       <div className="aspect-[16/10] bg-slate-100 overflow-hidden">
         {listing.images && listing.images.length > 0 ? (
           <img
-            src={`http://localhost:3000${listing.images[0]}`}
+            src={resolveImageUrl(listing.images[0])}
             alt={listing.title}
             className="h-full w-full object-cover transition group-hover:scale-105"
           />

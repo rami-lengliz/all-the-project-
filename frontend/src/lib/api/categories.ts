@@ -1,9 +1,9 @@
 /**
  * categories.ts — API client for category endpoints
  *
- * Uses NEXT_PUBLIC_API_URL as the base.
- * Set in .env.local:  NEXT_PUBLIC_API_URL=http://localhost:3000
+ * Uses NEXT_PUBLIC_API_URL as the base (via centralized env.ts).
  */
+import { API_URL } from '@/lib/api/env';
 
 // ── Type ─────────────────────────────────────────────────────────────────────
 
@@ -33,14 +33,13 @@ export async function fetchNearbyCategories(
     lng: number,
     radiusKm: number,
 ): Promise<NearbyCategory[]> {
-    const base = process.env.NEXT_PUBLIC_API_URL ?? '';
     const params = new URLSearchParams({
         lat: String(lat),
         lng: String(lng),
         radiusKm: String(radiusKm),
     });
 
-    const url = `${base}/api/categories/nearby?${params}`;
+    const url = `${API_URL}/api/categories/nearby?${params}`;
     const res = await fetch(url, { cache: 'no-store' });
 
     if (!res.ok) {
