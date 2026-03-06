@@ -1,152 +1,193 @@
-# RentAI — Demo Reset Guide (Week 3)
+# RentAI — Demo Reset Guide
 
-> **Purpose:** Safely reset demo data in production without touching the DB manually.
-> **Strategy:** CLI seed command (Option A) — triggered from hosting dashboard or locally.
-
----
-
-## 🚀 Reset Demo Data
-
-### Locally
-```bash
-# From project root
-npm run seed:demo
-```
-
-### On Render / Railway (production)
-
-In **Render** → Your Service → **Shell** (or "Run Command"):
-```bash
-npm run seed:demo
-```
-
-In **Railway** → Project → **Service** → Terminal:
-```bash
-npm run seed:demo
-```
-
-> ✅ This wipes all existing data and re-seeds a clean, consistent demo state.
+**Target:** Reset all demo data in < 5 minutes, any time before a demo.
 
 ---
 
-## 🎯 What the Seed Creates
+## Prerequisites
 
-| Item | Count |
+```
+DATABASE_URL set in .env
+Docker running  →  docker ps
+```
+
+---
+
+## Method A — CLI Reset (Local / SSH)
+
+```bash
+# 1. From the project root (all-the-project-)
+
+# Hard-reset schema + demo seed (drops everything, re-seeds)
+npx prisma migrate reset --force && npm run seed:demo
+```
+
+**Or if only re-seeding an already migrated DB (faster):**
+
+```bash
+npm run seed:demo
+```
+
+> `seed:demo` clears all rows, re-creates 65+ listings, users, bookings, chat messages, and reviews. It is **idempotent** — run it as many times as needed.
+
+### Expected output
+
+```
+🌱  RentAI — Demo Seed starting…
+
+🗑️  Clearing existing data…
+📂  Creating categories…
+👤  Creating users…
+🏠  Creating Kelibia listings…     ✓ 32 Kelibia listings created
+🌆  Creating Tunis listings…       ✓ 27 Tunis listings created
+🎯  Creating demo conflict scenarios…
+📅  Creating general bookings…     ✓ N general bookings created
+💬  Creating chat conversations…
+⭐  Creating reviews…
+
+╔══════════════════════════════════════════════════════╗
+║         RentAI — Demo Seed Summary                   ║
+╠══════════════════════════════════════════════════════╣
+║  DAILY listing : b1000001-0000-4000-8000-000000000001 ║
+║  Blocked dates : YYYY-MM-DD → YYYY-MM-DD  (D+30→D+33) ║
+║  SLOT listing  : b2000001-0000-4000-8000-000000000001 ║
+║  Blocked slot  : 10:00–12:00 on YYYY-MM-DD  (D+7)    ║
+╚══════════════════════════════════════════════════════╝
+
+✅  Demo seed completed successfully!
+```
+
+> **IDs are stable fixed UUIDs** — they never change between resets. Copy them once; reuse forever.
+
+---
+
+## Method B — Production (Railway / Render "Run command")
+
+> No SSH needed — use the platform's one-off job runner.
+
+```bash
+# After build (JS already compiled):
+node dist/database/seeds/run-seed-demo.js
+
+# Or using ts-node in production (if typescript deps are present):
+npx ts-node src/database/seeds/run-seed-demo.ts
+```
+
+Set `DATABASE_URL` in the platform env vars before running.
+
+---
+
+## Fixed Demo IDs (memorize or paste)
+
+| Asset | Fixed UUID |
 |---|---|
-| Users (host + renter + admin) | 11 |
-| Kelibia listings | ~32 |
-| Tunis listings | ~30 |
-| **Demo DAILY listing** (fixed ID) | 1 |
-| **Demo SLOT listing** (fixed ID) | 1 |
-| General bookings (mixed statuses) | ~25 |
-| Demo conflict bookings (DAILY + SLOT) | 4 |
-| Chat conversations | 5 |
-| Chat messages | 40+ |
-| Reviews | Up to 5 |
+| **DAILY listing** | `b1000001-0000-4000-8000-000000000001` |
+| **SLOT listing** | `b2000001-0000-4000-8000-000000000001` |
+| **DAILY conflict dates** | D+30 → D+33 _(computed at seed time, printed in summary)_ |
+| **SLOT conflict date/time** | D+7, 10:00–12:00 _(printed in summary)_ |
 
 ---
 
-## 🔑 Fixed Demo IDs (stable across every reset)
-
-After each seed, `demo-ids.json` is written to the project root. But these key IDs **never change**:
-
-| Resource | ID |
-|---|---|
-| **DAILY conflict listing** | `b1000001-0000-4000-8000-000000000001` |
-| **SLOT conflict listing** | `b2000001-0000-4000-8000-000000000001` |
-| Admin user | `a3000001-0000-4000-8000-000000000005` |
-| Host A (Mohamed) | `a1000001-0000-4000-8000-000000000001` |
-| Renter A (Fadi) | `a2000001-0000-4000-8000-000000000003` |
-| Renter B (Amine) | `a2000002-0000-4000-8000-000000000004` |
-
----
-
-## 🔐 Demo Credentials
+## Demo Credentials
 
 | Role | Email | Password |
 |---|---|---|
-| **Admin** | `admin@rentai.tn` | `password123` |
-| **Host A** | `host.kelibia@rentai.tn` | `password123` |
-| **Host B** | `host.tunis@rentai.tn` | `password123` |
-| **Renter A** | `renter.a@rentai.tn` | `password123` |
-| **Renter B** | `renter.b@rentai.tn` | `password123` |
+| Host (Kelibia) | `host.kelibia@rentai.tn` | `password123` |
+| Host (Tunis) | `host.tunis@rentai.tn` | `password123` |
+| RenterA | `renter.a@rentai.tn` | `password123` |
+| RenterB | `renter.b@rentai.tn` | `password123` |
+| Admin | `admin@rentai.tn` | `password123` |
 
 ---
 
-## 🧪 Verification Curl Commands
+## Quick Verify (after reset)
 
-### 1. Categories — Kelibia (should show beach + mobility + sports)
 ```bash
-curl -s "http://localhost:3000/api/categories/nearby?lat=36.8578&lng=11.092&radiusKm=15" | python -m json.tool
-```
+# Health check
+curl http://localhost:3000/api/health
 
-### 2. Categories — Tunis (different set from Kelibia)
-```bash
-curl -s "http://localhost:3000/api/categories/nearby?lat=36.8065&lng=10.1815&radiusKm=15" | python -m json.tool
-```
+# Categories near Kelibia — expect 5–7 results
+curl "http://localhost:3000/api/categories/nearby?lat=36.8578&lng=11.092&radiusKm=10"
 
-### 3. AI Search — RESULT mode
-```bash
+# AI search smoke test
 curl -s -X POST http://localhost:3000/api/ai/search \
   -H "Content-Type: application/json" \
-  -d '{"query":"villa avec piscine","lat":36.8578,"lng":11.092,"radiusKm":20,"followUpUsed":true}' \
-  | python -m json.tool
-```
+  -d '{"query":"villa with pool","lat":36.8578,"lng":11.092,"radiusKm":50,"followUpUsed":true}'
 
-### 4. AI Search — FOLLOW_UP mode
-```bash
-curl -s -X POST http://localhost:3000/api/ai/search \
-  -H "Content-Type: application/json" \
-  -d '{"query":"quelque chose pas cher","lat":36.8578,"lng":11.092,"radiusKm":10}' \
-  | python -m json.tool
-```
-
-### 5. Available slots — SLOT listing (10:00–12:00 must be ABSENT)
-```bash
-# Replace YYYY-MM-DD with today + 7 days
-SLOT_DATE=$(date -d "+7 days" +%Y-%m-%d)
-curl -s "http://localhost:3000/api/listings/b2000001-0000-4000-8000-000000000001/available-slots?date=$SLOT_DATE" \
-  | python -m json.tool
-# ✅ Expected: 10:00 slot is MISSING (blocked by confirmed booking)
-```
-
-### 6. Login and get JWT token
-```bash
-curl -s -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"renter.a@rentai.tn","password":"password123"}' \
-  | python -m json.tool
+# Slot availability — 10:00 must be MISSING from list
+curl "http://localhost:3000/api/listings/b2000001-0000-4000-8000-000000000001/available-slots?date=<SLOT_DATE>"
 ```
 
 ---
 
-## ✅ End-of-Reset Checklist
+## Troubleshooting
 
-After running `npm run seed:demo`, verify:
-
-- [ ] `categories/nearby` returns different results for Kelibia vs Tunis
-- [ ] AI search returns results on seeded Kelibia data
-- [ ] Slot check on `b2000001-...` shows 10:00–12:00 blocked
-- [ ] DAILY listing `b1000001-...` has D+30→D+33 confirmed
-- [ ] `demo-ids.json` was written to project root
-- [ ] Login works with `admin@rentai.tn / password123`
-
----
-
-## 🔄 Known Production Differences
-
-| Local | Production |
-|---|---|
-| `ts-node` runs directly | May need compiled `dist/` or `ts-node` available |
-| Seed prints to terminal | Seed prints to hosting logs |
-| `demo-ids.json` in project root | May write to ephemeral storage — check logs for IDs |
-
-> **Tip:** After seeding in production, **always check the logs** for the printed summary box with IDs and dates.
+### DB not reachable
+```
+Error: Can't reach database server at localhost:5432
+```
+```bash
+docker-compose up -d postgres
+# wait 5 s, then retry
+```
 
 ---
 
-## 🛑 When to Reset
+### Migration drift (schema out of sync)
+```
+Error: P3009 migrate found failed migrations
+```
+```bash
+# Local only — drops and recreates everything cleanly:
+npx prisma migrate reset --force
+npm run seed:demo
+```
 
-- Before any demo / jury presentation
-- After a debugging session that dirtied the data
-- When starting a new test cycle
+---
+
+### PostGIS extension missing
+```
+ERROR: type "geography" does not exist
+```
+```bash
+# Run once against your DB:
+psql $DATABASE_URL -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+# Then re-run seed
+npm run seed:demo
+```
+
+> Railway/Render managed Postgres instances have PostGIS pre-installed. If missing, create a new DB instance with the PostGIS add-on enabled.
+
+---
+
+### Seed fails — FK constraint / unique violation
+```
+Error: Unique constraint failed on field: email
+```
+The DB was not fully cleared before seeding. This happens if a previous seed was interrupted.
+
+```bash
+# Force a full schema reset first:
+npx prisma migrate reset --force
+npm run seed:demo
+```
+
+---
+
+### `aiSearchLog does not exist` on startup
+```bash
+npx prisma generate
+npx prisma migrate deploy
+```
+
+---
+
+### Port 3000 already in use
+```bash
+npx kill-port 3000
+npm run dev:all
+```
+
+---
+
+*Total reset time: ~40 s on local SSD · ~90 s on Railway free tier.*
