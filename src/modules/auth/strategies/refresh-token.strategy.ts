@@ -15,11 +15,11 @@ export class RefreshTokenStrategy extends PassportStrategy(
     private usersService: UsersService,
   ) {
     super({
-      // Backward-compatible: accept refresh token from Authorization header (preferred)
-      // and from body field `refreshToken` (existing clients).
+      // Prefer the body refreshToken if both are provided, as clients often mistakenly
+      // attach access tokens to all requests via interceptors.
       jwtFromRequest: ExtractJwt.fromExtractors([
-        ExtractJwt.fromAuthHeaderAsBearerToken(),
         ExtractJwt.fromBodyField('refreshToken'),
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('refreshToken.secret'),

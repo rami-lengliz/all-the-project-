@@ -141,4 +141,15 @@ export class BookingsController {
   cancel(@Param('id') id: string, @Request() req) {
     return this.bookingsService.cancel(id, req.user.sub);
   }
+
+  @Patch(':id/complete')
+  @ApiOperation({
+    summary: 'Mark booking as completed',
+  })
+  @ApiResponse({
+    status: 200,
+  })
+  complete(@Param('id') id: string, @Request() req) {
+    return this.bookingsService.complete(id, req.user.sub);
+  }
 }

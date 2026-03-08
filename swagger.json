@@ -1,0 +1,2983 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api": {
+      "get": {
+        "operationId": "AppController_getHello",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "AppController_getHealth",
+        "summary": "Health check endpoint",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "summary": "Register a new user",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered successfully"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "summary": "Login user",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "summary": "Refresh access token",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token refreshed successfully"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/verify": {
+      "post": {
+        "operationId": "AuthController_verify",
+        "summary": "Verify email or phone",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification successful"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/users/me": {
+      "get": {
+        "operationId": "UsersController_getProfile",
+        "summary": "Get current user profile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "UsersController_updateProfile",
+        "summary": "Update current user profile",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/users/me/become-host": {
+      "post": {
+        "operationId": "UsersController_becomeHost",
+        "summary": "Become a host",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BecomeHostDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/users/me/verify": {
+      "post": {
+        "operationId": "UsersController_verifyUser",
+        "summary": "Verify current user (dev only - auto-verifies email/phone)",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/users/{id}": {
+      "get": {
+        "operationId": "UsersController_findOne",
+        "summary": "Get user public profile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/categories": {
+      "post": {
+        "operationId": "CategoriesController_create",
+        "summary": "Create category (admin only)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "categories"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "CategoriesController_findAll",
+        "summary": "List all categories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/api/categories/nearby": {
+      "get": {
+        "operationId": "CategoriesController_findNearby",
+        "summary": "Get nearby categories with listing counts",
+        "description": "Returns categories that have active listings within the specified radius from a geographic location. Uses PostGIS for accurate geospatial queries. Results are ordered by listing count (descending) then category name (ascending). Only includes active, non-deleted listings with valid location data.",
+        "parameters": [
+          {
+            "name": "lat",
+            "required": true,
+            "in": "query",
+            "description": "Latitude coordinate (-90 to 90)",
+            "schema": {
+              "example": 36.8578,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": true,
+            "in": "query",
+            "description": "Longitude coordinate (-180 to 180)",
+            "schema": {
+              "example": 11.092,
+              "type": "number"
+            }
+          },
+          {
+            "name": "radiusKm",
+            "required": false,
+            "in": "query",
+            "description": "Search radius in kilometers (0-50, default: 10)",
+            "schema": {
+              "minimum": 0,
+              "maximum": 50,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "includeEmpty",
+            "required": false,
+            "in": "query",
+            "description": "Include categories with zero listings (default: false)",
+            "schema": {
+              "default": false,
+              "example": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Categories with listing counts successfully retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "123e4567-e89b-12d3-a456-426614174000",
+                            "description": "Category UUID"
+                          },
+                          "name": {
+                            "type": "string",
+                            "example": "Electronics",
+                            "description": "Category name"
+                          },
+                          "slug": {
+                            "type": "string",
+                            "example": "electronics",
+                            "description": "URL-friendly category identifier"
+                          },
+                          "icon": {
+                            "type": "string",
+                            "nullable": true,
+                            "example": "fa-laptop",
+                            "description": "Icon identifier (FontAwesome class)"
+                          },
+                          "count": {
+                            "type": "number",
+                            "example": 15,
+                            "description": "Number of active listings within radius"
+                          }
+                        }
+                      },
+                      "example": [
+                        {
+                          "id": "123e4567-e89b-12d3-a456-426614174000",
+                          "name": "Electronics",
+                          "slug": "electronics",
+                          "icon": "fa-laptop",
+                          "count": 15
+                        },
+                        {
+                          "id": "223e4567-e89b-12d3-a456-426614174001",
+                          "name": "Sports Equipment",
+                          "slug": "sports-equipment",
+                          "icon": "fa-football",
+                          "count": 8
+                        },
+                        {
+                          "id": "323e4567-e89b-12d3-a456-426614174002",
+                          "name": "Vehicles",
+                          "slug": "vehicles",
+                          "icon": "fa-car",
+                          "count": 5
+                        }
+                      ]
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time",
+                      "example": "2026-02-16T20:27:06.496Z"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/api/categories/{id}": {
+      "get": {
+        "operationId": "CategoriesController_findOne",
+        "summary": "Get category by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "categories"
+        ]
+      },
+      "patch": {
+        "operationId": "CategoriesController_update",
+        "summary": "Update category (admin only)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "categories"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "CategoriesController_remove",
+        "summary": "Delete category (admin only)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "categories"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/listings": {
+      "post": {
+        "operationId": "ListingsController_create",
+        "summary": "Create a new listing (host only)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateListingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "ListingsController_findAll",
+        "summary": "Search listings with filters",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "minPrice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "maxPrice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "lat",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "radiusKm",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "availableFrom",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "availableTo",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "distance",
+                "price_asc",
+                "price_desc",
+                "date"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "listings"
+        ]
+      }
+    },
+    "/api/listings/mine": {
+      "get": {
+        "operationId": "ListingsController_findMine",
+        "summary": "Get all listings for the current host (any status)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/listings/{id}": {
+      "get": {
+        "operationId": "ListingsController_findOne",
+        "summary": "Get listing details",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "listings"
+        ]
+      },
+      "patch": {
+        "operationId": "ListingsController_update",
+        "summary": "Update listing (host or admin)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateListingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "ListingsController_remove",
+        "summary": "Delete a listing (soft delete for hosts, hard delete for admins)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/listings/{id}/slot-configuration": {
+      "post": {
+        "operationId": "ListingsController_createSlotConfiguration",
+        "summary": "Create slot configuration for a listing",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/listings/{id}/available-slots": {
+      "get": {
+        "operationId": "ListingsController_getAvailableSlots",
+        "summary": "Get available time slots for a specific date",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "listings"
+        ]
+      }
+    },
+    "/api/bookings": {
+      "post": {
+        "operationId": "BookingsController_create",
+        "summary": "Create a new booking request (status → pending)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBookingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Booking created. displayStatus = \"pending\". A pending booking does NOT block availability for other renters."
+          },
+          "409": {
+            "description": "Listing is not available for requested dates/slots."
+          }
+        },
+        "tags": [
+          "bookings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/bookings/me": {
+      "get": {
+        "operationId": "BookingsController_findAll",
+        "summary": "Get all bookings for the current user",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Each booking includes a `displayStatus` field: pending | accepted | completed | canceled | rejected."
+          }
+        },
+        "tags": [
+          "bookings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/bookings/{id}": {
+      "get": {
+        "operationId": "BookingsController_findOne",
+        "summary": "Get booking details",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Booking object with `displayStatus` field."
+          }
+        },
+        "tags": [
+          "bookings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/bookings/{id}/confirm": {
+      "patch": {
+        "operationId": "BookingsController_confirm",
+        "summary": "Host accepts a pending booking (internal: confirmed → displayStatus: accepted)",
+        "description": "Accepting a booking locks the availability of the listing. Any other overlapping bookings cannot be accepted once this lock is made. Executed inside an atomic DB transaction to prevent double bookings.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Booking internal status set to `confirmed`. displayStatus = \"accepted\"."
+          },
+          "409": {
+            "description": "Cannot confirm: Another confirmed/paid booking overlaps with this date or time slot."
+          }
+        },
+        "tags": [
+          "bookings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/bookings/{id}/reject": {
+      "patch": {
+        "operationId": "BookingsController_reject",
+        "summary": "Host rejects a pending booking (internal: rejected → displayStatus: rejected)",
+        "description": "Only the host of the listing can reject a booking. Only `pending` bookings can be rejected. Once rejected, the slot is freed for other renters.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Booking internal status set to `rejected`. displayStatus = \"rejected\"."
+          },
+          "400": {
+            "description": "Booking is not in pending state."
+          },
+          "403": {
+            "description": "Only the host can reject bookings."
+          }
+        },
+        "tags": [
+          "bookings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/bookings/{id}/pay": {
+      "post": {
+        "operationId": "BookingsController_pay",
+        "summary": "Simulate payment for a confirmed booking (internal: paid → displayStatus: accepted)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayBookingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment processed. displayStatus stays \"accepted\" (paid is an internal milestone)."
+          }
+        },
+        "tags": [
+          "bookings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/bookings/{id}/cancel": {
+      "patch": {
+        "operationId": "BookingsController_cancel",
+        "summary": "Renter or host cancels a booking (internal: cancelled → displayStatus: canceled)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Booking cancelled. displayStatus = \"canceled\"."
+          }
+        },
+        "tags": [
+          "bookings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/payments/booking/{bookingId}/authorize": {
+      "post": {
+        "operationId": "PaymentsController_authorize",
+        "summary": "Authorize payment for a booking (renter only)",
+        "parameters": [
+          {
+            "name": "bookingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorizePaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "payments"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/payments/booking/{bookingId}/capture": {
+      "post": {
+        "operationId": "PaymentsController_capture",
+        "summary": "Capture authorized payment (system only)",
+        "parameters": [
+          {
+            "name": "bookingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "payments"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/payments/booking/{bookingId}/refund": {
+      "post": {
+        "operationId": "PaymentsController_refund",
+        "summary": "Refund captured payment",
+        "parameters": [
+          {
+            "name": "bookingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "payments"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/payments/booking/{bookingId}/cancel": {
+      "patch": {
+        "operationId": "PaymentsController_cancel",
+        "summary": "Cancel payment intent (renter or host, before capture)",
+        "parameters": [
+          {
+            "name": "bookingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "payments"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/payments/booking/{bookingId}": {
+      "post": {
+        "operationId": "PaymentsController_getByBooking",
+        "summary": "Get payment intent for a booking",
+        "parameters": [
+          {
+            "name": "bookingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "payments"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/reviews": {
+      "post": {
+        "operationId": "ReviewsController_create",
+        "summary": "Create a review",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reviews"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/reviews/user/{userId}": {
+      "get": {
+        "operationId": "ReviewsController_findByUser",
+        "summary": "Get reviews for a user",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/api/reviews/{id}": {
+      "get": {
+        "operationId": "ReviewsController_findOne",
+        "summary": "Get review details",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "operationId": "AdminController_getAllUsers",
+        "summary": "Get all users (admin only)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/listings": {
+      "get": {
+        "operationId": "AdminController_getAllListings",
+        "summary": "Get all listings (admin only)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/flag": {
+      "post": {
+        "operationId": "AdminController_flagListing",
+        "summary": "Flag a listing for review (admin only)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlagListingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/listings/{id}/approve": {
+      "patch": {
+        "operationId": "AdminController_approveListing",
+        "summary": "Approve a listing (set status ACTIVE)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/listings/{id}/suspend": {
+      "patch": {
+        "operationId": "AdminController_suspendListing",
+        "summary": "Suspend a listing (set status SUSPENDED)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/logs": {
+      "get": {
+        "operationId": "AdminController_getLogs",
+        "summary": "Get admin action logs (admin only)",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/ledger/summary": {
+      "get": {
+        "operationId": "AdminController_getLedgerSummary",
+        "summary": "Ledger summary totals (admin only)",
+        "parameters": [
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/hosts/{id}/balance": {
+      "get": {
+        "operationId": "AdminController_getHostBalance",
+        "summary": "Host payout balance (admin only)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/bookings/{id}/ledger": {
+      "get": {
+        "operationId": "AdminController_getBookingLedger",
+        "summary": "Ledger entries for a booking (admin only)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/payouts": {
+      "get": {
+        "operationId": "AdminController_listPayouts",
+        "summary": "List payouts, optionally filter by status (admin only)",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/hosts/{id}/payouts": {
+      "post": {
+        "operationId": "AdminController_createPayout",
+        "summary": "Create a payout for a host (admin only)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePayoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/payouts/{id}/mark-paid": {
+      "patch": {
+        "operationId": "AdminController_markPayoutPaid",
+        "summary": "Mark a payout as PAID and post ledger DEBIT (admin only)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkPaidDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/bookings/{id}/dispute/open": {
+      "patch": {
+        "operationId": "AdminController_openDispute",
+        "summary": "Open a dispute on a booking (admin only)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/bookings/{id}/dispute/resolve": {
+      "patch": {
+        "operationId": "AdminController_resolveDispute",
+        "summary": "Resolve a dispute on a booking (admin only)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/chat/conversations": {
+      "get": {
+        "operationId": "ChatController_getConversations",
+        "summary": "Get all conversations for the current user",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns list of conversations"
+          }
+        },
+        "tags": [
+          "chat"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "ChatController_createConversation",
+        "summary": "Create or get a conversation",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Conversation created or retrieved"
+          }
+        },
+        "tags": [
+          "chat"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/chat/conversations/{id}/messages": {
+      "get": {
+        "operationId": "ChatController_getMessages",
+        "summary": "Get messages in a conversation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns paginated messages"
+          }
+        },
+        "tags": [
+          "chat"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/chat/messages/read": {
+      "patch": {
+        "operationId": "ChatController_markAsRead",
+        "summary": "Mark messages as read",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkAsReadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Messages marked as read"
+          }
+        },
+        "tags": [
+          "chat"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/chat/unread-count": {
+      "get": {
+        "operationId": "ChatController_getUnreadCount",
+        "summary": "Get unread message count",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns unread count"
+          }
+        },
+        "tags": [
+          "chat"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ai/search": {
+      "post": {
+        "operationId": "AiController_search",
+        "summary": "AI-powered search with natural language",
+        "description": "Converts natural language queries into structured filters. Supports max 1 follow-up question for clarification. Returns either FOLLOW_UP mode (if clarification needed) or RESULT mode with listings. All responses have stable keys: mode, filters, chips, followUp, results.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiSearchRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Search results or follow-up question",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "title": "FOLLOW_UP Mode",
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "FOLLOW_UP"
+                          ],
+                          "example": "FOLLOW_UP"
+                        },
+                        "followUp": {
+                          "type": "object",
+                          "properties": {
+                            "question": {
+                              "type": "string",
+                              "example": "Which dates do you need?"
+                            },
+                            "field": {
+                              "type": "string",
+                              "enum": [
+                                "dates",
+                                "price",
+                                "category",
+                                "bookingType",
+                                "location",
+                                "other"
+                              ],
+                              "example": "dates"
+                            },
+                            "options": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "example": [
+                                "Today",
+                                "Tomorrow",
+                                "This weekend"
+                              ]
+                            }
+                          }
+                        },
+                        "filters": {
+                          "type": "object",
+                          "properties": {
+                            "q": {
+                              "type": "string",
+                              "example": "villa"
+                            },
+                            "categorySlug": {
+                              "type": "string",
+                              "example": "accommodation"
+                            },
+                            "minPrice": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "maxPrice": {
+                              "type": "number",
+                              "example": 250
+                            },
+                            "bookingType": {
+                              "type": "string",
+                              "enum": [
+                                "DAILY",
+                                "SLOT",
+                                "ANY"
+                              ],
+                              "nullable": true
+                            },
+                            "availableFrom": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "availableTo": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "sortBy": {
+                              "type": "string",
+                              "enum": [
+                                "distance",
+                                "date",
+                                "price_asc",
+                                "price_desc"
+                              ],
+                              "example": "distance"
+                            },
+                            "radiusKm": {
+                              "type": "number",
+                              "example": 10
+                            }
+                          }
+                        },
+                        "chips": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "example": [
+                            {
+                              "key": "q",
+                              "label": "villa"
+                            },
+                            {
+                              "key": "category",
+                              "label": "Accommodation"
+                            },
+                            {
+                              "key": "price",
+                              "label": "Up to 250 TND"
+                            }
+                          ]
+                        },
+                        "results": {
+                          "type": "array",
+                          "example": [],
+                          "description": "Always empty in FOLLOW_UP mode"
+                        }
+                      },
+                      "example": {
+                        "mode": "FOLLOW_UP",
+                        "followUp": {
+                          "question": "Which dates do you need?",
+                          "field": "dates",
+                          "options": [
+                            "Today",
+                            "Tomorrow",
+                            "This weekend"
+                          ]
+                        },
+                        "filters": {
+                          "q": "villa",
+                          "categorySlug": "accommodation",
+                          "maxPrice": 250,
+                          "sortBy": "distance",
+                          "radiusKm": 10
+                        },
+                        "chips": [
+                          {
+                            "key": "q",
+                            "label": "villa"
+                          },
+                          {
+                            "key": "category",
+                            "label": "Accommodation"
+                          },
+                          {
+                            "key": "price",
+                            "label": "Up to 250 TND"
+                          }
+                        ],
+                        "results": []
+                      }
+                    },
+                    {
+                      "title": "RESULT Mode",
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "RESULT"
+                          ],
+                          "example": "RESULT"
+                        },
+                        "filters": {
+                          "type": "object",
+                          "properties": {
+                            "q": {
+                              "type": "string",
+                              "example": "villa"
+                            },
+                            "categorySlug": {
+                              "type": "string",
+                              "example": "accommodation"
+                            },
+                            "minPrice": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "maxPrice": {
+                              "type": "number",
+                              "example": 250
+                            },
+                            "bookingType": {
+                              "type": "string",
+                              "enum": [
+                                "DAILY",
+                                "SLOT",
+                                "ANY"
+                              ],
+                              "example": "DAILY"
+                            },
+                            "availableFrom": {
+                              "type": "string",
+                              "example": "2026-02-17"
+                            },
+                            "availableTo": {
+                              "type": "string",
+                              "example": "2026-02-19"
+                            },
+                            "sortBy": {
+                              "type": "string",
+                              "enum": [
+                                "distance",
+                                "date",
+                                "price_asc",
+                                "price_desc"
+                              ],
+                              "example": "distance"
+                            },
+                            "radiusKm": {
+                              "type": "number",
+                              "example": 10
+                            }
+                          }
+                        },
+                        "chips": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "example": [
+                            {
+                              "key": "q",
+                              "label": "villa"
+                            },
+                            {
+                              "key": "category",
+                              "label": "Accommodation"
+                            },
+                            {
+                              "key": "price",
+                              "label": "Up to 250 TND"
+                            },
+                            {
+                              "key": "dates",
+                              "label": "2026-02-17 to 2026-02-19"
+                            }
+                          ]
+                        },
+                        "followUp": {
+                          "type": "null",
+                          "example": null,
+                          "description": "Always null in RESULT mode"
+                        },
+                        "results": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          },
+                          "description": "Array of listing summaries",
+                          "example": [
+                            {
+                              "id": "123e4567-e89b-12d3-a456-426614174000",
+                              "title": "Luxury Beach Villa",
+                              "pricePerDay": 200,
+                              "category": "accommodation"
+                            }
+                          ]
+                        }
+                      },
+                      "example": {
+                        "mode": "RESULT",
+                        "filters": {
+                          "q": "villa",
+                          "categorySlug": "accommodation",
+                          "maxPrice": 250,
+                          "bookingType": "DAILY",
+                          "availableFrom": "2026-02-17",
+                          "availableTo": "2026-02-19",
+                          "sortBy": "distance",
+                          "radiusKm": 10
+                        },
+                        "chips": [
+                          {
+                            "key": "q",
+                            "label": "villa"
+                          },
+                          {
+                            "key": "category",
+                            "label": "Accommodation"
+                          },
+                          {
+                            "key": "price",
+                            "label": "Up to 250 TND"
+                          },
+                          {
+                            "key": "dates",
+                            "label": "2026-02-17 to 2026-02-19"
+                          }
+                        ],
+                        "followUp": null,
+                        "results": [
+                          {
+                            "id": "123e4567-e89b-12d3-a456-426614174000",
+                            "title": "Luxury Beach Villa",
+                            "pricePerDay": 200,
+                            "category": "accommodation"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/ai/admin/search-logs": {
+      "get": {
+        "operationId": "AiController_getSearchLogs",
+        "summary": "[Dev/Admin] List recent AI search logs",
+        "description": "Returns the last N AI search log entries. Useful for PFE demo and debugging.",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/ai/generate": {
+      "post": {
+        "operationId": "AiController_generateListing",
+        "summary": "Generate complete listing (title, description, highlights)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateListingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Listing generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "title": "Professional Tennis Court with Night Lighting",
+                    "description": "Experience top-tier tennis at our professional-grade court...",
+                    "highlights": [
+                      "Professional-grade surface",
+                      "Night lighting available",
+                      "Equipment rental included"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ai/enhance-description": {
+      "post": {
+        "operationId": "AiController_enhanceDescription",
+        "summary": "Enhance existing listing description",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnhanceDescriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Description enhanced successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "enhancedDescription": "Discover our premium tennis court..."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ai/generate-titles": {
+      "post": {
+        "operationId": "AiController_generateTitles",
+        "summary": "Generate catchy listing titles",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateTitleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Titles generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "titles": [
+                      "Professional Tennis Court - Night Games Available",
+                      "Premium Tennis Facility with Pro Equipment",
+                      "Kelibia Tennis Court - Book Your Court Time"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "RentEverything API",
+    "description": "Production-grade backend API for travel & vacation rental platform. Focus: Accommodation, Mobility, Water & Beach Activities.",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "health",
+      "description": "Health check"
+    },
+    {
+      "name": "auth",
+      "description": "Authentication endpoints"
+    },
+    {
+      "name": "users",
+      "description": "User management"
+    },
+    {
+      "name": "categories",
+      "description": "Category management"
+    },
+    {
+      "name": "listings",
+      "description": "Listing management and search"
+    },
+    {
+      "name": "bookings",
+      "description": "Booking management"
+    },
+    {
+      "name": "reviews",
+      "description": "Review system"
+    },
+    {
+      "name": "admin",
+      "description": "Admin operations"
+    }
+  ],
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Development server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "firstName": {
+            "type": "string",
+            "example": "John"
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Doe"
+          },
+          "email": {
+            "type": "string",
+            "example": "john@example.com"
+          },
+          "phone": {
+            "type": "string",
+            "example": "+21612345678"
+          },
+          "password": {
+            "type": "string",
+            "example": "password123",
+            "minLength": 6
+          }
+        },
+        "required": [
+          "password"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "emailOrPhone": {
+            "type": "string",
+            "example": "john@example.com"
+          },
+          "email": {
+            "type": "string",
+            "example": "john@example.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "password123"
+          }
+        },
+        "required": [
+          "password"
+        ]
+      },
+      "RefreshTokenDto": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "VerifyDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "email",
+              "phone"
+            ]
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "type",
+          "code"
+        ]
+      },
+      "UpdateUserDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "avatarUrl": {
+            "type": "string"
+          }
+        }
+      },
+      "BecomeHostDto": {
+        "type": "object",
+        "properties": {
+          "acceptTerms": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "acceptTerms"
+        ]
+      },
+      "CreateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Bicycles"
+          },
+          "slug": {
+            "type": "string",
+            "example": "bicycles"
+          },
+          "icon": {
+            "type": "string",
+            "example": "🚲"
+          },
+          "allowed_for_private": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "name",
+          "allowed_for_private"
+        ]
+      },
+      "UpdateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "allowed_for_private": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateListingDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "Mountain Bike for Rent"
+          },
+          "description": {
+            "type": "string",
+            "example": "High-quality mountain bike..."
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "pricePerDay": {
+            "type": "number",
+            "example": 25,
+            "description": "Price per day in TND"
+          },
+          "latitude": {
+            "type": "number",
+            "example": 36.8475
+          },
+          "longitude": {
+            "type": "number",
+            "example": 11.0939
+          },
+          "address": {
+            "type": "string",
+            "example": "123 Main St, Kelibia, Tunisia"
+          },
+          "rules": {
+            "type": "string"
+          },
+          "bookingType": {
+            "type": "string",
+            "enum": [
+              "DAILY",
+              "SLOT"
+            ],
+            "default": "DAILY",
+            "description": "Booking type: DAILY for day-based rentals, SLOT for hourly/time-slot bookings"
+          },
+          "availability": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "categoryId",
+          "pricePerDay",
+          "latitude",
+          "longitude",
+          "address"
+        ]
+      },
+      "UpdateListingDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "Mountain Bike for Rent"
+          },
+          "description": {
+            "type": "string",
+            "example": "High-quality mountain bike..."
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "pricePerDay": {
+            "type": "number",
+            "example": 25,
+            "description": "Price per day in TND"
+          },
+          "latitude": {
+            "type": "number",
+            "example": 36.8475
+          },
+          "longitude": {
+            "type": "number",
+            "example": 11.0939
+          },
+          "address": {
+            "type": "string",
+            "example": "123 Main St, Kelibia, Tunisia"
+          },
+          "rules": {
+            "type": "string"
+          },
+          "bookingType": {
+            "type": "string",
+            "enum": [
+              "DAILY",
+              "SLOT"
+            ],
+            "default": "DAILY",
+            "description": "Booking type: DAILY for day-based rentals, SLOT for hourly/time-slot bookings"
+          },
+          "availability": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "imagesToRemove": {
+            "description": "Array of image URLs to remove from the listing",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreateBookingDto": {
+        "type": "object",
+        "properties": {
+          "listingId": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "example": "2024-06-01"
+          },
+          "endDate": {
+            "type": "string",
+            "example": "2024-06-05"
+          },
+          "startTime": {
+            "type": "string",
+            "description": "Start time for slot bookings (HH:mm format)",
+            "example": "14:00"
+          },
+          "endTime": {
+            "type": "string",
+            "description": "End time for slot bookings (HH:mm format)",
+            "example": "16:00"
+          }
+        },
+        "required": [
+          "listingId",
+          "startDate",
+          "endDate"
+        ]
+      },
+      "PayBookingDto": {
+        "type": "object",
+        "properties": {
+          "paymentToken": {
+            "type": "string",
+            "description": "Payment token from payment gateway"
+          },
+          "receipt": {
+            "type": "string",
+            "description": "Payment receipt URL or base64"
+          }
+        }
+      },
+      "AuthorizePaymentDto": {
+        "type": "object",
+        "properties": {
+          "metadata": {
+            "type": "object",
+            "description": "Additional metadata for payment authorization"
+          }
+        }
+      },
+      "CreateReviewDto": {
+        "type": "object",
+        "properties": {
+          "bookingId": {
+            "type": "string"
+          },
+          "rating": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "comment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "bookingId",
+          "rating"
+        ]
+      },
+      "FlagListingDto": {
+        "type": "object",
+        "properties": {
+          "listingId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "example": "Inappropriate content"
+          }
+        },
+        "required": [
+          "listingId",
+          "reason"
+        ]
+      },
+      "CreatePayoutDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "MarkPaidDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateConversationDto": {
+        "type": "object",
+        "properties": {
+          "otherUserId": {
+            "type": "string",
+            "description": "ID of the other user in the conversation",
+            "example": "123e4567-e89b-12d3-a456-426614174001"
+          },
+          "bookingId": {
+            "type": "string",
+            "description": "Optional booking ID to link conversation to",
+            "example": "123e4567-e89b-12d3-a456-426614174002"
+          },
+          "listingId": {
+            "type": "string",
+            "description": "Optional listing ID to link conversation to",
+            "example": "123e4567-e89b-12d3-a456-426614174003"
+          }
+        },
+        "required": [
+          "otherUserId"
+        ]
+      },
+      "MarkAsReadDto": {
+        "type": "object",
+        "properties": {
+          "messageIds": {
+            "description": "Array of message IDs to mark as read",
+            "example": [
+              "123e4567-e89b-12d3-a456-426614174004"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "messageIds"
+        ]
+      },
+      "AiSearchRequestDto": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "User search query in natural language",
+            "example": "villa near beach under 250"
+          },
+          "lat": {
+            "type": "number",
+            "description": "User latitude",
+            "example": 36.8578
+          },
+          "lng": {
+            "type": "number",
+            "description": "User longitude",
+            "example": 11.092
+          },
+          "radiusKm": {
+            "type": "number",
+            "description": "Search radius in kilometers",
+            "example": 10,
+            "default": 10
+          },
+          "availableCategorySlugs": {
+            "description": "Available category slugs within radius (optional)",
+            "example": [
+              "accommodation",
+              "sports-facilities"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "followUpUsed": {
+            "type": "boolean",
+            "description": "Whether a follow-up question has already been used",
+            "example": false,
+            "default": false
+          },
+          "followUpAnswer": {
+            "type": "string",
+            "description": "Answer to previous follow-up question",
+            "example": "tomorrow"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "GenerateListingDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "example": "Sports Facilities"
+          },
+          "basicInfo": {
+            "type": "string",
+            "example": "Professional tennis court with night lighting"
+          },
+          "features": {
+            "example": [
+              "Night lighting",
+              "Professional surface",
+              "Equipment rental available"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "location": {
+            "type": "string",
+            "example": "Kelibia Sports Complex"
+          }
+        },
+        "required": [
+          "category",
+          "basicInfo"
+        ]
+      },
+      "EnhanceDescriptionDto": {
+        "type": "object",
+        "properties": {
+          "currentDescription": {
+            "type": "string",
+            "example": "Nice tennis court for rent"
+          },
+          "category": {
+            "type": "string",
+            "example": "Sports Facilities"
+          }
+        },
+        "required": [
+          "currentDescription",
+          "category"
+        ]
+      },
+      "GenerateTitleDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "example": "Sports Facilities"
+          },
+          "keyFeatures": {
+            "example": [
+              "Tennis court",
+              "Night lighting",
+              "Professional"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "location": {
+            "type": "string",
+            "example": "Kelibia"
+          }
+        },
+        "required": [
+          "category",
+          "keyFeatures"
+        ]
+      }
+    }
+  }
+}

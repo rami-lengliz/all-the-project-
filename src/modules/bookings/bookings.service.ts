@@ -358,7 +358,37 @@ export class BookingsService {
     payBookingDto: PayBookingDto,
     userId: string,
   ): Promise<Booking> {
-    // Use transaction with locking to prevent double payment
+
+    // First, do authorization sanity checks outside transaction to fail fast
+    const bookingCheck = await this.prisma.booking.findUnique({ where: { id } });
+    if (!bookingCheck) throw new NotFoundException(`Booking with ID ${id} not found`);
+    if (bookingCheck.renterId !== userId) {
+      throw new ForbiddenException('Only the renter can pay for this booking');
+    }
+
+    // Capture payment OUTSIDE the booking transaction to prevent deadlock
+    // since paymentsService.capture opens its own transaction that reads the booking
+    let paymentIntent = await this.paymentsService.findByBooking(id);
+    if (!paymentIntent) {
+      throw new BadRequestException('Payment intent not found. Please authorize payment first.');
+    }
+    if (paymentIntent.status === 'created') {
+      throw new BadRequestException('Payment must be authorized before booking can be paid.');
+    }
+    if (paymentIntent.status === 'cancelled') {
+      throw new BadRequestException('Cannot pay booking: Payment intent has been cancelled.');
+    }
+
+    if (paymentIntent.status === 'authorized') {
+      await this.paymentsService.capture(id);
+      paymentIntent = await this.paymentsService.findByBooking(id);
+    }
+
+    if (paymentIntent?.status !== 'captured') {
+      throw new ConflictException('Payment must be captured before booking can be marked as paid.');
+    }
+
+    // Now safely update the booking inside its own transaction
     return await this.prisma.$transaction(async (tx) => {
       // Reload booking with lock to get latest state
       const bookings = await tx.$queryRaw<Booking[]>`
@@ -373,13 +403,6 @@ export class BookingsService {
 
       const booking = bookings[0];
 
-      // Authorization check
-      if (booking.renterId !== userId) {
-        throw new ForbiddenException(
-          'Only the renter can pay for this booking',
-        );
-      }
-
       // Idempotent check: if already paid, return as-is
       if (booking.status === 'paid' && booking.paid) {
         return booking;
@@ -390,39 +413,6 @@ export class BookingsService {
         throw new BadRequestException(
           `Cannot pay booking: Current status is ${booking.status}. ` +
           `Booking must be CONFIRMED to be paid.`,
-        );
-      }
-
-      // Check payment intent - must be AUTHORIZED or CAPTURED
-      const paymentIntent = await this.paymentsService.findByBooking(id);
-      if (!paymentIntent) {
-        throw new BadRequestException(
-          'Payment intent not found. Please authorize payment first.',
-        );
-      }
-
-      if (paymentIntent.status === 'created') {
-        throw new BadRequestException(
-          'Payment must be authorized before booking can be paid.',
-        );
-      }
-
-      if (paymentIntent.status === 'cancelled') {
-        throw new BadRequestException(
-          'Cannot pay booking: Payment intent has been cancelled.',
-        );
-      }
-
-      // Capture payment if not already captured
-      if (paymentIntent.status === 'authorized') {
-        await this.paymentsService.capture(id);
-      }
-
-      // Verify payment is captured
-      const updatedPaymentIntent = await this.paymentsService.findByBooking(id);
-      if (updatedPaymentIntent?.status !== 'captured') {
-        throw new ConflictException(
-          'Payment must be captured before booking can be marked as paid.',
         );
       }
 
@@ -519,6 +509,43 @@ export class BookingsService {
         where: { id },
         data: { status: 'cancelled' },
       });
+      return withDisplay(updated);
+    });
+  }
+
+  async complete(id: string, userId: string): Promise<Booking> {
+    return await this.prisma.$transaction(async (tx) => {
+      const bookings = await tx.$queryRaw<Booking[]>`
+        SELECT * FROM bookings
+        WHERE id::text = ${id}
+        FOR UPDATE
+      `;
+
+      if (!bookings || bookings.length === 0) {
+        throw new NotFoundException(`Booking with ID ${id} not found`);
+      }
+
+      const booking = bookings[0];
+
+      // Allow either host or renter to complete
+      if (booking.renterId !== userId && booking.hostId !== userId) {
+        throw new ForbiddenException('Not authorized to complete this booking');
+      }
+
+      if (booking.status === 'completed') {
+        return withDisplay(booking);
+      }
+
+      if (booking.status !== 'paid') {
+        throw new BadRequestException('Booking must be paid before it can be completed');
+      }
+
+      // Transition to completed
+      const updated = await tx.booking.update({
+        where: { id },
+        data: { status: 'completed' },
+      });
+
       return withDisplay(updated);
     });
   }
