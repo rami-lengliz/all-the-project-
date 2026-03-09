@@ -217,21 +217,25 @@ export default function DemoAiSearchPage() {
             ...(opts?.answer ? { followUpAnswer: opts.answer } : {}),
         };
         setLastPayload(payload);
+        const safeRadius = Math.min(50, Math.max(1, radiusKm));
+
         try {
             const res = await fetchAiSearch({
                 query: q,
                 lat: selectedLocation.lat,
                 lng: selectedLocation.lng,
-                radiusKm,
+                radiusKm: safeRadius,
                 followUpUsed: opts?.isFollowUp ?? false,
                 ...(opts?.answer ? { followUpAnswer: opts.answer } : {}),
             });
 
             // ── Infinite-loop guard ────────────────────────────────────────────
-            // Backend guardrail (TC-2) should already force RESULT when
-            // followUpUsed=true, but we defend client-side too.
-            if (opts?.isFollowUp && res.mode === 'FOLLOW_UP') {
-                // Override mode so no second follow-up UI can appear
+            // Fires when:
+            //   a) this call explicitly set followUpUsed=true (isFollowUp), OR
+            //   b) followUpUsed ref is already true (previous call was a follow-up)
+            // Either way, a second FOLLOW_UP response must never reach the UI.
+            const isSecondFollowUp = (opts?.isFollowUp || followUpUsed.current) && res.mode === 'FOLLOW_UP';
+            if (isSecondFollowUp) {
                 res.mode = 'RESULT';
                 res.followUp = null;
                 setFollowUpFallback(true);
@@ -434,14 +438,20 @@ export default function DemoAiSearchPage() {
 
                 {/* ── Error ── */}
                 {error && (
-                    <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                        <p className="font-semibold">Search failed</p>
-                        <p className="mt-0.5 text-xs text-red-500">{error}</p>
+                    <div
+                        id="ai-search-error"
+                        role="alert"
+                        className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4"
+                    >
+                        <p className="text-sm font-semibold text-red-700">
+                            {error.includes('timed out') ? '⏱ Request timed out' : '⚠️ Search failed'}
+                        </p>
+                        <p className="mt-1 text-xs text-red-500 leading-relaxed">{error}</p>
                         <button
                             onClick={() => runSearch(query)}
-                            className="mt-2 rounded border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                            className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition"
                         >
-                            Retry
+                            🔁 Retry
                         </button>
                     </div>
                 )}

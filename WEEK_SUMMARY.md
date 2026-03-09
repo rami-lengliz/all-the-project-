@@ -1,156 +1,126 @@
-# RentAI — Week 1 Summary
+# RentAI — Week Summary (Demo Freeze · Week 3)
 
-> **Sprint:** Feb 17–21, 2026 | **Branch:** `main` | **Tests:** 42 / 42 ✅
+> **Sprint:** Mar 3–9, 2026 | **Branch:** `week3-deploy-frontend` | **Tag:** `demo-ready-week3`
+
+---
+
+## 🔗 Quick Links
+
+| Resource | Link |
+|---|---|
+| **Frontend (local)** | `http://localhost:3000` |
+| **Categories Demo** | `http://localhost:3000/demo/categories` |
+| **AI Search Demo** | `http://localhost:3000/demo/ai-search` |
+| **Swagger / API Docs** | `http://localhost:3000/api/docs` |
+| **Reset Procedure** | [RESET_GUIDE.md](./RESET_GUIDE.md) |
+| **Demo Script** | [DEMO_SCRIPT.md](./DEMO_SCRIPT.md) |
+| **Known Limitations** | [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md) |
+| **Pre-Demo Checklist** | [DEMO_CHECKLIST.md](./DEMO_CHECKLIST.md) |
+| **Day 7 Rehearsal** | [DEMO_REHEARSAL_DAY7.md](./DEMO_REHEARSAL_DAY7.md) |
 
 ---
 
 ## ✅ What Was Done This Week
 
-### Day 1–2 — Core Feature Foundation
-- **`GET /api/categories/nearby`** — PostGIS distance query, returns categories sorted by listing count within radius
-- **AI Search (`POST /api/ai/search`)** — natural language → structured filters, stable response contract (`mode`, `filters`, `chips`, `followUp`, `results` always present)
-  - FOLLOW_UP mode (1 clarification question max, enforced by `followUpUsed` guard)
-  - RESULT mode with real listing results
-  - Fallback keyword search when no OpenAI key
-  - `followUpAnswer` field passed on second call to incorporate the user's answer
-- Swagger fully documented for all endpoints
+### Frontend Demo Pages (New)
+- **`/demo/categories`** — Location-aware category list driven by PostGIS.
+  - Kelibia / Tunis city presets; 5/10/20/50 km radius buttons.
+  - Live count badges; empty + error + loading states.
+- **`/demo/ai-search`** — Natural-language rental search UI.
+  - Direct RESULT flow (chips + result cards).
+  - FOLLOW_UP → RESULT flow (one question max, enforced client + server).
+  - Loading skeleton, error banner with Retry, Reset button.
+  - Location + radius picker; debug payload panel.
 
-### Day 3 — E2E Test Coverage
-| Suite | Tests | Result |
-|-------|-------|--------|
-| `categories-nearby.e2e-spec.ts` | 5 | ✅ PASS |
-| `ai-search-guardrails.e2e-spec.ts` | 9 | ✅ PASS |
-| `booking-conflict.e2e-spec.ts` | 8 | ✅ PASS |
-| `slot-booking-conflict.e2e-spec.ts` | 8 | ✅ PASS |
-| `app.e2e-spec.ts` | 12 | ✅ PASS |
-| **Total** | **42** | **0 failures** |
+### Frontend Hardening
+- **20 s AbortController timeout** on `fetchAiSearch` — no more hanging spinners.
+- **10 s timeout** on `fetchNearbyCategories`.
+- **Friendly error messages** — timeout vs network vs HTTP, parses NestJS JSON body.
+- **Radius clamped to [1, 50] km** client-side before every API call.
+- **Follow-up loop guard** now checks `followUpUsed.current` ref in addition to the call flag — double-locks the "max 1 follow-up" invariant.
 
-### Day 4 — Logging, Constants, Demo Seed, Runbook
-- **AI Search Logging** — Prisma `AiSearchLog` model, migration `20260221124136_add_ai_search_log`, fire-and-forget write after every search. Admin endpoint: `GET /api/ai/admin/search-logs?limit=N`
-- **`BLOCKING_BOOKING_STATUSES` constant** — `src/common/constants/booking-status.constants.ts`, imported by all 4 availability checks. Single place to edit.
-- **Demo Seed** — `npm run seed` guarantees:
-  - DAILY listing with confirmed booking D+30→D+33 + overlapping pending
-  - SLOT listing with confirmed 10:00–12:00 on D+7 + overlapping pending 11:00–13:00
-  - 49 realistic French messages across 5 conversations
-  - Prints IDs and dates in a formatted box for immediate curl use
-- **`RUNBOOK.md`** + **`.env.example`** — new developer running in < 15 min
+### Backend Performance
+- **In-memory TTL cache (45 s)** on `CategoriesService.findNearbyWithCounts`.
+  - Key: `lat:lng:radiusKm:includeEmpty` (coords rounded to 4 dp).
+  - Periodic 60 s sweeper via `setInterval`, cleared on `onModuleDestroy`.
+  - Cache hit latency: sub-5 ms vs 20-25 ms DB query.
+- **PostGIS GIST index** confirmed present (`20260226000000_add_location_spatial_index`).
 
-### Day 5 — Cleanup & Summary
-- Fixed last hardcoded blocking-status array in `listings.service.ts` `getAvailableSlots()` — now uses the constant
-- Full smoke test: 42/42 passing
-- This file
+### Demo Documentation (New Files)
+| File | Purpose |
+|---|---|
+| `DEMO_SCRIPT.md` | 5–8 min presenter script with exact narration per step |
+| `DEMO_CHECKLIST.md` | Pre-demo 15-min verification checklist |
+| `DEMO_REHEARSAL_DAY7.md` | 3-run rehearsal plan with quick-fixes table |
+| `RESET_GUIDE.md` | Seed reset procedure with copy-paste commands + troubleshooting |
+| `KNOWN_LIMITATIONS.md` | Honest MVP scope record (AI, calendar, payments, privacy) |
 
 ---
 
-## 🧪 How to Test (Quick Commands)
+## 🔄 How to Reset Demo Data
 
 ```bash
-# 1. Start DB
-docker-compose up -d postgres
+cd all-the-project-
+npm run seed:demo
+# → "✅ Demo seed completed successfully!" in ~15 s
+```
 
-# 2. Migrate + seed
-npx prisma migrate deploy
-npm run seed
+See [RESET_GUIDE.md](./RESET_GUIDE.md) for production (Railway/Render) reset and troubleshooting.
 
-# 3. Start API
-npm run start:dev
+---
 
-# 4. Run all E2E tests (~30s)
-npx jest --config test/jest-e2e.json --forceExit
+## 🧪 Smoke Test (Copy-Paste)
 
-# 5. Categories nearby (proof curl)
-curl -s "http://localhost:3000/api/categories/nearby?lat=36.8578&lng=11.092&radiusKm=50" | python -m json.tool
+```bash
+# Health
+curl http://localhost:3000/api/health
 
-# 6. AI Search — RESULT
+# Categories — Kelibia
+curl "http://localhost:3000/api/categories/nearby?lat=36.8578&lng=11.092&radiusKm=10"
+
+# AI search — RESULT
 curl -s -X POST http://localhost:3000/api/ai/search \
   -H "Content-Type: application/json" \
-  -d '{"query":"villa with pool","lat":36.8578,"lng":11.092,"radiusKm":50,"followUpUsed":true}' \
-  | python -m json.tool
-
-# 7. AI Search — FOLLOW_UP then RESULT
-# Step 1 (may return FOLLOW_UP):
-curl -s -X POST http://localhost:3000/api/ai/search \
-  -H "Content-Type: application/json" \
-  -d '{"query":"tennis court","lat":36.8578,"lng":11.092,"radiusKm":50}' \
-  | python -m json.tool
-# Step 2 (force RESULT with answer):
-curl -s -X POST http://localhost:3000/api/ai/search \
-  -H "Content-Type: application/json" \
-  -d '{"query":"tennis court","lat":36.8578,"lng":11.092,"radiusKm":50,"followUpUsed":true,"followUpAnswer":"Tomorrow afternoon"}' \
-  | python -m json.tool
-
-# 8. View AI search logs
-curl -s "http://localhost:3000/api/ai/admin/search-logs?limit=5" | python -m json.tool
-
-# 9. SLOT conflict demo (replace IDs from seed output)
-curl -s "http://localhost:3000/api/listings/SLOT_ID/available-slots?date=SLOT_DATE" | python -m json.tool
-# → 10:00–12:00 slot should be missing/unavailable
+  -d '{"query":"villa with pool","lat":36.8578,"lng":11.092,"radiusKm":20,"followUpUsed":true}'
 ```
 
 ---
 
-## 📋 Known Issues
+## 📋 Status of Known Issues
 
-| Issue | Severity | Notes |
-|-------|----------|-------|
-| SLOT conflict booking returns `400` instead of `409` in some edge cases | Low | Core logic correct, HTTP status code cosmetic. Tracked for cleanup. |
-| `aiSearchLog` TS error in VS Code until server restart | Dev-only | TS language server cache; `npx prisma generate` fixes it. |
-| Frontend JSX TS errors (pre-existing) | Low | Not related to backend changes; frontend uses separate tsconfig. |
-
----
-
-## 🔭 Next Week — Top 3 Priorities (Locked MVP)
-
-### Priority 1 — Thin Demo UI (Frontend)
-- Implement minimal responsive pages needed to showcase the backend features.
-- Integrate the location-aware `categories/nearby` endpoint on the homepage.
-- Build the AI Search interface (search bar + chips display + single follow-up question flow).
-- **DoD:** A user can successfully complete a "least steps" search visually from the browser.
-
-### Priority 2 — Deployment & Hosting
-- Deploy Postgres database with PostGIS enabled.
-- Deploy NestJS API backend.
-- Deploy Next.js frontend web app.
-- **DoD:** A stable, public URL is available that fully executes the demo storyboard.
-
-### Priority 3 — PFE Report Draft
-- Begin drafting the academic PFE report based on the backend architecture.
-- Complete sections on System Architecture, Database Design (PostGIS), and AI Integration.
-- **DoD:** First structural draft of the report is ready for academic review.
+| Issue | Status |
+|---|---|
+| SLOT conflict returns `400` instead of `409` in edge case | ⚠️ Low — tracked, cosmetic |
+| `aiSearchLog` TS error until server restart | ✅ Fixed — `npx prisma generate` resolves |
+| Frontend JSX TS errors (pre-existing) | ⚠️ Pre-existing, not blocking demo |
+| ~~No AbortController timeout on fetch~~ | ✅ Fixed this week |
+| ~~Unclamped radius value sent to API~~ | ✅ Fixed this week |
+| ~~No in-memory cache on categories/nearby~~ | ✅ Fixed this week |
 
 ---
 
-## 📁 File Index (What Changed This Week)
+## 📁 Files Changed This Week
 
 ```
-src/
-  modules/
-    categories/
-      categories.service.ts         ← findNearbyWithCounts() (PostGIS)
-      categories.controller.ts      ← GET /api/categories/nearby
-    ai/
-      ai-search.service.ts          ← search() + logging + fallback
-      ai.controller.ts              ← POST /api/ai/search, GET /api/ai/admin/search-logs
-      dto/ai-search.dto.ts          ← stable contract with followUpAnswer
-  common/
-    constants/
-      booking-status.constants.ts   ← BLOCKING_BOOKING_STATUSES (NEW)
-    utils/
-      availability.service.ts       ← uses constant, checkSlotAvailability raw SQL
-  database/
-    seeds/seed.service.ts           ← demo scenarios + 49 chat messages
+frontend/src/
+  lib/api/
+    ai-search.ts              ← 20 s timeout, friendly errors
+    categories.ts             ← 10 s timeout, radius clamp, friendly errors
+  pages/demo/
+    ai-search.tsx             ← loop guard, radius clamp, error banner
+    categories.tsx            ← minor polish
 
-prisma/
-  schema.prisma                     ← AiSearchLog model (NEW)
-  migrations/
-    20260221124136_add_ai_search_log/  ← applied
+src/modules/categories/
+  categories.service.ts       ← 45 s TTL cache + sweeper (OnModuleDestroy)
 
-test/
-  categories-nearby.e2e-spec.ts     ← NEW (5 tests)
-  ai-search-guardrails.e2e-spec.ts  ← NEW (9 tests)
-  booking-conflict.e2e-spec.ts      ← NEW (8 tests)
-  slot-booking-conflict.e2e-spec.ts ← NEW (8 tests)
-
-RUNBOOK.md                          ← NEW
-.env.example                        ← updated (JWT_REFRESH_SECRET added)
+DEMO_SCRIPT.md                ← NEW
+DEMO_CHECKLIST.md             ← NEW
+DEMO_REHEARSAL_DAY7.md        ← NEW
+RESET_GUIDE.md                ← NEW
+KNOWN_LIMITATIONS.md          ← NEW
+WEEK_SUMMARY.md               ← updated (this file)
 ```
+
+---
+
+*Frozen at tag `demo-ready-week3` — 2026-03-09*

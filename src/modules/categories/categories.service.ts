@@ -1,31 +1,55 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Category, Prisma } from '@prisma/client';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
+// ── In-memory TTL cache for findNearbyWithCounts ──────────────────────────────
+// Keyed by "lat:lng:radiusKm:includeEmpty". Entries expire after TTL_MS.
+// A periodic sweeper prevents unbounded growth.
+
+type CachedEntry = {
+  data: Array<{ id: string; name: string; slug: string; icon: string | null; count: number }>;
+  expiresAt: number;
+};
+
+const TTL_MS = 45_000;   // 45 seconds — absorbs demo page refreshes
+const SWEEP_MS = 60_000; // GC sweep every 60 seconds
+
+function roundCoord(n: number) { return Math.round(n * 1e4) / 1e4; }
+
 @Injectable()
-export class CategoriesService {
-  constructor(private prisma: PrismaService) { }
+export class CategoriesService implements OnModuleDestroy {
+  constructor(private prisma: PrismaService) {
+    this._sweepTimer = setInterval(() => this._sweep(), SWEEP_MS);
+  }
+
+  private _cache = new Map<string, CachedEntry>();
+  private _sweepTimer: ReturnType<typeof setInterval>;
+
+  onModuleDestroy() {
+    clearInterval(this._sweepTimer);
+  }
+
+  private _sweep() {
+    const now = Date.now();
+    for (const [key, entry] of this._cache) {
+      if (entry.expiresAt <= now) this._cache.delete(key);
+    }
+  }
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
-    // Generate slug from name if not provided
     const slug =
       createCategoryDto.slug ||
       createCategoryDto.name.toLowerCase().replace(/\s+/g, '-');
 
     return this.prisma.category.create({
-      data: {
-        ...createCategoryDto,
-        slug,
-      },
+      data: { ...createCategoryDto, slug },
     });
   }
 
   async findAll(): Promise<Category[]> {
-    return this.prisma.category.findMany({
-      orderBy: { name: 'asc' },
-    });
+    return this.prisma.category.findMany({ orderBy: { name: 'asc' } });
   }
 
   async findOne(id: string): Promise<Category> {
@@ -43,45 +67,41 @@ export class CategoriesService {
     return this.prisma.category.findUnique({ where: { slug } });
   }
 
-  async update(
-    id: string,
-    updateCategoryDto: UpdateCategoryDto,
-  ): Promise<Category> {
-    await this.findOne(id); // Ensure category exists
-    return this.prisma.category.update({
-      where: { id },
-      data: updateCategoryDto,
-    });
+  async update(id: string, updateCategoryDto: UpdateCategoryDto): Promise<Category> {
+    await this.findOne(id);
+    return this.prisma.category.update({ where: { id }, data: updateCategoryDto });
   }
 
   async remove(id: string): Promise<void> {
-    await this.findOne(id); // Ensure category exists
+    await this.findOne(id);
     await this.prisma.category.delete({ where: { id } });
   }
 
   /**
-   * Get categories with listing counts within a radius from a location
-   * Uses PostGIS ST_DWithin for geospatial queries
+   * Get categories with listing counts within a radius from a location.
+   * Uses PostGIS ST_DWithin for geospatial queries.
+   *
+   * Results are cached in-memory for 45 s to absorb repeated demo
+   * page refreshes without hitting the DB on every click.
    */
   async findNearbyWithCounts(
     lat: number,
     lng: number,
     radiusKm: number = 10,
     includeEmpty: boolean = false,
-  ): Promise<
-    Array<{
-      id: string;
-      name: string;
-      slug: string;
-      icon: string | null;
-      count: number;
-    }>
-  > {
+  ): Promise<Array<{ id: string; name: string; slug: string; icon: string | null; count: number }>> {
+    // ── Cache lookup ──────────────────────────────────────────────────────────
+    const cacheKey = `${roundCoord(lat)}:${roundCoord(lng)}:${radiusKm}:${includeEmpty}`;
+    const cached = this._cache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const radiusMeters = radiusKm * 1000;
 
-    // Build the SQL query using Prisma.sql for safe parameterization
     const baseQuery = Prisma.sql`
-      SELECT 
+      SELECT
         c.id,
         c.name,
         c.slug,
@@ -100,30 +120,27 @@ export class CategoriesService {
       GROUP BY c.id, c.name, c.slug, c.icon
     `;
 
-    // Add HAVING clause and ORDER BY
     const finalQuery = includeEmpty
       ? Prisma.sql`${baseQuery} ORDER BY COUNT(l.id) DESC, c.name ASC`
       : Prisma.sql`${baseQuery} HAVING COUNT(l.id) > 0 ORDER BY COUNT(l.id) DESC, c.name ASC`;
 
     const raw = await this.prisma.$queryRaw<
-      Array<{
-        id: string;
-        name: string;
-        slug: string;
-        icon: string | null;
-        count: bigint | number; // $queryRaw may return COUNT as BigInt
-      }>
+      Array<{ id: string; name: string; slug: string; icon: string | null; count: bigint | number }>
     >(finalQuery);
 
-    // Coerce count to plain Number — BigInt is not JSON-serialisable.
-    // The CAST(... AS INTEGER) in the SQL helps but some pg driver versions
-    // still return BigInt for aggregates; Number() is the safe belt-and-suspenders fix.
-    return raw.map((row) => ({
+    // Coerce BigInt → Number (BigInt is not JSON-serialisable)
+    const result = raw.map((row) => ({
       id: row.id,
       name: row.name,
       slug: row.slug,
       icon: row.icon,
       count: Number(row.count),
     }));
+
+    // ── Cache store ───────────────────────────────────────────────────────────
+    this._cache.set(cacheKey, { data: result, expiresAt: Date.now() + TTL_MS });
+    // ─────────────────────────────────────────────────────────────────────────
+
+    return result;
   }
 }
