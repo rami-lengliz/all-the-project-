@@ -7,12 +7,12 @@ type HostTab = 'dashboard' | 'listings' | 'bookings';
 
 export function HostLayout({
   children,
-  activeTab,
+  activeTab = 'listings',
   title,
   subtitle,
 }: {
   children: React.ReactNode;
-  activeTab: HostTab;
+  activeTab?: HostTab;
   title?: string;
   subtitle?: string;
 }) {
