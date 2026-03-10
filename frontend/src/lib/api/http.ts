@@ -1,11 +1,15 @@
 import axios from 'axios';
 import { toast } from '@/components/ui/Toaster';
 import { readAuth, clearAuth } from '@/lib/auth/storage';
+import { API_URL } from '@/lib/api/env';
 
 // Re-export for backward compatibility (used by openapi.ts)
 export { AUTH_STORAGE_KEY } from '@/lib/auth/storage';
 
-const baseURL = 'http://localhost:3000/api';
+// Base URL comes from NEXT_PUBLIC_API_URL env var.
+// Local dev:  http://localhost:3000  → Next.js proxy rewrites /api/* → port 3001
+// Production: https://your-api.up.railway.app
+const baseURL = `${API_URL}/api`;
 
 export const api = axios.create({
   baseURL,

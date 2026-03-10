@@ -33,6 +33,13 @@ export function Header() {
           <Link href="/help" className="text-sm font-medium text-slate-700 hover:text-slate-900">
             {router.locale === 'ar' ? 'مساعدة' : 'Help'}
           </Link>
+          <div className="mx-2 h-4 w-px bg-slate-300"></div>
+          <Link href="/demo/ai-search" className="text-sm font-bold text-purple-600 hover:text-purple-800">
+            ✨ AI Demo
+          </Link>
+          <Link href="/demo/categories" className="text-sm font-medium text-purple-600 hover:text-purple-800">
+            📍 Categories Demo
+          </Link>
         </nav>
 
         <div className="flex items-center gap-3">

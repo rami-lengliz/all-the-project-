@@ -3,7 +3,7 @@ import { AUTH_STORAGE_KEY } from '@/lib/api/http';
 
 export function configureOpenApi() {
   // Backend paths already include `/api/api/*` in the OpenAPI spec.
-  OpenAPI.BASE = 'http://localhost:3000';
+  OpenAPI.BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
   OpenAPI.TOKEN = async () => {
     if (typeof window === 'undefined') return '';
     try {

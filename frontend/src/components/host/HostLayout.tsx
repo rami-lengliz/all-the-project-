@@ -7,7 +7,7 @@ type HostTab = 'dashboard' | 'listings' | 'bookings';
 
 export function HostLayout({
   children,
-  activeTab,
+  activeTab = 'listings',
   title,
   subtitle,
 }: {
