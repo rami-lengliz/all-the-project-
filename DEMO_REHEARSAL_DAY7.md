@@ -134,4 +134,3 @@ npm run seed:demo
 - [ ] Presenter water bottle on desk 💧
 
 **Ready to demo. 🟢**
-
