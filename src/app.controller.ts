@@ -1,9 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiOkResponse,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiOkResponse } from '@nestjs/swagger';
 import { AppService } from './app.service';
 import { Public } from './common/decorators/public.decorator';
 import { PrismaService } from './database/prisma.service';
@@ -26,7 +22,7 @@ export class AppController {
     private readonly appService: AppService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   @Get()
   @Public()
@@ -87,8 +83,7 @@ export class AppController {
     // 2. PostGIS extension availability — catches misconfigured managed DBs
     if (db) {
       try {
-        await this.prisma
-          .$queryRaw`SELECT ST_GeomFromText('POINT(0 0)', 4326)`;
+        await this.prisma.$queryRaw`SELECT ST_GeomFromText('POINT(0 0)', 4326)`;
         postgis = true;
       } catch {
         postgis = false;

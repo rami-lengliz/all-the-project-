@@ -9,14 +9,22 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 // A periodic sweeper prevents unbounded growth.
 
 type CachedEntry = {
-  data: Array<{ id: string; name: string; slug: string; icon: string | null; count: number }>;
+  data: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    icon: string | null;
+    count: number;
+  }>;
   expiresAt: number;
 };
 
-const TTL_MS = 45_000;   // 45 seconds — absorbs demo page refreshes
+const TTL_MS = 45_000; // 45 seconds — absorbs demo page refreshes
 const SWEEP_MS = 60_000; // GC sweep every 60 seconds
 
-function roundCoord(n: number) { return Math.round(n * 1e4) / 1e4; }
+function roundCoord(n: number) {
+  return Math.round(n * 1e4) / 1e4;
+}
 
 @Injectable()
 export class CategoriesService implements OnModuleDestroy {
@@ -37,7 +45,6 @@ export class CategoriesService implements OnModuleDestroy {
       if (entry.expiresAt <= now) this._cache.delete(key);
     }
   }
-
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     const slug =
@@ -68,9 +75,15 @@ export class CategoriesService implements OnModuleDestroy {
     return this.prisma.category.findUnique({ where: { slug } });
   }
 
-  async update(id: string, updateCategoryDto: UpdateCategoryDto): Promise<Category> {
+  async update(
+    id: string,
+    updateCategoryDto: UpdateCategoryDto,
+  ): Promise<Category> {
     await this.findOne(id);
-    return this.prisma.category.update({ where: { id }, data: updateCategoryDto });
+    return this.prisma.category.update({
+      where: { id },
+      data: updateCategoryDto,
+    });
   }
 
   async remove(id: string): Promise<void> {
@@ -90,7 +103,15 @@ export class CategoriesService implements OnModuleDestroy {
     lng: number,
     radiusKm: number = 10,
     includeEmpty: boolean = false,
-  ): Promise<Array<{ id: string; name: string; slug: string; icon: string | null; count: number }>> {
+  ): Promise<
+    Array<{
+      id: string;
+      name: string;
+      slug: string;
+      icon: string | null;
+      count: number;
+    }>
+  > {
     // ── Cache lookup ──────────────────────────────────────────────────────────
     const cacheKey = `${roundCoord(lat)}:${roundCoord(lng)}:${radiusKm}:${includeEmpty}`;
     const cached = this._cache.get(cacheKey);
@@ -126,7 +147,13 @@ export class CategoriesService implements OnModuleDestroy {
       : Prisma.sql`${baseQuery} HAVING COUNT(l.id) > 0 ORDER BY COUNT(l.id) DESC, c.name ASC`;
 
     const raw = await this.prisma.$queryRaw<
-      Array<{ id: string; name: string; slug: string; icon: string | null; count: bigint | number }>
+      Array<{
+        id: string;
+        name: string;
+        slug: string;
+        icon: string | null;
+        count: bigint | number;
+      }>
     >(finalQuery);
 
     // Coerce BigInt → Number (BigInt is not JSON-serialisable)

@@ -37,7 +37,9 @@ async function bootstrap() {
     // CORS
     const allowedOrigins = (
       configService.get<string>('CORS_ORIGINS') ?? 'http://localhost:3001'
-    ).split(',').map((o) => o.trim());
+    )
+      .split(',')
+      .map((o) => o.trim());
 
     app.enableCors({
       origin: allowedOrigins,
@@ -72,7 +74,7 @@ async function bootstrap() {
       .setTitle('RentAI API')
       .setDescription(
         'Production-grade backend API for RentAI — location-aware AI-powered rental marketplace. ' +
-        'Features: PostGIS proximity search, AI natural-language search with chips, booking conflict prevention.',
+          'Features: PostGIS proximity search, AI natural-language search with chips, booking conflict prevention.',
       )
       .setVersion('1.0')
       .addBearerAuth()

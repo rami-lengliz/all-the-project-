@@ -7,13 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import {
-  PaymentIntent,
-  PaymentIntentStatus,
-  Booking,
-  BookingStatus,
-  Prisma,
-} from '@prisma/client';
+import { PaymentIntent } from '@prisma/client';
 import { PaymentStateMachine } from '../../common/utils/payment-state-machine';
 import { BookingsService } from '../bookings/bookings.service';
 import { CancellationPolicyService } from '../../common/policies/cancellation-policy.service';
@@ -224,7 +218,7 @@ export class PaymentsService {
       ) {
         throw new BadRequestException(
           `Cannot refund payment: Payment status is ${paymentIntent.status}. ` +
-          `Only CAPTURED payments can be refunded.`,
+            `Only CAPTURED payments can be refunded.`,
         );
       }
 

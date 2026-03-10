@@ -1,5 +1,5 @@
 import { BookingStatus } from '@prisma/client';
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 
 /**
  * Booking State Machine

@@ -37,7 +37,7 @@ export class AuthService {
       this.logger.debug('Password hashed successfully');
 
       // Exclude password field, only send passwordHash
-      const { password, ...userDataWithoutPassword } = registerDto;
+      const { password: _password, ...userDataWithoutPassword } = registerDto;
       const user = await this.usersService.create({
         ...userDataWithoutPassword,
         passwordHash: hashedPassword,
@@ -57,9 +57,9 @@ export class AuthService {
         user: result,
         ...tokens,
       };
-    } catch (error) {
-      this.logger.error(`Registration error: ${error.message}`);
-      throw error;
+    } catch (_error) {
+      this.logger.error(`Registration error: ${_error.message}`);
+      throw _error;
     }
   }
 
@@ -104,10 +104,10 @@ export class AuthService {
         user: result,
         ...tokens,
       };
-    } catch (error) {
-      if (error instanceof UnauthorizedException) throw error;
-      this.logger.error(`Login error: ${error.message}`);
-      throw error;
+    } catch (_error) {
+      if (_error instanceof UnauthorizedException) throw _error;
+      this.logger.error(`Login error: ${_error.message}`);
+      throw _error;
     }
   }
 
@@ -135,7 +135,7 @@ export class AuthService {
       );
 
       return { accessToken };
-    } catch (error) {
+    } catch (_error) {
       throw new UnauthorizedException('Invalid refresh token');
     }
   }

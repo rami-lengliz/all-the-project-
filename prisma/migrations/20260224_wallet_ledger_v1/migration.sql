@@ -1,14 +1,23 @@
--- CreateEnum
-CREATE TYPE "LedgerEntryType" AS ENUM ('RENT_PAID', 'COMMISSION', 'HOST_PAYOUT_DUE', 'REFUND', 'ADJUSTMENT');
+-- CreateEnum (idempotent)
+DO $$ BEGIN
+  CREATE TYPE "LedgerEntryType" AS ENUM ('RENT_PAID', 'COMMISSION', 'HOST_PAYOUT_DUE', 'REFUND', 'ADJUSTMENT', 'HOST_PAYOUT');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateEnum
-CREATE TYPE "LedgerDirection" AS ENUM ('CREDIT', 'DEBIT');
+-- CreateEnum (idempotent)
+DO $$ BEGIN
+  CREATE TYPE "LedgerDirection" AS ENUM ('CREDIT', 'DEBIT');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateEnum
-CREATE TYPE "LedgerStatus" AS ENUM ('POSTED', 'REVERSED');
+-- CreateEnum (idempotent)
+DO $$ BEGIN
+  CREATE TYPE "LedgerStatus" AS ENUM ('POSTED', 'REVERSED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateTable
-CREATE TABLE "ledger_entries" (
+-- CreateTable (idempotent)
+CREATE TABLE IF NOT EXISTS "ledger_entries" (
     "id" TEXT NOT NULL,
     "bookingId" TEXT NOT NULL,
     "paymentIntentId" TEXT,
@@ -25,26 +34,34 @@ CREATE TABLE "ledger_entries" (
     CONSTRAINT "ledger_entries_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE INDEX "ledger_entries_bookingId_idx" ON "ledger_entries"("bookingId");
+-- CreateIndex (idempotent)
+CREATE INDEX IF NOT EXISTS "ledger_entries_bookingId_idx" ON "ledger_entries"("bookingId");
+CREATE INDEX IF NOT EXISTS "ledger_entries_paymentIntentId_idx" ON "ledger_entries"("paymentIntentId");
+CREATE INDEX IF NOT EXISTS "ledger_entries_type_idx" ON "ledger_entries"("type");
+CREATE INDEX IF NOT EXISTS "ledger_entries_createdAt_idx" ON "ledger_entries"("createdAt");
 
--- CreateIndex
-CREATE INDEX "ledger_entries_paymentIntentId_idx" ON "ledger_entries"("paymentIntentId");
-
--- CreateIndex
-CREATE INDEX "ledger_entries_type_idx" ON "ledger_entries"("type");
-
--- CreateIndex
-CREATE INDEX "ledger_entries_createdAt_idx" ON "ledger_entries"("createdAt");
-
--- AddForeignKey
-ALTER TABLE "ledger_entries" ADD CONSTRAINT "ledger_entries_bookingId_fkey"
+-- AddForeignKey (idempotent)
+DO $$ BEGIN
+  ALTER TABLE "ledger_entries" ADD CONSTRAINT "ledger_entries_bookingId_fkey"
     FOREIGN KEY ("bookingId") REFERENCES "bookings"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "ledger_entries" ADD CONSTRAINT "ledger_entries_paymentIntentId_fkey"
+DO $$ BEGIN
+  ALTER TABLE "ledger_entries" ADD CONSTRAINT "ledger_entries_paymentIntentId_fkey"
     FOREIGN KEY ("paymentIntentId") REFERENCES "payment_intents"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- AddForeignKey (self-relation for reversal)
-ALTER TABLE "ledger_entries" ADD CONSTRAINT "ledger_entries_reversedEntryId_fkey"
+DO $$ BEGIN
+  ALTER TABLE "ledger_entries" ADD CONSTRAINT "ledger_entries_reversedEntryId_fkey"
     FOREIGN KEY ("reversedEntryId") REFERENCES "ledger_entries"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- FK: payout_items.ledgerEntryId -> ledger_entries.id (added here because ledger_entries is created in this migration)
+DO $$ BEGIN
+  ALTER TABLE "payout_items" ADD CONSTRAINT "payout_items_ledgerEntryId_fkey"
+    FOREIGN KEY ("ledgerEntryId") REFERENCES "ledger_entries"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { AiService } from './ai.service';
 import { ListingsService } from '../listings/listings.service';
 import { CategoriesService } from '../categories/categories.service';
+import { PrismaService } from '../../database/prisma.service';
 
 describe('AiSearchService - JSON Parsing and Validation', () => {
   let service: AiSearchService;
@@ -35,6 +36,14 @@ describe('AiSearchService - JSON Parsing and Validation', () => {
           provide: CategoriesService,
           useValue: {
             findNearbyWithCounts: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: PrismaService,
+          useValue: {
+            aiSearchLog: {
+              create: jest.fn().mockResolvedValue({}),
+            },
           },
         },
       ],
@@ -185,12 +194,11 @@ describe('AiSearchService - JSON Parsing and Validation', () => {
   describe('AI Search Guardrails', () => {
     let aiService: AiService;
     let configService: ConfigService;
-    let listingsService: ListingsService;
 
     beforeEach(() => {
       aiService = module.get<AiService>(AiService);
       configService = module.get<ConfigService>(ConfigService);
-      listingsService = module.get<ListingsService>(ListingsService);
+      module.get<ListingsService>(ListingsService); // retrieved but not needed in tests
     });
 
     describe('Guardrail 1: followUpUsed=true forces RESULT', () => {

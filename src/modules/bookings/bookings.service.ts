@@ -8,7 +8,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { Booking, BookingStatus, Prisma } from '@prisma/client';
+import { Booking } from '@prisma/client';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { PayBookingDto } from './dto/pay-booking.dto';
 import { ListingsService } from '../listings/listings.service';
@@ -176,7 +176,7 @@ export class BookingsService {
     // Create payment intent AFTER transaction commits so the row is visible
     try {
       await this.paymentsService.createForBooking(booking.id);
-    } catch (e) {
+    } catch (_e) {
       // Non-fatal — payment intent can be created lazily
     }
 
@@ -382,7 +382,7 @@ export class BookingsService {
       if (!BookingStateMachine.canPay(booking.status as any, booking.paid)) {
         throw new BadRequestException(
           `Cannot pay booking: Current status is ${booking.status}. ` +
-          `Booking must be CONFIRMED to be paid.`,
+            `Booking must be CONFIRMED to be paid.`,
         );
       }
 
@@ -614,7 +614,7 @@ export class BookingsService {
     // Create payment intent AFTER transaction commits so the booking row is visible
     try {
       await this.paymentsService.createForBooking(booking.id);
-    } catch (e) {
+    } catch (_e) {
       // Non-fatal — payment intent can be created lazily
     }
 

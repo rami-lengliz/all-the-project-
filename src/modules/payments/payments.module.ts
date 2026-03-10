@@ -12,5 +12,4 @@ import { LedgerModule } from '../ledger/ledger.module';
   providers: [PaymentsService, CancellationPolicyService],
   exports: [PaymentsService],
 })
-export class PaymentsModule { }
-
+export class PaymentsModule {}

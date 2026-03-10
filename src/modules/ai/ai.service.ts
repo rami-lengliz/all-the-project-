@@ -128,7 +128,7 @@ export class AiService {
 
       const result = response.results[0];
       const flaggedCategories = Object.entries(result.categories)
-        .filter(([_, flagged]) => flagged)
+        .filter(([_key, flagged]) => flagged)
         .map(([category]) => category);
 
       return {

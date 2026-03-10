@@ -235,11 +235,13 @@ export class AiController {
   })
   @ApiBody({
     type: AiSearchRequestDto,
-    description: 'Natural language search request. Tip: use followUpUsed=true to always get a direct RESULT without a clarification question.',
+    description:
+      'Natural language search request. Tip: use followUpUsed=true to always get a direct RESULT without a clarification question.',
     examples: {
       result_direct: {
         summary: '1️⃣ Force RESULT — always returns listings (safe for demo)',
-        description: 'Set followUpUsed=true to bypass the follow-up question guardrail. Always returns RESULT mode.',
+        description:
+          'Set followUpUsed=true to bypass the follow-up question guardrail. Always returns RESULT mode.',
         value: {
           query: 'villa near beach under 300',
           lat: 36.847,
@@ -250,7 +252,8 @@ export class AiController {
       },
       follow_up: {
         summary: '2️⃣ FOLLOW_UP — let AI ask one clarifying question',
-        description: 'Vague query triggers FOLLOW_UP. The response includes a question + partial filters + chips.',
+        description:
+          'Vague query triggers FOLLOW_UP. The response includes a question + partial filters + chips.',
         value: {
           query: 'something cheap near me',
           lat: 36.847,
@@ -261,7 +264,8 @@ export class AiController {
       },
       follow_up_answer: {
         summary: '3️⃣ FOLLOW_UP answered — force RESULT on second call',
-        description: 'Pass the user\'s answer to the follow-up question and set followUpUsed=true. The guardrail forces RESULT mode.',
+        description:
+          "Pass the user's answer to the follow-up question and set followUpUsed=true. The guardrail forces RESULT mode.",
         value: {
           query: 'something cheap near me',
           lat: 36.847,

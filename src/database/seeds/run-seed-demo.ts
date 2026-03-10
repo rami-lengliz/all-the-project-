@@ -14,20 +14,20 @@ import { PrismaService } from '../prisma.service';
 import { DemoSeedService } from './demo-seed.service';
 
 async function runDemoSeed() {
-    const prisma = new PrismaService();
-    const demoSeed = new DemoSeedService(prisma);
+  const prisma = new PrismaService();
+  const demoSeed = new DemoSeedService(prisma);
 
-    try {
-        await prisma.$connect();
-        console.log('\n🌱  RentAI — Demo Seed starting…\n');
-        await demoSeed.seed();
-        console.log('\n✅  Demo seed completed successfully!\n');
-    } catch (error) {
-        console.error('\n❌  Demo seed FAILED:\n', error);
-        process.exit(1);
-    } finally {
-        await prisma.$disconnect();
-    }
+  try {
+    await prisma.$connect();
+    console.log('\n🌱  RentAI — Demo Seed starting…\n');
+    await demoSeed.seed();
+    console.log('\n✅  Demo seed completed successfully!\n');
+  } catch (error) {
+    console.error('\n❌  Demo seed FAILED:\n', error);
+    process.exit(1);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 runDemoSeed();

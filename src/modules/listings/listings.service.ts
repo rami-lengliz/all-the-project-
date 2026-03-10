@@ -38,7 +38,7 @@ export class ListingsService {
     private categoriesService: CategoriesService,
     private mlService: MlService,
     private configService: ConfigService,
-  ) { }
+  ) {}
 
   async create(
     createListingDto: CreateListingDto,
