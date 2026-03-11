@@ -13,12 +13,18 @@ export default function ClientBookingsPage() {
   const query = useMyBookings();
   const [tab, setTab] = useState<TabKey>('current');
 
-  const bookings = useMemo(() => ((query.data as any) ?? []) as any[], [query.data]);
-  const current = bookings.filter((b) => b.status === 'pending' || b.status === 'confirmed');
+  const bookings = useMemo(
+    () => ((query.data as any) ?? []) as any[],
+    [query.data],
+  );
+  const current = bookings.filter(
+    (b) => b.status === 'pending' || b.status === 'confirmed',
+  );
   const past = bookings.filter((b) => b.status === 'completed');
   const cancelled = bookings.filter((b) => b.status === 'cancelled');
 
-  const activeList = tab === 'current' ? current : tab === 'past' ? past : cancelled;
+  const activeList =
+    tab === 'current' ? current : tab === 'past' ? past : cancelled;
 
   return (
     <ClientLayout>
@@ -26,8 +32,12 @@ export default function ClientBookingsPage() {
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">My Rentals</h1>
-              <p className="text-gray-600">Track your current bookings and rental history</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                My Rentals
+              </h1>
+              <p className="text-gray-600">
+                Track your current bookings and rental history
+              </p>
             </div>
             <Link
               href="/search"
@@ -40,7 +50,10 @@ export default function ClientBookingsPage() {
         </div>
       </section>
 
-      <section id="tabs-navigation" className="bg-white border-b border-gray-200">
+      <section
+        id="tabs-navigation"
+        className="bg-white border-b border-gray-200"
+      >
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex space-x-8">
             <button
@@ -78,7 +91,12 @@ export default function ClientBookingsPage() {
       </section>
 
       <main id="main-content" className="max-w-7xl mx-auto px-6 py-8">
-        {query.isError ? <InlineError message="Failed to load bookings." onRetry={() => void query.refetch()} /> : null}
+        {query.isError ? (
+          <InlineError
+            message="Failed to load bookings."
+            onRetry={() => void query.refetch()}
+          />
+        ) : null}
 
         <div id="current-bookings" className="space-y-6">
           {query.isLoading ? (
@@ -120,12 +138,27 @@ export default function ClientBookingsPage() {
                       : 'Cancelled';
 
               return (
-                <div key={b.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition">
+                <div
+                  key={b.id}
+                  className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition"
+                >
                   <div className="flex">
                     <div className="w-72 h-56 overflow-hidden bg-gray-200 flex items-center justify-center">
                       {image ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={image} alt={title} className="w-full h-full object-cover" />
+                        <img
+                          src={
+                            image.startsWith('http') || image.startsWith('/')
+                              ? image
+                              : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${image}`
+                          }
+                          alt={title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = '/placeholder.png';
+                            e.currentTarget.onerror = null;
+                          }}
+                        />
                       ) : (
                         <i className="fa-solid fa-image text-gray-400 text-3xl" />
                       )}
@@ -135,10 +168,19 @@ export default function ClientBookingsPage() {
                       <div className="flex items-start justify-between mb-4">
                         <div>
                           <div className="flex items-center space-x-2 mb-2">
-                            <span className={`${statusPill} text-xs font-semibold px-3 py-1 rounded-full`}>{statusText}</span>
-                            <span className="text-sm text-gray-500">Booking ID: #{String(b.id).slice(0, 8).toUpperCase()}</span>
+                            <span
+                              className={`${statusPill} text-xs font-semibold px-3 py-1 rounded-full`}
+                            >
+                              {statusText}
+                            </span>
+                            <span className="text-sm text-gray-500">
+                              Booking ID: #
+                              {String(b.id).slice(0, 8).toUpperCase()}
+                            </span>
                           </div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-1">{title}</h3>
+                          <h3 className="text-xl font-bold text-gray-900 mb-1">
+                            {title}
+                          </h3>
                           <p className="text-gray-600 flex items-center">
                             <i className="fa-solid fa-location-dot text-blue-500 mr-2" />
                             {address || 'Tunisia'}
@@ -152,18 +194,30 @@ export default function ClientBookingsPage() {
                       <div className="grid grid-cols-3 gap-4 mb-4">
                         <div>
                           <p className="text-xs text-gray-500 mb-1">Check-in</p>
-                          <p className="font-semibold text-gray-900">{b.startDate}</p>
+                          <p className="font-semibold text-gray-900">
+                            {b.startDate}
+                          </p>
                           <p className="text-sm text-gray-600">—</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 mb-1">Check-out</p>
-                          <p className="font-semibold text-gray-900">{b.endDate}</p>
+                          <p className="text-xs text-gray-500 mb-1">
+                            Check-out
+                          </p>
+                          <p className="font-semibold text-gray-900">
+                            {b.endDate}
+                          </p>
                           <p className="text-sm text-gray-600">—</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 mb-1">Total price</p>
-                          <p className="font-bold text-gray-900 text-lg">{formatTnd(Number(b.totalPrice ?? 0))}</p>
-                          <p className="text-sm text-gray-600">{b.paid ? 'Paid' : 'Unpaid'}</p>
+                          <p className="text-xs text-gray-500 mb-1">
+                            Total price
+                          </p>
+                          <p className="font-bold text-gray-900 text-lg">
+                            {formatTnd(Number(b.totalPrice ?? 0))}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {b.paid ? 'Paid' : 'Unpaid'}
+                          </p>
                         </div>
                       </div>
 
@@ -173,7 +227,9 @@ export default function ClientBookingsPage() {
                           Contact host
                         </button>
                         <Link
-                          href={listing?.id ? `/listings/${listing.id}` : '/search'}
+                          href={
+                            listing?.id ? `/listings/${listing.id}` : '/search'
+                          }
                           className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2.5 px-4 rounded-lg transition text-center"
                         >
                           <i className="fa-solid fa-map-location-dot mr-2" />
@@ -194,4 +250,3 @@ export default function ClientBookingsPage() {
     </ClientLayout>
   );
 }
-

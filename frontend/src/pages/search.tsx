@@ -9,7 +9,10 @@ import { EmptyState } from '@/components/ui/EmptyState';
 export default function SearchPage() {
   const router = useRouter();
   const q = typeof router.query.q === 'string' ? router.query.q : undefined;
-  const category = typeof router.query.category === 'string' ? router.query.category : undefined;
+  const category =
+    typeof router.query.category === 'string'
+      ? router.query.category
+      : undefined;
 
   const query = useListings({
     q,
@@ -33,7 +36,8 @@ export default function SearchPage() {
           {category ? (
             <>
               {' '}
-              • Category: <span className="font-semibold text-slate-900">{category}</span>
+              • Category:{' '}
+              <span className="font-semibold text-slate-900">{category}</span>
             </>
           ) : null}
         </p>
@@ -46,7 +50,10 @@ export default function SearchPage() {
               ))}
             </div>
           ) : query.isError ? (
-            <InlineError message="Failed to load listings." onRetry={() => void query.refetch()} />
+            <InlineError
+              message="Failed to load listings."
+              onRetry={() => void query.refetch()}
+            />
           ) : (query.data as any)?.items?.length ? (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {(query.data as any).items.map((l: any) => (
@@ -66,4 +73,3 @@ export default function SearchPage() {
     </Layout>
   );
 }
-

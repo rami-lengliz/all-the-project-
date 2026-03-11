@@ -128,7 +128,7 @@ export class SeedService {
           ${`${i + 1} Street, ${cityName}`},
           ${category.id}::uuid,
           ${host.id}::uuid,
-          ARRAY[${`/uploads/placeholder-${i + 1}.jpg`}]::TEXT[],
+          ARRAY['/placeholder.png']::TEXT[],
           true, 'ACTIVE'::"ListingStatus",
           NOW(), NOW()
         )
@@ -219,7 +219,7 @@ export class SeedService {
         ${'Pending Street, Kelibia'},
         ${savedCategories[0].id}::uuid,
         ${pendingHost.id}::uuid,
-        ARRAY['/uploads/placeholder-pending.jpg']::TEXT[],
+        ARRAY['/placeholder.png']::TEXT[],
         true, 'PENDING_REVIEW'::"ListingStatus",
         NOW(), NOW()
       )

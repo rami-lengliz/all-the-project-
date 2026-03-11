@@ -37,7 +37,9 @@ export function AdminLayout({
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
                   <i className="fa-solid fa-circle-nodes text-white text-lg" />
                 </div>
-                <span className="text-xl font-bold text-gray-900">RentLocal</span>
+                <span className="text-xl font-bold text-gray-900">
+                  RentLocal
+                </span>
               </div>
             </div>
 
@@ -110,11 +112,16 @@ export function AdminLayout({
       </header>
 
       {title ? (
-        <section id="dashboard-hero" className="bg-gradient-to-br from-blue-50 to-white py-8">
+        <section
+          id="dashboard-hero"
+          className="bg-gradient-to-br from-blue-50 to-white py-8"
+        >
           <div className="max-w-7xl mx-auto px-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">{title}</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                  {title}
+                </h1>
                 <p className="text-gray-600">{subtitle}</p>
               </div>
               <button className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium shadow-md transition flex items-center">
@@ -237,7 +244,9 @@ export function AdminLayout({
           </div>
 
           <div className="border-t border-gray-800 pt-8 flex items-center justify-between">
-            <p className="text-sm text-gray-400">© 2024 RentLocal. All rights reserved.</p>
+            <p className="text-sm text-gray-400">
+              © 2024 RentLocal. All rights reserved.
+            </p>
             <div className="flex items-center space-x-4">
               <a href="#" className="text-gray-400 hover:text-white">
                 <i className="fa-brands fa-facebook text-xl" />
@@ -255,4 +264,3 @@ export function AdminLayout({
     </div>
   );
 }
-

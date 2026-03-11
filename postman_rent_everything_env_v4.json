@@ -1,0 +1,89 @@
+{
+    "id": "rent-everything-local-v4",
+    "name": "RentEverything Local Env v4",
+    "values": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:3000",
+            "type": "default",
+            "enabled": true
+        },
+        {
+            "key": "accessToken",
+            "value": "",
+            "type": "default",
+            "enabled": true,
+            "description": "Auto-set by Register step"
+        },
+        {
+            "key": "refreshToken",
+            "value": "",
+            "type": "default",
+            "enabled": true,
+            "description": "Auto-set by Register step"
+        },
+        {
+            "key": "userId",
+            "value": "",
+            "type": "default",
+            "enabled": true,
+            "description": "Auto-set by Register step"
+        },
+        {
+            "key": "_regEmail",
+            "value": "",
+            "type": "default",
+            "enabled": true,
+            "description": "Internal: email of freshly registered user"
+        },
+        {
+            "key": "_regPassword",
+            "value": "",
+            "type": "secret",
+            "enabled": true,
+            "description": "Internal: password used during Register"
+        },
+        {
+            "key": "categoryId",
+            "value": "",
+            "type": "default",
+            "enabled": true,
+            "description": "Auto-set by GET /categories"
+        },
+        {
+            "key": "listingId",
+            "value": "",
+            "type": "default",
+            "enabled": true,
+            "description": "Auto-set by POST /listings"
+        },
+        {
+            "key": "bookingId",
+            "value": "",
+            "type": "default",
+            "enabled": true,
+            "description": "Auto-set by POST /bookings"
+        },
+        {
+            "key": "reviewId",
+            "value": "",
+            "type": "default",
+            "enabled": true,
+            "description": "Auto-set by POST /reviews"
+        },
+        {
+            "key": "conversationId",
+            "value": "",
+            "type": "default",
+            "enabled": true,
+            "description": "Auto-set by POST /chat/conversations"
+        },
+        {
+            "key": "adminToken",
+            "value": "",
+            "type": "secret",
+            "enabled": true,
+            "description": "OPTIONAL: Admin JWT. Leave empty to skip admin folder."
+        }
+    ]
+}

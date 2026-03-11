@@ -1,0 +1,72 @@
+{
+  "id": "rent-everything-local-v6",
+  "name": "RentEverything Local Env v6",
+  "values": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "renterToken",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "renterId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "hostToken",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "hostId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "_hostEmail",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "categoryId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "listingId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "bookingId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "conversationId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "reviewId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    }
+  ]
+}

@@ -29,43 +29,46 @@ export default function HostCreatePage() {
     rules: '',
   });
 
-  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+  const handleImageSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
 
-    // Validate file count
-    if (images.length + files.length > 5) {
-      setError('Maximum 5 images allowed');
-      return;
-    }
-
-    // Validate file types and sizes
-    const validFiles: ImagePreview[] = [];
-    for (const file of files) {
-      if (!file.type.match(/^image\/(jpeg|jpg|png)$/)) {
-        setError(`${file.name}: Only JPEG and PNG images are allowed`);
-        continue;
+      // Validate file count
+      if (images.length + files.length > 5) {
+        setError('Maximum 5 images allowed');
+        return;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        setError(`${file.name}: File size must be less than 5MB`);
-        continue;
+
+      // Validate file types and sizes
+      const validFiles: ImagePreview[] = [];
+      for (const file of files) {
+        if (!file.type.match(/^image\/(jpeg|jpg|png)$/)) {
+          setError(`${file.name}: Only JPEG and PNG images are allowed`);
+          continue;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          setError(`${file.name}: File size must be less than 5MB`);
+          continue;
+        }
+        validFiles.push({
+          file,
+          preview: URL.createObjectURL(file),
+        });
       }
-      validFiles.push({
-        file,
-        preview: URL.createObjectURL(file),
-      });
-    }
 
-    if (validFiles.length > 0) {
-      setImages((prev) => [...prev, ...validFiles]);
-      setError(null);
-    }
+      if (validFiles.length > 0) {
+        setImages((prev) => [...prev, ...validFiles]);
+        setError(null);
+      }
 
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }, [images.length]);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    },
+    [images.length],
+  );
 
   const handleRemoveImage = useCallback((index: number) => {
     setImages((prev) => {
@@ -163,14 +166,19 @@ export default function HostCreatePage() {
   return (
     <HostLayout>
       <div className="bg-gray-50 font-sans">
-        <section id="progress-indicator" className="bg-white border-b border-gray-200">
+        <section
+          id="progress-indicator"
+          className="bg-white border-b border-gray-200"
+        >
           <div className="max-w-4xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">
                   1
                 </div>
-                <span className="text-sm font-medium text-gray-900">Photos</span>
+                <span className="text-sm font-medium text-gray-900">
+                  Photos
+                </span>
               </div>
               <div className="flex-1 h-1 bg-gray-200 mx-4" />
 
@@ -178,7 +186,9 @@ export default function HostCreatePage() {
                 <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 text-sm font-semibold">
                   2
                 </div>
-                <span className="text-sm font-medium text-gray-500">Details</span>
+                <span className="text-sm font-medium text-gray-500">
+                  Details
+                </span>
               </div>
               <div className="flex-1 h-1 bg-gray-200 mx-4" />
 
@@ -186,7 +196,9 @@ export default function HostCreatePage() {
                 <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 text-sm font-semibold">
                   3
                 </div>
-                <span className="text-sm font-medium text-gray-500">Category</span>
+                <span className="text-sm font-medium text-gray-500">
+                  Category
+                </span>
               </div>
               <div className="flex-1 h-1 bg-gray-200 mx-4" />
 
@@ -194,7 +206,9 @@ export default function HostCreatePage() {
                 <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 text-sm font-semibold">
                   4
                 </div>
-                <span className="text-sm font-medium text-gray-500">Availability</span>
+                <span className="text-sm font-medium text-gray-500">
+                  Availability
+                </span>
               </div>
             </div>
           </div>
@@ -203,10 +217,18 @@ export default function HostCreatePage() {
         <main id="create-listing-main" className="max-w-4xl mx-auto px-6 py-12">
           <form onSubmit={handleSubmit}>
             {/* Image Upload Section */}
-            <div id="step-photos" className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-6">
+            <div
+              id="step-photos"
+              className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-6"
+            >
               <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Add photos of your item</h1>
-                <p className="text-gray-600">Upload at least 1 photo (up to 5) to help renters see what you're offering</p>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                  Add photos of your item
+                </h1>
+                <p className="text-gray-600">
+                  Upload at least 1 photo (up to 5) to help renters see what
+                  you're offering
+                </p>
               </div>
 
               {/* Image Previews */}
@@ -248,8 +270,12 @@ export default function HostCreatePage() {
                   <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
                     <i className="fa-solid fa-cloud-arrow-up text-blue-500 text-3xl" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Drag and drop your photos here</h3>
-                  <p className="text-sm text-gray-500 mb-4">or click to browse from your device</p>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Drag and drop your photos here
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    or click to browse from your device
+                  </p>
                   <button
                     type="button"
                     className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition"
@@ -264,32 +290,50 @@ export default function HostCreatePage() {
             </div>
 
             {/* Details Section */}
-            <div id="step-details" className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-6">
+            <div
+              id="step-details"
+              className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-6"
+            >
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Tell us about your item</h2>
-                <p className="text-gray-600">Provide clear information to help renters understand what you're offering</p>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Tell us about your item
+                </h2>
+                <p className="text-gray-600">
+                  Provide clear information to help renters understand what
+                  you're offering
+                </p>
               </div>
 
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Title *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Title *
+                  </label>
                   <input
                     type="text"
                     value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, title: e.target.value })
+                    }
                     placeholder="e.g., Modern 2-Bedroom Apartment in La Marsa"
                     maxLength={60}
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">{formData.title.length}/60 characters</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.title.length}/60 characters
+                  </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Description *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Description *
+                  </label>
                   <textarea
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
                     placeholder="Describe your item in detail..."
                     rows={6}
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -298,10 +342,14 @@ export default function HostCreatePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Category *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Category *
+                  </label>
                   <select
                     value={formData.categoryId}
-                    onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, categoryId: e.target.value })
+                    }
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     disabled={categoriesQuery.isLoading}
@@ -314,16 +362,22 @@ export default function HostCreatePage() {
                     ))}
                   </select>
                   {categoriesQuery.isError && (
-                    <p className="text-xs text-red-500 mt-1">Failed to load categories</p>
+                    <p className="text-xs text-red-500 mt-1">
+                      Failed to load categories
+                    </p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Price per day (TND) *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Price per day (TND) *
+                  </label>
                   <input
                     type="number"
                     value={formData.pricePerDay}
-                    onChange={(e) => setFormData({ ...formData, pricePerDay: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, pricePerDay: e.target.value })
+                    }
                     placeholder="0.00"
                     min="0"
                     step="0.01"
@@ -333,11 +387,15 @@ export default function HostCreatePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Address *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Address *
+                  </label>
                   <input
                     type="text"
                     value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, address: e.target.value })
+                    }
                     placeholder="e.g., 123 Main Street, Kelibia, Tunisia"
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
@@ -346,11 +404,15 @@ export default function HostCreatePage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Latitude *</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Latitude *
+                    </label>
                     <input
                       type="number"
                       value={formData.latitude}
-                      onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, latitude: e.target.value })
+                      }
                       placeholder="36.8578"
                       step="any"
                       className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -358,11 +420,15 @@ export default function HostCreatePage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Longitude *</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Longitude *
+                    </label>
                     <input
                       type="number"
                       value={formData.longitude}
-                      onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, longitude: e.target.value })
+                      }
                       placeholder="11.0920"
                       step="any"
                       className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -372,10 +438,14 @@ export default function HostCreatePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Rules (optional)</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Rules (optional)
+                  </label>
                   <textarea
                     value={formData.rules}
-                    onChange={(e) => setFormData({ ...formData, rules: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, rules: e.target.value })
+                    }
                     placeholder="e.g., No smoking, No pets, Check-in after 2 PM..."
                     rows={4}
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"

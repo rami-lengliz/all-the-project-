@@ -1,0 +1,2952 @@
+{
+  "info": {
+    "name": "RentEverything API Tests",
+    "description": "Automated API tests generated from Swagger docs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "auth",
+      "item": [
+        {
+          "name": "Login user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailOrPhone\": \"john@example.com\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}\n\nif (pm.response.code === 200) {\n    var jsonData = pm.response.json();\n    var payload = jsonData.data || jsonData;\n    if (payload.accessToken) {\n        pm.environment.set(\"accessToken\", payload.accessToken);\n        pm.collectionVariables.set(\"accessToken\", payload.accessToken);\n    }\n    if (payload.refreshToken) {\n        pm.environment.set(\"refreshToken\", payload.refreshToken);\n        pm.collectionVariables.set(\"refreshToken\", payload.refreshToken);\n    }\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register a new user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"email\": \"john@example.com\",\n  \"phone\": \"+21612345678\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh access token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "refresh"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}\n\nif (pm.response.code === 200) {\n    var jsonData = pm.response.json();\n    var payload = jsonData.data || jsonData;\n    if (payload.accessToken) {\n        pm.environment.set(\"accessToken\", payload.accessToken);\n        pm.collectionVariables.set(\"accessToken\", payload.accessToken);\n    }\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify email or phone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"test\",\n  \"type\": \"test\",\n  \"code\": \"test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "health",
+      "item": [
+        {
+          "name": "GET /api",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api"
+              ],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Health check endpoint",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "users",
+      "item": [
+        {
+          "name": "Get current user profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me"
+              ],
+              "variable": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update current user profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"test\",\n  \"email\": \"test\",\n  \"phone\": \"test\",\n  \"avatarUrl\": \"test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Become a host",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me/become-host",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "become-host"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acceptTerms\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify current user (dev only - auto-verifies email/phone)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "verify"
+              ],
+              "variable": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get user public profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "categories",
+      "item": [
+        {
+          "name": "Create category (admin only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bicycles\",\n  \"slug\": \"bicycles\",\n  \"icon\": \"🚲\",\n  \"allowed_for_private\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List all categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get nearby categories with listing counts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/nearby",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                "nearby"
+              ],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get category by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update category (admin only)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"test\",\n  \"slug\": \"test\",\n  \"icon\": \"test\",\n  \"allowed_for_private\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete category (admin only)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "listings",
+      "item": [
+        {
+          "name": "Create a new listing (host only)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/listings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "listings"
+              ],
+              "variable": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search listings with filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/listings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "listings"
+              ],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get all listings for the current host (any status)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/listings/mine",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "listings",
+                "mine"
+              ],
+              "variable": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get listing details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/listings/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "listings",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update listing (host or admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/listings/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "listings",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete a listing (soft delete for hosts, hard delete for admins)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/listings/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "listings",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create slot configuration for a listing",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/listings/:id/slot-configuration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "listings",
+                ":id",
+                "slot-configuration"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get available time slots for a specific date",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/listings/:id/available-slots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "listings",
+                ":id",
+                "available-slots"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "bookings",
+      "item": [
+        {
+          "name": "Create a new booking request (status → pending)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"listingId\": \"test\",\n  \"startDate\": \"2024-06-01\",\n  \"endDate\": \"2024-06-05\",\n  \"startTime\": \"14:00\",\n  \"endTime\": \"16:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get all bookings for the current user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "me"
+              ],
+              "variable": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get booking details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Host accepts a pending booking (internal: confirmed → displayStatus: accepted)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/:id/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                ":id",
+                "confirm"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Host rejects a pending booking (internal: rejected → displayStatus: rejected)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/:id/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                ":id",
+                "reject"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Simulate payment for a confirmed booking (internal: paid → displayStatus: accepted)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/:id/pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                ":id",
+                "pay"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentToken\": \"test\",\n  \"receipt\": \"test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Renter or host cancels a booking (internal: cancelled → displayStatus: canceled)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/:id/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                ":id",
+                "cancel"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "payments",
+      "item": [
+        {
+          "name": "Authorize payment for a booking (renter only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/booking/:bookingId/authorize",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "booking",
+                ":bookingId",
+                "authorize"
+              ],
+              "variable": [
+                {
+                  "key": "bookingId",
+                  "value": "{{bookingId}}"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"metadata\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Capture authorized payment (system only)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/booking/:bookingId/capture",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "booking",
+                ":bookingId",
+                "capture"
+              ],
+              "variable": [
+                {
+                  "key": "bookingId",
+                  "value": "{{bookingId}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refund captured payment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/booking/:bookingId/refund",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "booking",
+                ":bookingId",
+                "refund"
+              ],
+              "variable": [
+                {
+                  "key": "bookingId",
+                  "value": "{{bookingId}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel payment intent (renter or host, before capture)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/booking/:bookingId/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "booking",
+                ":bookingId",
+                "cancel"
+              ],
+              "variable": [
+                {
+                  "key": "bookingId",
+                  "value": "{{bookingId}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get payment intent for a booking",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/booking/:bookingId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "booking",
+                ":bookingId"
+              ],
+              "variable": [
+                {
+                  "key": "bookingId",
+                  "value": "{{bookingId}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "reviews",
+      "item": [
+        {
+          "name": "Create a review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reviews"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingId\": \"test\",\n  \"rating\": 123,\n  \"comment\": \"test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get reviews for a user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reviews/user/:userId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reviews",
+                "user",
+                ":userId"
+              ],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get review details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reviews/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reviews",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "admin",
+      "item": [
+        {
+          "name": "Get all users (admin only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ],
+              "variable": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get all listings (admin only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/listings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "listings"
+              ],
+              "variable": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Flag a listing for review (admin only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/flag",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "flag"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"listingId\": \"test\",\n  \"reason\": \"Inappropriate content\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Approve a listing (set status ACTIVE)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/listings/:id/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "listings",
+                ":id",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Suspend a listing (set status SUSPENDED)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/listings/:id/suspend",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "listings",
+                ":id",
+                "suspend"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get admin action logs (admin only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "logs"
+              ],
+              "variable": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ledger summary totals (admin only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/ledger/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "ledger",
+                "summary"
+              ],
+              "variable": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Host payout balance (admin only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/hosts/:id/balance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "hosts",
+                ":id",
+                "balance"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ledger entries for a booking (admin only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/bookings/:id/ledger",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "bookings",
+                ":id",
+                "ledger"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List payouts, optionally filter by status (admin only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/payouts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "payouts"
+              ],
+              "variable": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create a payout for a host (admin only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/hosts/:id/payouts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "hosts",
+                ":id",
+                "payouts"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark a payout as PAID and post ledger DEBIT (admin only)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/payouts/:id/mark-paid",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "payouts",
+                ":id",
+                "mark-paid"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Open a dispute on a booking (admin only)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/bookings/:id/dispute/open",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "bookings",
+                ":id",
+                "dispute",
+                "open"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resolve a dispute on a booking (admin only)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/bookings/:id/dispute/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "bookings",
+                ":id",
+                "dispute",
+                "resolve"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "chat",
+      "item": [
+        {
+          "name": "Get all conversations for the current user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "conversations"
+              ],
+              "variable": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create or get a conversation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "conversations"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otherUserId\": \"123e4567-e89b-12d3-a456-426614174001\",\n  \"bookingId\": \"123e4567-e89b-12d3-a456-426614174002\",\n  \"listingId\": \"123e4567-e89b-12d3-a456-426614174003\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get messages in a conversation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/conversations/:id/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "conversations",
+                ":id",
+                "messages"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark messages as read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat/messages/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "messages",
+                "read"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageIds\": [\n    \"123e4567-e89b-12d3-a456-426614174004\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get unread message count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/unread-count",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "unread-count"
+              ],
+              "variable": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AI",
+      "item": [
+        {
+          "name": "AI-powered search with natural language",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/search",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ai",
+                "search"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"villa near beach under 250\",\n  \"lat\": 36.8578,\n  \"lng\": 11.092,\n  \"radiusKm\": 10,\n  \"availableCategorySlugs\": [\n    \"accommodation\",\n    \"sports-facilities\"\n  ],\n  \"followUpUsed\": false,\n  \"followUpAnswer\": \"tomorrow\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "[Dev/Admin] List recent AI search logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/admin/search-logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ai",
+                "admin",
+                "search-logs"
+              ],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generate complete listing (title, description, highlights)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/generate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ai",
+                "generate"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"Sports Facilities\",\n  \"basicInfo\": \"Professional tennis court with night lighting\",\n  \"features\": [\n    \"Night lighting\",\n    \"Professional surface\",\n    \"Equipment rental available\"\n  ],\n  \"location\": \"Kelibia Sports Complex\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Enhance existing listing description",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/enhance-description",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ai",
+                "enhance-description"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentDescription\": \"Nice tennis court for rent\",\n  \"category\": \"Sports Facilities\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generate catchy listing titles",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/generate-titles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ai",
+                "generate-titles"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"Sports Facilities\",\n  \"keyFeatures\": [\n    \"Tennis court\",\n    \"Night lighting\",\n    \"Professional\"\n  ],\n  \"location\": \"Kelibia\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 2xx\", function () {\n    pm.response.to.be.success;\n});\npm.test(\"Response has JSON structure\", function () {\n    pm.response.to.be.json;\n});\nif (pm.response.code >= 200 && pm.response.code < 300) {\n    var jsonData = pm.response.json();\n    pm.test(\"Success property is true (if wrapped)\", function () {\n        if(jsonData.hasOwnProperty('success')) {\n            pm.expect(jsonData.success).to.be.true;\n        }\n    });\n}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,12 +1,30 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
-export type CategorySlug = 'accommodation' | 'mobility' | 'water-beach-activities';
+export type CategorySlug =
+  | 'accommodation'
+  | 'mobility'
+  | 'water-beach-activities';
 
-const CATEGORIES: Array<{ slug: CategorySlug; labelEn: string; labelAr: string; icon: string }> = [
-  { slug: 'accommodation', labelEn: 'Accommodation', labelAr: 'إقامة', icon: '🏠' },
+const CATEGORIES: Array<{
+  slug: CategorySlug;
+  labelEn: string;
+  labelAr: string;
+  icon: string;
+}> = [
+  {
+    slug: 'accommodation',
+    labelEn: 'Accommodation',
+    labelAr: 'إقامة',
+    icon: '🏠',
+  },
   { slug: 'mobility', labelEn: 'Mobility', labelAr: 'تنقل', icon: '🚗' },
-  { slug: 'water-beach-activities', labelEn: 'Water & Beach', labelAr: 'شاطئ وماء', icon: '🏖️' },
+  {
+    slug: 'water-beach-activities',
+    labelEn: 'Water & Beach',
+    labelAr: 'شاطئ وماء',
+    icon: '🏖️',
+  },
 ];
 
 export function CategoryStrip() {
@@ -27,4 +45,3 @@ export function CategoryStrip() {
     </div>
   );
 }
-

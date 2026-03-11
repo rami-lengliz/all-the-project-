@@ -1,6 +1,18 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { api } from '@/lib/api/http';
-import { readAuth, writeAuth, clearAuth, AUTH_STORAGE_KEY } from '@/lib/auth/storage';
+import {
+  readAuth,
+  writeAuth,
+  clearAuth,
+  AUTH_STORAGE_KEY,
+} from '@/lib/auth/storage';
 import { toast } from '@/components/ui/Toaster';
 import { useRouter } from 'next/router';
 
@@ -14,7 +26,12 @@ type AuthContextValue = AuthState & {
   hasHydrated: boolean;
   authReady: boolean;
   login: (input: { emailOrPhone: string; password: string }) => Promise<void>;
-  register: (input: { name: string; email?: string; phone?: string; password: string }) => Promise<void>;
+  register: (input: {
+    name: string;
+    email?: string;
+    phone?: string;
+    password: string;
+  }) => Promise<void>;
   logout: () => void;
   refreshAccessToken: () => Promise<string | null>;
   setTokens: (accessToken: string, refreshToken: string) => void;
@@ -25,7 +42,11 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   // SSR-safe: always start unauthenticated, restore from localStorage on mount.
-  const [state, setState] = useState<AuthState>({ accessToken: null, refreshToken: null, user: null });
+  const [state, setState] = useState<AuthState>({
+    accessToken: null,
+    refreshToken: null,
+    user: null,
+  });
   const [hasHydrated, setHasHydrated] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const router = useRouter();
@@ -60,7 +81,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!cancelled) setAuthReady(true);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   /* ---------------------------------------------------------------
@@ -113,7 +136,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // interceptor handles 401
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [state.accessToken]);
 
   /* ---------------------------------------------------------------
@@ -129,7 +154,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearAuth();
     if (typeof window !== 'undefined') {
       // Notify other tabs
-      window.dispatchEvent(new StorageEvent('storage', { key: AUTH_STORAGE_KEY } as any));
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: AUTH_STORAGE_KEY } as any),
+      );
     }
     setState({ accessToken: null, refreshToken: null, user: null });
     setHasHydrated(true);
@@ -141,7 +168,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshAccessToken = useCallback(async (): Promise<string | null> => {
     try {
-      const { refreshAccessToken: doRefresh } = await import('@/lib/auth/refresh');
+      const { refreshAccessToken: doRefresh } =
+        await import('@/lib/auth/refresh');
       const newToken = await doRefresh();
       setState((s) => ({ ...s, accessToken: newToken }));
       return newToken;
@@ -163,34 +191,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (input: { emailOrPhone: string; password: string }) => {
-    const res = await api.post('/auth/login', input);
-    const payload = res.data?.data ?? res.data;
-    let user = payload?.user ?? null;
-    if (!user && payload?.accessToken) {
-      try {
-        const me = await api.get('/users/me', {
-          headers: { Authorization: `Bearer ${payload.accessToken}` },
-        });
-        user = me.data?.data ?? me.data ?? null;
-      } catch {
-        user = null;
+  const login = useCallback(
+    async (input: { emailOrPhone: string; password: string }) => {
+      const res = await api.post('/auth/login', input);
+      const payload = res.data?.data ?? res.data;
+      let user = payload?.user ?? null;
+      if (!user && payload?.accessToken) {
+        try {
+          const me = await api.get('/users/me', {
+            headers: { Authorization: `Bearer ${payload.accessToken}` },
+          });
+          user = me.data?.data ?? me.data ?? null;
+        } catch {
+          user = null;
+        }
       }
-    }
-    const next: AuthState = {
-      accessToken: payload?.accessToken ?? null,
-      refreshToken: payload?.refreshToken ?? null,
-      user,
-    };
-    setState(next);
-    setHasHydrated(true);
-    setAuthReady(true);
-    writeAuth(next);
-    toast({ title: 'Welcome back', variant: 'success' });
-  }, []);
+      const next: AuthState = {
+        accessToken: payload?.accessToken ?? null,
+        refreshToken: payload?.refreshToken ?? null,
+        user,
+      };
+      setState(next);
+      setHasHydrated(true);
+      setAuthReady(true);
+      writeAuth(next);
+      toast({ title: 'Welcome back', variant: 'success' });
+    },
+    [],
+  );
 
   const register = useCallback(
-    async (input: { name: string; email?: string; phone?: string; password: string }) => {
+    async (input: {
+      name: string;
+      email?: string;
+      phone?: string;
+      password: string;
+    }) => {
       const res = await api.post('/auth/register', input);
       const payload = res.data?.data ?? res.data;
       const next: AuthState = {
@@ -208,8 +244,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, hasHydrated, authReady, login, register, logout, refreshAccessToken, setTokens, refreshUser }),
-    [state, hasHydrated, authReady, login, register, logout, refreshAccessToken, setTokens, refreshUser],
+    () => ({
+      ...state,
+      hasHydrated,
+      authReady,
+      login,
+      register,
+      logout,
+      refreshAccessToken,
+      setTokens,
+      refreshUser,
+    }),
+    [
+      state,
+      hasHydrated,
+      authReady,
+      login,
+      register,
+      logout,
+      refreshAccessToken,
+      setTokens,
+      refreshUser,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
