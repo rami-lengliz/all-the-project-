@@ -14,6 +14,7 @@ import { MlService } from '../ml/ml.service';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { BLOCKING_BOOKING_STATUSES } from '../../common/constants/booking-status.constants';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
@@ -38,6 +39,7 @@ export class ListingsService {
     private categoriesService: CategoriesService,
     private mlService: MlService,
     private configService: ConfigService,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   async create(
@@ -96,40 +98,47 @@ export class ListingsService {
         throw new Error('Failed to create listing');
       }
 
-      // Process image files and save to listing-specific folder
+      // Process image files — upload to Cloudinary (production) or local disk (dev fallback)
       const imageUrls: string[] = [];
       if (imageFiles && imageFiles.length > 0) {
-        const baseDir =
-          this.configService.get<string>('upload.dir') || './uploads';
-        const listingDir = path.join(baseDir, 'listings', listing.id);
+        // Attempt Cloudinary upload first
+        const cloudinaryResults = await this.cloudinaryService.uploadFiles(
+          imageFiles,
+          `rentai/listings/${listing.id}`,
+        );
 
-        // Ensure listing directory exists
-        if (!fs.existsSync(listingDir)) {
-          fs.mkdirSync(listingDir, { recursive: true });
-        }
+        const useCloudinary = cloudinaryResults.some((url) => url !== null);
 
-        for (const file of imageFiles) {
-          // Generate unique filename
-          const timestamp = Date.now();
-          const randomStr = Array(8)
-            .fill(null)
-            .map(() => Math.round(Math.random() * 16).toString(16))
-            .join('');
-          const ext = path.extname(file.originalname);
-          const fileName = `${timestamp}-${randomStr}${ext}`;
-          const filePath = path.join(listingDir, fileName);
-
-          // Move file from temp to listing folder
-          const tempPath = file.path;
-          if (fs.existsSync(tempPath)) {
-            fs.renameSync(tempPath, filePath);
-          } else {
-            // If file wasn't saved to temp (shouldn't happen), write buffer
-            fs.writeFileSync(filePath, file.buffer);
+        if (useCloudinary) {
+          // All uploaded to Cloudinary — use returned HTTPS URLs
+          for (const url of cloudinaryResults) {
+            if (url) imageUrls.push(url);
           }
-
-          // Store relative URL for public access
-          imageUrls.push(`/uploads/listings/${listing.id}/${fileName}`);
+        } else {
+          // Cloudinary not configured — fallback to local disk (dev only)
+          const baseDir =
+            this.configService.get<string>('upload.dir') || './uploads';
+          const listingDir = path.join(baseDir, 'listings', listing.id);
+          if (!fs.existsSync(listingDir)) {
+            fs.mkdirSync(listingDir, { recursive: true });
+          }
+          for (const file of imageFiles) {
+            const timestamp = Date.now();
+            const randomStr = Array(8)
+              .fill(null)
+              .map(() => Math.round(Math.random() * 16).toString(16))
+              .join('');
+            const ext = path.extname(file.originalname);
+            const fileName = `${timestamp}-${randomStr}${ext}`;
+            const filePath = path.join(listingDir, fileName);
+            const tempPath = file.path;
+            if (tempPath && fs.existsSync(tempPath)) {
+              fs.renameSync(tempPath, filePath);
+            } else {
+              fs.writeFileSync(filePath, file.buffer);
+            }
+            imageUrls.push(`/uploads/listings/${listing.id}/${fileName}`);
+          }
         }
 
         // Update listing with image URLs
