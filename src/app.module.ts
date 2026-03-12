@@ -21,6 +21,7 @@ import { AiModule } from './modules/ai/ai.module';
 import { LedgerModule } from './modules/ledger/ledger.module';
 import { PayoutsModule } from './modules/payouts/payouts.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     AiModule,
     LedgerModule,
     PayoutsModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [

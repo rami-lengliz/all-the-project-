@@ -2,12 +2,15 @@
 const nextConfig = {
     reactStrictMode: true,
 
-    // Proxy /api/* → NestJS backend on port 3001
+    // Proxy /api/* → NestJS backend
+    // In production (Vercel): set NEXT_PUBLIC_API_URL=https://your-railway-app.railway.app
+    // In local dev: falls back to localhost:3001
     async rewrites() {
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
         return [
             {
                 source: '/api/:path*',
-                destination: 'http://localhost:3001/api/:path*',
+                destination: `${apiBase}/api/:path*`,
             },
         ];
     },
