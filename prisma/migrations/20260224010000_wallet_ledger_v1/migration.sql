@@ -59,9 +59,4 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
--- FK: payout_items.ledgerEntryId -> ledger_entries.id (added here because ledger_entries is created in this migration)
-DO $$ BEGIN
-  ALTER TABLE "payout_items" ADD CONSTRAINT "payout_items_ledgerEntryId_fkey"
-    FOREIGN KEY ("ledgerEntryId") REFERENCES "ledger_entries"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+-- NOTE: payout_items.ledgerEntryId FK is deferred to payouts_dispute_v1 where payout_items is created.

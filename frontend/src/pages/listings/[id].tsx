@@ -621,7 +621,7 @@ export default function ListingDetailsPage() {
                     </div>
 
                     <button
-                      onClick={() => router.push(`/booking/${listing.id}`)}
+                      onClick={() => router.push(`/booking/${id}`)}
                       className="mb-4 w-full rounded-lg bg-blue-500 py-4 font-semibold text-white transition hover:bg-blue-600"
                     >
                       Request to book
