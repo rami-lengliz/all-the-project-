@@ -19,7 +19,7 @@ export class ListingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/api/listings',
+            url: '/api/listings',
             formData: formData,
             mediaType: 'multipart/form-data',
         });
@@ -57,7 +57,7 @@ export class ListingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/api/listings',
+            url: '/api/listings',
             query: {
                 'q': q,
                 'category': category,
@@ -75,6 +75,17 @@ export class ListingsService {
         });
     }
     /**
+     * Get all listings for the current host (any status)
+     * @returns any
+     * @throws ApiError
+     */
+    public static listingsControllerFindMine(): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/listings/mine',
+        });
+    }
+    /**
      * Get listing details
      * @param id
      * @returns any
@@ -85,7 +96,7 @@ export class ListingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/api/listings/{id}',
+            url: '/api/listings/{id}',
             path: {
                 'id': id,
             },
@@ -94,26 +105,26 @@ export class ListingsService {
     /**
      * Update listing (host or admin)
      * @param id
-     * @param requestBody
+     * @param formData
      * @returns any
      * @throws ApiError
      */
     public static listingsControllerUpdate(
         id: string,
-        requestBody: UpdateListingDto,
+        formData: UpdateListingDto,
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'PATCH',
-            url: '/api/api/listings/{id}',
+            url: '/api/listings/{id}',
             path: {
                 'id': id,
             },
-            body: requestBody,
-            mediaType: 'application/json',
+            formData: formData,
+            mediaType: 'multipart/form-data',
         });
     }
     /**
-     * Delete listing (host or admin)
+     * Delete a listing (soft delete for hosts, hard delete for admins)
      * @param id
      * @returns any
      * @throws ApiError
@@ -123,9 +134,48 @@ export class ListingsService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'DELETE',
-            url: '/api/api/listings/{id}',
+            url: '/api/listings/{id}',
             path: {
                 'id': id,
+            },
+        });
+    }
+    /**
+     * Create slot configuration for a listing
+     * @param id
+     * @returns any
+     * @throws ApiError
+     */
+    public static listingsControllerCreateSlotConfiguration(
+        id: string,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/listings/{id}/slot-configuration',
+            path: {
+                'id': id,
+            },
+        });
+    }
+    /**
+     * Get available time slots for a specific date
+     * @param id
+     * @param date
+     * @returns any
+     * @throws ApiError
+     */
+    public static listingsControllerGetAvailableSlots(
+        id: string,
+        date: string,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/listings/{id}/available-slots',
+            path: {
+                'id': id,
+            },
+            query: {
+                'date': date,
             },
         });
     }

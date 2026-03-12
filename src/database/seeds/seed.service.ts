@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class SeedService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async seed() {
     console.log('Starting seed process...');
@@ -128,7 +128,7 @@ export class SeedService {
           ${`${i + 1} Street, ${cityName}`},
           ${category.id}::uuid,
           ${host.id}::uuid,
-          ARRAY[${`/uploads/placeholder-${i + 1}.jpg`}]::TEXT[],
+          ARRAY['/placeholder.png']::TEXT[],
           true, 'ACTIVE'::"ListingStatus",
           NOW(), NOW()
         )
@@ -219,12 +219,14 @@ export class SeedService {
         ${'Pending Street, Kelibia'},
         ${savedCategories[0].id}::uuid,
         ${pendingHost.id}::uuid,
-        ARRAY['/uploads/placeholder-pending.jpg']::TEXT[],
+        ARRAY['/placeholder.png']::TEXT[],
         true, 'PENDING_REVIEW'::"ListingStatus",
         NOW(), NOW()
       )
     `;
-    console.log(`  ✓ PENDING listing: ${pendingListingId} (host: ${pendingHost.email})`);
+    console.log(
+      `  ✓ PENDING listing: ${pendingListingId} (host: ${pendingHost.email})`,
+    );
 
     // ── Guaranteed bookings (one per status) ───────────────────
     console.log('Creating guaranteed bookings...');
@@ -275,10 +277,10 @@ export class SeedService {
       });
     };
 
-    const pendingBooking = await makeBooking('pending', false, renters[0], 14);
-    const confirmedBooking = await makeBooking('confirmed', false, renters[1], 21);
+    void makeBooking('pending', false, renters[0], 14);
+    void makeBooking('confirmed', false, renters[1], 21);
     const paidBooking = await makeBooking('paid', true, renters[2], 28);
-    const cancelledBooking = await makeBooking('cancelled', false, renters[3], 35);
+    void makeBooking('cancelled', false, renters[3], 35);
     console.log('  ✓ Bookings: pending, confirmed, paid, cancelled');
 
     // ── 1 review linked to the paid booking ───────────────────

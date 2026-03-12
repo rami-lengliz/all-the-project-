@@ -143,7 +143,7 @@ Respond with a JSON object containing:
           ? parsed.highlights.slice(0, 5)
           : [],
       };
-    } catch (error) {
+    } catch (_error) {
       throw new BadRequestException(
         'Failed to parse AI response. Please try again.',
       );

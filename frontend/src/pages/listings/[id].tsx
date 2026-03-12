@@ -29,12 +29,18 @@ export default function ListingDetailsPage() {
         </div>
       ) : listingQuery.isError ? (
         <div className="mx-auto max-w-7xl px-6 py-8">
-          <InlineError message="Failed to load listing." onRetry={() => void listingQuery.refetch()} />
+          <InlineError
+            message="Failed to load listing."
+            onRetry={() => void listingQuery.refetch()}
+          />
         </div>
       ) : listing ? (
         <>
           {/* Breadcrumb Navigation */}
-          <section id="breadcrumb-nav" className="border-b border-gray-100 bg-white">
+          <section
+            id="breadcrumb-nav"
+            className="border-b border-gray-100 bg-white"
+          >
             <div className="mx-auto max-w-7xl px-6 py-3">
               <div className="flex items-center text-sm text-gray-600">
                 <Link href="/" className="transition hover:text-gray-900">
@@ -45,7 +51,9 @@ export default function ListingDetailsPage() {
                   {listing.category?.name || 'Listings'}
                 </Link>
                 <i className="fa-solid fa-chevron-right mx-2 text-xs"></i>
-                <span className="font-medium text-gray-900">{listing.title}</span>
+                <span className="font-medium text-gray-900">
+                  {listing.title}
+                </span>
               </div>
             </div>
           </section>
@@ -55,12 +63,16 @@ export default function ListingDetailsPage() {
             <div className="mx-auto max-w-7xl px-6">
               <div className="flex items-start justify-between">
                 <div>
-                  <h1 className="mb-2 text-3xl font-bold text-gray-900">{listing.title}</h1>
+                  <h1 className="mb-2 text-3xl font-bold text-gray-900">
+                    {listing.title}
+                  </h1>
                   <div className="flex items-center space-x-4 text-sm">
                     <div className="flex items-center">
                       <i className="fa-solid fa-star mr-1 text-yellow-400"></i>
                       <span className="font-semibold">4.8</span>
-                      <span className="ml-1 text-gray-500">({reviews.length} reviews)</span>
+                      <span className="ml-1 text-gray-500">
+                        ({reviews.length} reviews)
+                      </span>
                     </div>
                     <span className="text-gray-400">•</span>
                     <div className="flex items-center text-gray-700">
@@ -97,8 +109,16 @@ export default function ListingDetailsPage() {
                     >
                       <img
                         className="h-full w-full object-cover"
-                        src={img.startsWith('http') ? img : `http://localhost:3000${img}`}
+                        src={
+                          img.startsWith('http') || img.startsWith('/')
+                            ? img
+                            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${img}`
+                        }
                         alt={`${listing.title} ${idx + 1}`}
+                        onError={(e) => {
+                          e.currentTarget.src = '/placeholder.png';
+                          e.currentTarget.onerror = null;
+                        }}
                       />
                     </div>
                   ))}
@@ -106,8 +126,17 @@ export default function ListingDetailsPage() {
                     <div className="relative">
                       <img
                         className="h-full w-full object-cover"
-                        src={images[5]}
+                        src={
+                          images[5].startsWith('http') ||
+                          images[5].startsWith('/')
+                            ? images[5]
+                            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${images[5]}`
+                        }
                         alt={`${listing.title} 6`}
+                        onError={(e) => {
+                          e.currentTarget.src = '/placeholder.png';
+                          e.currentTarget.onerror = null;
+                        }}
                       />
                       <button
                         onClick={() => setShowAllPhotos(true)}
@@ -135,11 +164,15 @@ export default function ListingDetailsPage() {
               <div className="grid grid-cols-3 gap-8">
                 <div className="col-span-2 space-y-8">
                   {/* Host Overview */}
-                  <div id="listing-overview" className="rounded-2xl border border-gray-200 bg-white p-8">
+                  <div
+                    id="listing-overview"
+                    className="rounded-2xl border border-gray-200 bg-white p-8"
+                  >
                     <div className="mb-6 flex items-start justify-between">
                       <div>
                         <h2 className="mb-2 text-2xl font-bold text-gray-900">
-                          {listing.category?.name || 'Item'} hosted by {listing.host?.name || 'Host'}
+                          {listing.category?.name || 'Item'} hosted by{' '}
+                          {listing.host?.name || 'Host'}
                         </h2>
                         <div className="flex items-center space-x-4 text-gray-600">
                           <span>{listing.category?.name || 'Item'}</span>
@@ -147,7 +180,15 @@ export default function ListingDetailsPage() {
                       </div>
                       {listing.host?.avatarUrl && (
                         <div className="h-14 w-14 overflow-hidden rounded-full">
-                          <img src={listing.host.avatarUrl} alt={listing.host.name} className="h-full w-full object-cover" />
+                          <img
+                            src={listing.host.avatarUrl}
+                            alt={listing.host.name}
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = '/placeholder.png';
+                              e.currentTarget.onerror = null;
+                            }}
+                          />
                         </div>
                       )}
                     </div>
@@ -158,8 +199,12 @@ export default function ListingDetailsPage() {
                           <i className="fa-solid fa-gauge-high text-blue-500"></i>
                         </div>
                         <div>
-                          <h3 className="mb-1 font-semibold text-gray-900">Great performance</h3>
-                          <p className="text-sm text-gray-600">High-quality item in excellent condition</p>
+                          <h3 className="mb-1 font-semibold text-gray-900">
+                            Great performance
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            High-quality item in excellent condition
+                          </p>
                         </div>
                       </div>
 
@@ -168,8 +213,12 @@ export default function ListingDetailsPage() {
                           <i className="fa-solid fa-shield-halved text-green-500"></i>
                         </div>
                         <div>
-                          <h3 className="mb-1 font-semibold text-gray-900">Insurance included</h3>
-                          <p className="text-sm text-gray-600">Full coverage for peace of mind during your rental</p>
+                          <h3 className="mb-1 font-semibold text-gray-900">
+                            Insurance included
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            Full coverage for peace of mind during your rental
+                          </p>
                         </div>
                       </div>
 
@@ -178,35 +227,60 @@ export default function ListingDetailsPage() {
                           <i className="fa-solid fa-calendar-check text-purple-500"></i>
                         </div>
                         <div>
-                          <h3 className="mb-1 font-semibold text-gray-900">Flexible booking</h3>
-                          <p className="text-sm text-gray-600">Free cancellation up to 24 hours before pickup</p>
+                          <h3 className="mb-1 font-semibold text-gray-900">
+                            Flexible booking
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            Free cancellation up to 24 hours before pickup
+                          </p>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   {/* Description */}
-                  <div id="listing-description" className="rounded-2xl border border-gray-200 bg-white p-8">
-                    <h2 className="mb-4 text-xl font-bold text-gray-900">About this {listing.category?.name?.toLowerCase() || 'item'}</h2>
-                    <p className="mb-4 leading-relaxed text-gray-700">{listing.description || 'No description available.'}</p>
-                    <button className="mt-3 font-medium text-blue-500 transition hover:underline">Show more</button>
+                  <div
+                    id="listing-description"
+                    className="rounded-2xl border border-gray-200 bg-white p-8"
+                  >
+                    <h2 className="mb-4 text-xl font-bold text-gray-900">
+                      About this{' '}
+                      {listing.category?.name?.toLowerCase() || 'item'}
+                    </h2>
+                    <p className="mb-4 leading-relaxed text-gray-700">
+                      {listing.description || 'No description available.'}
+                    </p>
+                    <button className="mt-3 font-medium text-blue-500 transition hover:underline">
+                      Show more
+                    </button>
                   </div>
 
                   {/* Features */}
-                  <div id="listing-features" className="rounded-2xl border border-gray-200 bg-white p-8">
-                    <h2 className="mb-6 text-xl font-bold text-gray-900">What&apos;s included</h2>
+                  <div
+                    id="listing-features"
+                    className="rounded-2xl border border-gray-200 bg-white p-8"
+                  >
+                    <h2 className="mb-6 text-xl font-bold text-gray-900">
+                      What&apos;s included
+                    </h2>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="flex items-center space-x-3">
                         <i className="fa-solid fa-check text-green-500"></i>
-                        <span className="text-gray-700">All accessories included</span>
+                        <span className="text-gray-700">
+                          All accessories included
+                        </span>
                       </div>
                       <div className="flex items-center space-x-3">
                         <i className="fa-solid fa-check text-green-500"></i>
-                        <span className="text-gray-700">Instruction manual</span>
+                        <span className="text-gray-700">
+                          Instruction manual
+                        </span>
                       </div>
                       <div className="flex items-center space-x-3">
                         <i className="fa-solid fa-check text-green-500"></i>
-                        <span className="text-gray-700">Delivery available</span>
+                        <span className="text-gray-700">
+                          Delivery available
+                        </span>
                       </div>
                       <div className="flex items-center space-x-3">
                         <i className="fa-solid fa-check text-green-500"></i>
@@ -216,38 +290,52 @@ export default function ListingDetailsPage() {
                   </div>
 
                   {/* Availability Calendar */}
-                  <div id="listing-calendar" className="rounded-2xl border border-gray-200 bg-white p-8">
-                    <h2 className="mb-6 text-xl font-bold text-gray-900">Availability</h2>
+                  <div
+                    id="listing-calendar"
+                    className="rounded-2xl border border-gray-200 bg-white p-8"
+                  >
+                    <h2 className="mb-6 text-xl font-bold text-gray-900">
+                      Availability
+                    </h2>
                     <div className="rounded-xl border border-gray-200 p-6">
                       <div className="mb-4 flex items-center justify-between">
                         <button className="rounded-lg p-2 transition hover:bg-gray-100">
                           <i className="fa-solid fa-chevron-left text-gray-600"></i>
                         </button>
-                        <h3 className="font-semibold text-gray-900">January 2024</h3>
+                        <h3 className="font-semibold text-gray-900">
+                          January 2024
+                        </h3>
                         <button className="rounded-lg p-2 transition hover:bg-gray-100">
                           <i className="fa-solid fa-chevron-right text-gray-600"></i>
                         </button>
                       </div>
                       <div className="grid grid-cols-7 gap-2 text-center">
-                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-                          <div key={day} className="py-2 text-xs font-medium text-gray-500">
-                            {day}
-                          </div>
-                        ))}
-                        {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                          <div
-                            key={day}
-                            className={`py-2 text-sm ${
-                              day >= 4 && day <= 14
-                                ? 'cursor-pointer rounded-lg bg-gray-200'
-                                : day >= 15 && day <= 25
-                                  ? 'cursor-pointer rounded-lg text-gray-900 transition hover:bg-gray-100'
-                                  : 'text-gray-400'
-                            }`}
-                          >
-                            {day}
-                          </div>
-                        ))}
+                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(
+                          (day) => (
+                            <div
+                              key={day}
+                              className="py-2 text-xs font-medium text-gray-500"
+                            >
+                              {day}
+                            </div>
+                          ),
+                        )}
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map(
+                          (day) => (
+                            <div
+                              key={day}
+                              className={`py-2 text-sm ${
+                                day >= 4 && day <= 14
+                                  ? 'cursor-pointer rounded-lg bg-gray-200'
+                                  : day >= 15 && day <= 25
+                                    ? 'cursor-pointer rounded-lg text-gray-900 transition hover:bg-gray-100'
+                                    : 'text-gray-400'
+                              }`}
+                            >
+                              {day}
+                            </div>
+                          ),
+                        )}
                       </div>
                       <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-4 text-sm">
                         <div className="flex items-center space-x-2">
@@ -263,10 +351,20 @@ export default function ListingDetailsPage() {
                   </div>
 
                   {/* Location */}
-                  <div id="listing-location" className="rounded-2xl border border-gray-200 bg-white p-8">
-                    <h2 className="mb-2 text-xl font-bold text-gray-900">Location</h2>
-                    <p className="mb-6 text-gray-600">{listing.address || 'Tunis, Tunisia'}</p>
-                    <div className="relative overflow-hidden rounded-xl border border-gray-200" style={{ height: '350px' }}>
+                  <div
+                    id="listing-location"
+                    className="rounded-2xl border border-gray-200 bg-white p-8"
+                  >
+                    <h2 className="mb-2 text-xl font-bold text-gray-900">
+                      Location
+                    </h2>
+                    <p className="mb-6 text-gray-600">
+                      {listing.address || 'Tunis, Tunisia'}
+                    </p>
+                    <div
+                      className="relative overflow-hidden rounded-xl border border-gray-200"
+                      style={{ height: '350px' }}
+                    >
                       <img
                         className="h-full w-full object-cover"
                         src="https://storage.googleapis.com/uxpilot-auth.appspot.com/e61652dc21-cab20e8e19405eef87bb.png"
@@ -278,12 +376,17 @@ export default function ListingDetailsPage() {
                         </div>
                       </div>
                     </div>
-                    <p className="mt-4 text-sm text-gray-600">Exact location will be provided after booking confirmation</p>
+                    <p className="mt-4 text-sm text-gray-600">
+                      Exact location will be provided after booking confirmation
+                    </p>
                   </div>
 
                   {/* Reviews */}
                   {reviews.length > 0 && (
-                    <div id="listing-reviews" className="rounded-2xl border border-gray-200 bg-white p-8">
+                    <div
+                      id="listing-reviews"
+                      className="rounded-2xl border border-gray-200 bg-white p-8"
+                    >
                       <div className="mb-6 flex items-center justify-between">
                         <h2 className="flex items-center text-xl font-bold text-gray-900">
                           <i className="fa-solid fa-star mr-2 text-yellow-400"></i>
@@ -293,20 +396,34 @@ export default function ListingDetailsPage() {
 
                       <div className="space-y-6">
                         {reviews.slice(0, 3).map((review: any) => (
-                          <div key={review.id} className="border-b border-gray-200 pb-6 last:border-b-0">
+                          <div
+                            key={review.id}
+                            className="border-b border-gray-200 pb-6 last:border-b-0"
+                          >
                             <div className="flex items-start space-x-4">
                               <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full">
                                 <img
-                                  src={review.author?.avatarUrl || 'https://via.placeholder.com/48'}
+                                  src={
+                                    review.author?.avatarUrl ||
+                                    '/placeholder.png'
+                                  }
                                   alt={review.author?.name}
                                   className="h-full w-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.src = '/placeholder.png';
+                                    e.currentTarget.onerror = null;
+                                  }}
                                 />
                               </div>
                               <div className="flex-1">
                                 <div className="mb-1 flex items-center justify-between">
-                                  <h4 className="font-semibold text-gray-900">{review.author?.name || 'Anonymous'}</h4>
+                                  <h4 className="font-semibold text-gray-900">
+                                    {review.author?.name || 'Anonymous'}
+                                  </h4>
                                   <span className="text-sm text-gray-500">
-                                    {new Date(review.createdAt).toLocaleDateString()}
+                                    {new Date(
+                                      review.createdAt,
+                                    ).toLocaleDateString()}
                                   </span>
                                 </div>
                                 <div className="mb-2 flex items-center">
@@ -314,12 +431,16 @@ export default function ListingDetailsPage() {
                                     <i
                                       key={i}
                                       className={`fa-solid fa-star text-xs ${
-                                        i < review.rating ? 'text-yellow-400' : 'text-gray-300'
+                                        i < review.rating
+                                          ? 'text-yellow-400'
+                                          : 'text-gray-300'
                                       }`}
                                     ></i>
                                   ))}
                                 </div>
-                                <p className="leading-relaxed text-sm text-gray-700">{review.comment}</p>
+                                <p className="leading-relaxed text-sm text-gray-700">
+                                  {review.comment}
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -334,15 +455,24 @@ export default function ListingDetailsPage() {
 
                   {/* Host Info */}
                   {listing.host && (
-                    <div id="host-info" className="rounded-2xl border border-gray-200 bg-white p-8">
-                      <h2 className="mb-6 text-xl font-bold text-gray-900">Meet your host</h2>
+                    <div
+                      id="host-info"
+                      className="rounded-2xl border border-gray-200 bg-white p-8"
+                    >
+                      <h2 className="mb-6 text-xl font-bold text-gray-900">
+                        Meet your host
+                      </h2>
                       <div className="flex items-start space-x-6">
                         <div className="shrink-0">
                           <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-blue-100">
                             <img
-                              src={listing.host.avatarUrl || 'https://via.placeholder.com/96'}
+                              src={listing.host.avatarUrl || '/placeholder.png'}
                               alt={listing.host.name}
                               className="h-full w-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = '/placeholder.png';
+                                e.currentTarget.onerror = null;
+                              }}
                             />
                           </div>
                           <div className="mt-2 text-center">
@@ -350,11 +480,15 @@ export default function ListingDetailsPage() {
                               <i className="fa-solid fa-star mr-1 text-yellow-400"></i>
                               <span className="font-semibold">4.9</span>
                             </div>
-                            <p className="mt-1 text-xs text-gray-500">{reviews.length} reviews</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {reviews.length} reviews
+                            </p>
                           </div>
                         </div>
                         <div className="flex-1">
-                          <h3 className="mb-2 text-2xl font-bold text-gray-900">{listing.host.name}</h3>
+                          <h3 className="mb-2 text-2xl font-bold text-gray-900">
+                            {listing.host.name}
+                          </h3>
                           <p className="mb-4 text-gray-600">Joined in 2022</p>
                           <div className="mb-6 space-y-3 text-sm text-gray-700">
                             <div className="flex items-center">
@@ -383,11 +517,18 @@ export default function ListingDetailsPage() {
                   )}
 
                   {/* Rental Rules */}
-                  <div id="rental-rules" className="rounded-2xl border border-gray-200 bg-white p-8">
-                    <h2 className="mb-6 text-xl font-bold text-gray-900">Things to know</h2>
+                  <div
+                    id="rental-rules"
+                    className="rounded-2xl border border-gray-200 bg-white p-8"
+                  >
+                    <h2 className="mb-6 text-xl font-bold text-gray-900">
+                      Things to know
+                    </h2>
                     <div className="grid grid-cols-3 gap-8">
                       <div>
-                        <h3 className="mb-3 font-semibold text-gray-900">Rental rules</h3>
+                        <h3 className="mb-3 font-semibold text-gray-900">
+                          Rental rules
+                        </h3>
                         <ul className="space-y-2 text-sm text-gray-700">
                           <li>Valid ID required</li>
                           <li>Minimum age: 18 years</li>
@@ -396,7 +537,9 @@ export default function ListingDetailsPage() {
                         </ul>
                       </div>
                       <div>
-                        <h3 className="mb-3 font-semibold text-gray-900">Cancellation</h3>
+                        <h3 className="mb-3 font-semibold text-gray-900">
+                          Cancellation
+                        </h3>
                         <ul className="space-y-2 text-sm text-gray-700">
                           <li>Free cancellation 24h before</li>
                           <li>50% refund within 24h</li>
@@ -404,7 +547,9 @@ export default function ListingDetailsPage() {
                         </ul>
                       </div>
                       <div>
-                        <h3 className="mb-3 font-semibold text-gray-900">Safety</h3>
+                        <h3 className="mb-3 font-semibold text-gray-900">
+                          Safety
+                        </h3>
                         <ul className="space-y-2 text-sm text-gray-700">
                           <li>Insurance included</li>
                           <li>24/7 support available</li>
@@ -417,16 +562,23 @@ export default function ListingDetailsPage() {
 
                 {/* Booking Card */}
                 <div className="col-span-1">
-                  <div id="booking-card" className="sticky top-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
+                  <div
+                    id="booking-card"
+                    className="sticky top-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-lg"
+                  >
                     <div className="mb-6">
                       <div className="mb-2 flex items-baseline">
-                        <span className="text-3xl font-bold text-gray-900">{formatTnd(listing.pricePerDay)}</span>
+                        <span className="text-3xl font-bold text-gray-900">
+                          {formatTnd(listing.pricePerDay)}
+                        </span>
                         <span className="ml-2 text-gray-600">/ day</span>
                       </div>
                       <div className="flex items-center text-sm">
                         <i className="fa-solid fa-star mr-1 text-yellow-400"></i>
                         <span className="mr-1 font-semibold">4.8</span>
-                        <span className="text-gray-500">({reviews.length} reviews)</span>
+                        <span className="text-gray-500">
+                          ({reviews.length} reviews)
+                        </span>
                       </div>
                     </div>
 
@@ -434,7 +586,9 @@ export default function ListingDetailsPage() {
                       <div className="rounded-lg border border-gray-300">
                         <div className="flex border-b border-gray-300">
                           <div className="flex-1 p-3">
-                            <label className="mb-1 block text-xs font-semibold text-gray-700">PICKUP</label>
+                            <label className="mb-1 block text-xs font-semibold text-gray-700">
+                              PICKUP
+                            </label>
                             <input
                               type="text"
                               placeholder="Select date"
@@ -442,7 +596,9 @@ export default function ListingDetailsPage() {
                             />
                           </div>
                           <div className="flex-1 border-l border-gray-300 p-3">
-                            <label className="mb-1 block text-xs font-semibold text-gray-700">RETURN</label>
+                            <label className="mb-1 block text-xs font-semibold text-gray-700">
+                              RETURN
+                            </label>
                             <input
                               type="text"
                               placeholder="Select date"
@@ -451,7 +607,9 @@ export default function ListingDetailsPage() {
                           </div>
                         </div>
                         <div className="p-3">
-                          <label className="mb-1 block text-xs font-semibold text-gray-700">TIME</label>
+                          <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            TIME
+                          </label>
                           <select className="w-full text-sm text-gray-900 focus:outline-none">
                             <option>10:00 AM</option>
                             <option>11:00 AM</option>
@@ -463,33 +621,47 @@ export default function ListingDetailsPage() {
                     </div>
 
                     <button
-                      onClick={() => router.push(`/booking/${listing.id}`)}
+                      onClick={() => router.push(`/booking/${id}`)}
                       className="mb-4 w-full rounded-lg bg-blue-500 py-4 font-semibold text-white transition hover:bg-blue-600"
                     >
                       Request to book
                     </button>
 
-                    <p className="mb-6 text-center text-xs text-gray-500">You won&apos;t be charged yet</p>
+                    <p className="mb-6 text-center text-xs text-gray-500">
+                      You won&apos;t be charged yet
+                    </p>
 
                     <div className="space-y-3 border-b border-gray-200 pb-6 text-sm">
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-700">{formatTnd(listing.pricePerDay)} × 3 days</span>
-                        <span className="text-gray-900">{formatTnd(listing.pricePerDay * 3)}</span>
+                        <span className="text-gray-700">
+                          {formatTnd(listing.pricePerDay)} × 3 days
+                        </span>
+                        <span className="text-gray-900">
+                          {formatTnd(listing.pricePerDay * 3)}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-gray-700">Service fee</span>
-                        <span className="text-gray-900">{formatTnd(listing.pricePerDay * 0.1)}</span>
+                        <span className="text-gray-900">
+                          {formatTnd(listing.pricePerDay * 0.1)}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-gray-700">Insurance</span>
-                        <span className="text-gray-900">{formatTnd(listing.pricePerDay * 0.05)}</span>
+                        <span className="text-gray-900">
+                          {formatTnd(listing.pricePerDay * 0.05)}
+                        </span>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between pt-6 font-semibold">
                       <span className="text-gray-900">Total</span>
                       <span className="text-lg text-gray-900">
-                        {formatTnd(listing.pricePerDay * 3 + listing.pricePerDay * 0.1 + listing.pricePerDay * 0.05)}
+                        {formatTnd(
+                          listing.pricePerDay * 3 +
+                            listing.pricePerDay * 0.1 +
+                            listing.pricePerDay * 0.05,
+                        )}
                       </span>
                     </div>
                   </div>

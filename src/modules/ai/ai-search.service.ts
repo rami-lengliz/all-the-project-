@@ -4,6 +4,7 @@ import { AiService } from './ai.service';
 import { ListingsService } from '../listings/listings.service';
 import { CategoriesService } from '../categories/categories.service';
 import { PrismaService } from '../../database/prisma.service';
+import { AiResponseSchema } from './schemas/ai-response.schema';
 import {
   AiSearchRequestDto,
   AiSearchResponseDto,
@@ -22,7 +23,7 @@ export class AiSearchService {
     private readonly categoriesService: CategoriesService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
-  ) {}
+  ) { }
 
   async search(dto: AiSearchRequestDto): Promise<AiSearchResponseDto> {
     const openaiKey = this.configService.get<string>('OPENAI_API_KEY');
@@ -217,7 +218,7 @@ Remember: Output JSON only!`;
     try {
       const parsed = JSON.parse(text);
       return this.validateAiResponse(parsed);
-    } catch (e) {
+    } catch (_e) {
       // Continue to extraction
     }
 
@@ -231,8 +232,8 @@ Remember: Output JSON only!`;
         const parsed = JSON.parse(extracted);
         return this.validateAiResponse(parsed);
       }
-    } catch (e) {
-      this.logger.error('Failed to extract and parse JSON', e);
+    } catch (_e) {
+      this.logger.error('Failed to extract and parse JSON', _e);
     }
 
     // Try 3: Legacy markdown code block extraction (fallback)
@@ -242,8 +243,8 @@ Remember: Output JSON only!`;
         const parsed = JSON.parse(jsonMatch[0]);
         return this.validateAiResponse(parsed);
       }
-    } catch (e) {
-      this.logger.error('Failed to parse from markdown extraction', e);
+    } catch (_e) {
+      this.logger.error('Failed to parse from markdown extraction', _e);
     }
 
     return null;
@@ -255,16 +256,13 @@ Remember: Output JSON only!`;
    */
   private validateAiResponse(parsed: any): any {
     try {
-      // Import Zod schema dynamically to avoid circular deps
-      const { AiResponseSchema } = require('./schemas/ai-response.schema');
-
       const result = AiResponseSchema.safeParse(parsed);
 
       if (result.success) {
         return result.data;
       } else {
         this.logger.warn('AI response validation failed', {
-          errors: result.error.errors,
+          errors: result.error.issues,
           parsed,
         });
 
@@ -513,7 +511,7 @@ Remember: Output JSON only!`;
 
   private async fallbackSearch(
     dto: AiSearchRequestDto,
-    availableSlugs: string[],
+    _availableSlugs: string[],
   ): Promise<AiSearchResponseDto> {
     const filters: SearchFiltersDto = {
       q: dto.query.trim(),

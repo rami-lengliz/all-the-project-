@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
-import { Conversation, Message, Prisma } from '@prisma/client';
+import { Conversation, Message } from '@prisma/client';
 
 @Injectable()
 export class ChatService {

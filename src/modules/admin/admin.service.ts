@@ -13,9 +13,13 @@ export class AdminService {
     private usersService: UsersService,
     private ledgerService: LedgerService,
     private payoutsService: PayoutsService,
-  ) { }
+  ) {}
 
-  async logAction(actorId: string, action: string, details?: Record<string, any>) {
+  async logAction(
+    actorId: string,
+    action: string,
+    details?: Record<string, any>,
+  ) {
     return this.prisma.adminLog.create({ data: { actorId, action, details } });
   }
 
@@ -34,16 +38,29 @@ export class AdminService {
     });
   }
 
-  async flagListing(listingId: string, flagDto: FlagListingDto, actorId: string) {
-    const listing = await this.prisma.listing.findUnique({ where: { id: listingId } });
-    if (!listing || listing.deletedAt) throw new NotFoundException('Listing not found');
-    await this.logAction(actorId, 'flag_listing', { listingId, reason: flagDto.reason });
+  async flagListing(
+    listingId: string,
+    flagDto: FlagListingDto,
+    actorId: string,
+  ) {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+    });
+    if (!listing || listing.deletedAt)
+      throw new NotFoundException('Listing not found');
+    await this.logAction(actorId, 'flag_listing', {
+      listingId,
+      reason: flagDto.reason,
+    });
     return { message: 'Listing flagged successfully', listingId };
   }
 
   async approveListing(listingId: string, actorId: string) {
-    const listing = await this.prisma.listing.findUnique({ where: { id: listingId } });
-    if (!listing || listing.deletedAt) throw new NotFoundException('Listing not found');
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+    });
+    if (!listing || listing.deletedAt)
+      throw new NotFoundException('Listing not found');
     const updated = await this.prisma.listing.update({
       where: { id: listingId },
       data: { status: 'ACTIVE', isActive: true },
@@ -53,8 +70,11 @@ export class AdminService {
   }
 
   async suspendListing(listingId: string, actorId: string) {
-    const listing = await this.prisma.listing.findUnique({ where: { id: listingId } });
-    if (!listing || listing.deletedAt) throw new NotFoundException('Listing not found');
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+    });
+    if (!listing || listing.deletedAt)
+      throw new NotFoundException('Listing not found');
     const updated = await this.prisma.listing.update({
       where: { id: listingId },
       data: { status: 'SUSPENDED', isActive: false },
@@ -98,10 +118,22 @@ export class AdminService {
     reference?: string,
     notes?: string,
   ) {
-    return this.payoutsService.createPayout(hostId, amount, adminId, method, reference, notes);
+    return this.payoutsService.createPayout(
+      hostId,
+      amount,
+      adminId,
+      method,
+      reference,
+      notes,
+    );
   }
 
-  async markPayoutPaid(payoutId: string, method: string, reference: string, adminId: string) {
+  async markPayoutPaid(
+    payoutId: string,
+    method: string,
+    reference: string,
+    adminId: string,
+  ) {
     return this.payoutsService.markPaid(payoutId, method, reference, adminId);
   }
 

@@ -38,7 +38,7 @@ export class ListingsService {
     private categoriesService: CategoriesService,
     private mlService: MlService,
     private configService: ConfigService,
-  ) { }
+  ) {}
 
   async create(
     createListingDto: CreateListingDto,
@@ -46,6 +46,9 @@ export class ListingsService {
     imageFiles?: Express.Multer.File[],
   ): Promise<{ listing: Listing; mlSuggestions: any }> {
     try {
+      if (!imageFiles || imageFiles.length === 0) {
+        throw new BadRequestException('At least one image is required');
+      }
       // Validate category allows private listings and is in allowed list
       const category = await this.categoriesService.findOne(
         createListingDto.categoryId,
@@ -136,10 +139,6 @@ export class ListingsService {
         });
       }
 
-      // Require at least one image
-      if (imageUrls.length === 0) {
-        throw new BadRequestException('At least one image is required');
-      }
 
       // Get updated listing with images
       const finalListing = await this.prisma.listing.findUnique({

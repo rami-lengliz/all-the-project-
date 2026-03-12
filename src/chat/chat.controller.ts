@@ -33,8 +33,8 @@ export class ChatController {
   @Get('conversations')
   @ApiOperation({ summary: 'Get all conversations for the current user' })
   @ApiResponse({ status: 200, description: 'Returns list of conversations' })
-  async getConversations(@CurrentUser() user: User) {
-    return this.chatService.getUserConversations(user.id);
+  async getConversations(@CurrentUser() user: any) {
+    return this.chatService.getUserConversations(user.sub);
   }
 
   @Post('conversations')
@@ -45,12 +45,12 @@ export class ChatController {
   })
   async createConversation(
     @Body() dto: CreateConversationDto,
-    @CurrentUser() user: User,
+    @CurrentUser() user: any,
   ) {
     // Determine who is renter and who is host
     // For simplicity, current user is renter, other user is host
     return this.chatService.getOrCreateConversation(
-      user.id,
+      user.sub,
       dto.otherUserId,
       dto.bookingId,
       dto.listingId,
@@ -64,26 +64,26 @@ export class ChatController {
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 50 })
   async getMessages(
     @Param('id') conversationId: string,
-    @CurrentUser() user: User,
+    @CurrentUser() user: any,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit?: number,
   ) {
-    return this.chatService.getMessages(conversationId, user.id, page, limit);
+    return this.chatService.getMessages(conversationId, user.sub, page, limit);
   }
 
   @Patch('messages/read')
   @ApiOperation({ summary: 'Mark messages as read' })
   @ApiResponse({ status: 200, description: 'Messages marked as read' })
-  async markAsRead(@Body() dto: MarkAsReadDto, @CurrentUser() user: User) {
-    await this.chatService.markAsRead(dto.messageIds, user.id);
+  async markAsRead(@Body() dto: MarkAsReadDto, @CurrentUser() user: any) {
+    await this.chatService.markAsRead(dto.messageIds, user.sub);
     return { success: true };
   }
 
   @Get('unread-count')
   @ApiOperation({ summary: 'Get unread message count' })
   @ApiResponse({ status: 200, description: 'Returns unread count' })
-  async getUnreadCount(@CurrentUser() user: User) {
-    const count = await this.chatService.getUnreadCount(user.id);
+  async getUnreadCount(@CurrentUser() user: any) {
+    const count = await this.chatService.getUnreadCount(user.sub);
     return { count };
   }
 }

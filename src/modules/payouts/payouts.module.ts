@@ -3,8 +3,8 @@ import { PayoutsService } from './payouts.service';
 import { LedgerModule } from '../ledger/ledger.module';
 
 @Module({
-    imports: [LedgerModule],
-    providers: [PayoutsService],
-    exports: [PayoutsService],
+  imports: [LedgerModule],
+  providers: [PayoutsService],
+  exports: [PayoutsService],
 })
-export class PayoutsModule { }
+export class PayoutsModule {}

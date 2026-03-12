@@ -24,7 +24,7 @@ import { MarkPaidDto } from '../payouts/dto/mark-paid.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) { }
+  constructor(private readonly adminService: AdminService) {}
 
   @Get('users')
   @ApiOperation({ summary: 'Get all users (admin only)' })
@@ -41,7 +41,11 @@ export class AdminController {
   @Post('flag')
   @ApiOperation({ summary: 'Flag a listing for review (admin only)' })
   flagListing(@Body() flagDto: FlagListingDto, @Request() req) {
-    return this.adminService.flagListing(flagDto.listingId, flagDto, req.user.sub);
+    return this.adminService.flagListing(
+      flagDto.listingId,
+      flagDto,
+      req.user.sub,
+    );
   }
 
   @Patch('listings/:id/approve')
@@ -85,7 +89,9 @@ export class AdminController {
   // ---- Payout endpoints ----
 
   @Get('payouts')
-  @ApiOperation({ summary: 'List payouts, optionally filter by status (admin only)' })
+  @ApiOperation({
+    summary: 'List payouts, optionally filter by status (admin only)',
+  })
   listPayouts(
     @Query('status') status?: string,
     @Query('page') page?: number,
@@ -116,13 +122,20 @@ export class AdminController {
   }
 
   @Patch('payouts/:id/mark-paid')
-  @ApiOperation({ summary: 'Mark a payout as PAID and post ledger DEBIT (admin only)' })
+  @ApiOperation({
+    summary: 'Mark a payout as PAID and post ledger DEBIT (admin only)',
+  })
   markPayoutPaid(
     @Param('id') payoutId: string,
     @Body() dto: MarkPaidDto,
     @Request() req,
   ) {
-    return this.adminService.markPayoutPaid(payoutId, dto.method, dto.reference, req.user.sub);
+    return this.adminService.markPayoutPaid(
+      payoutId,
+      dto.method,
+      dto.reference,
+      req.user.sub,
+    );
   }
 
   // ---- Dispute endpoints ----

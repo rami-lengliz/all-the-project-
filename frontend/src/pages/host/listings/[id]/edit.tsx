@@ -65,44 +65,51 @@ export default function HostEditListingPage() {
     }
   }, [listingQuery.data]);
 
-  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+  const handleImageSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
 
-    // Validate total image count
-    const totalImages = existingImages.length - imagesToRemove.length + newImages.length + files.length;
-    if (totalImages > 5) {
-      setError('Maximum 5 images allowed');
-      return;
-    }
-
-    // Validate file types and sizes
-    const validFiles: ImagePreview[] = [];
-    for (const file of files) {
-      if (!file.type.match(/^image\/(jpeg|jpg|png)$/)) {
-        setError(`${file.name}: Only JPEG and PNG images are allowed`);
-        continue;
+      // Validate total image count
+      const totalImages =
+        existingImages.length -
+        imagesToRemove.length +
+        newImages.length +
+        files.length;
+      if (totalImages > 5) {
+        setError('Maximum 5 images allowed');
+        return;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        setError(`${file.name}: File size must be less than 5MB`);
-        continue;
+
+      // Validate file types and sizes
+      const validFiles: ImagePreview[] = [];
+      for (const file of files) {
+        if (!file.type.match(/^image\/(jpeg|jpg|png)$/)) {
+          setError(`${file.name}: Only JPEG and PNG images are allowed`);
+          continue;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          setError(`${file.name}: File size must be less than 5MB`);
+          continue;
+        }
+        validFiles.push({
+          file,
+          preview: URL.createObjectURL(file),
+        });
       }
-      validFiles.push({
-        file,
-        preview: URL.createObjectURL(file),
-      });
-    }
 
-    if (validFiles.length > 0) {
-      setNewImages((prev) => [...prev, ...validFiles]);
-      setError(null);
-    }
+      if (validFiles.length > 0) {
+        setNewImages((prev) => [...prev, ...validFiles]);
+        setError(null);
+      }
 
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }, [existingImages.length, imagesToRemove.length, newImages.length]);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    },
+    [existingImages.length, imagesToRemove.length, newImages.length],
+  );
 
   const handleRemoveNewImage = useCallback((index: number) => {
     setNewImages((prev) => {
@@ -123,7 +130,8 @@ export default function HostEditListingPage() {
     setError(null);
 
     // Validation
-    const remainingImages = existingImages.length - imagesToRemove.length + newImages.length;
+    const remainingImages =
+      existingImages.length - imagesToRemove.length + newImages.length;
     if (remainingImages === 0) {
       setError('At least one image is required');
       return;
@@ -217,7 +225,10 @@ export default function HostEditListingPage() {
     return (
       <HostLayout>
         <div className="mx-auto max-w-4xl px-6 py-12">
-          <InlineError message="Failed to load listing for editing." onRetry={() => void listingQuery.refetch()} />
+          <InlineError
+            message="Failed to load listing for editing."
+            onRetry={() => void listingQuery.refetch()}
+          />
         </div>
       </HostLayout>
     );
@@ -227,7 +238,11 @@ export default function HostEditListingPage() {
     return (
       <HostLayout>
         <div className="mx-auto max-w-4xl px-6 py-12">
-          <EmptyState icon="fa-solid fa-pen" title="Listing not found" message="This listing is unavailable." />
+          <EmptyState
+            icon="fa-solid fa-pen"
+            title="Listing not found"
+            message="This listing is unavailable."
+          />
         </div>
       </HostLayout>
     );
@@ -241,7 +256,10 @@ export default function HostEditListingPage() {
   return (
     <HostLayout>
       <div className="bg-gray-50 font-sans">
-        <section id="progress-indicator" className="bg-white border-b border-gray-200">
+        <section
+          id="progress-indicator"
+          className="bg-white border-b border-gray-200"
+        >
           <div className="max-w-4xl mx-auto px-6 py-4">
             <h1 className="text-2xl font-bold text-gray-900">Edit Listing</h1>
           </div>
@@ -250,10 +268,17 @@ export default function HostEditListingPage() {
         <main id="edit-listing-main" className="max-w-4xl mx-auto px-6 py-12">
           <form onSubmit={handleSubmit}>
             {/* Image Upload Section */}
-            <div id="step-photos" className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-6">
+            <div
+              id="step-photos"
+              className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-6"
+            >
               <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Photos</h1>
-                <p className="text-gray-600">Manage your listing photos (up to 5 total)</p>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                  Photos
+                </h1>
+                <p className="text-gray-600">
+                  Manage your listing photos (up to 5 total)
+                </p>
               </div>
 
               {/* Image Previews */}
@@ -264,7 +289,11 @@ export default function HostEditListingPage() {
                     .map((img, idx) => (
                       <div key={img.id} className="relative group">
                         <img
-                          src={img.url.startsWith('http') ? img.url : `http://localhost:3000${img.url}`}
+                          src={
+                            img.url.startsWith('http')
+                              ? img.url
+                              : `http://localhost:3000${img.url}`
+                          }
                           alt={`Existing ${idx + 1}`}
                           className="w-full h-48 object-cover rounded-lg border border-gray-200"
                         />
@@ -320,8 +349,12 @@ export default function HostEditListingPage() {
                     <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
                       <i className="fa-solid fa-cloud-arrow-up text-blue-500 text-3xl" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Add more photos</h3>
-                    <p className="text-sm text-gray-500 mb-4">or click to browse from your device</p>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Add more photos
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4">
+                      or click to browse from your device
+                    </p>
                     <button
                       type="button"
                       className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition"
@@ -329,7 +362,8 @@ export default function HostEditListingPage() {
                       Choose files
                     </button>
                     <p className="text-xs text-gray-400 mt-4">
-                      Supported formats: JPG, PNG (max 5MB each, {5 - allImages.length} more allowed)
+                      Supported formats: JPG, PNG (max 5MB each,{' '}
+                      {5 - allImages.length} more allowed)
                     </p>
                   </div>
                 </div>
@@ -337,32 +371,47 @@ export default function HostEditListingPage() {
             </div>
 
             {/* Details Section */}
-            <div id="step-details" className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-6">
+            <div
+              id="step-details"
+              className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-6"
+            >
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Listing Details</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Listing Details
+                </h2>
                 <p className="text-gray-600">Update your listing information</p>
               </div>
 
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Title *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Title *
+                  </label>
                   <input
                     type="text"
                     value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, title: e.target.value })
+                    }
                     placeholder="e.g., Modern 2-Bedroom Apartment in La Marsa"
                     maxLength={60}
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">{formData.title.length}/60 characters</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.title.length}/60 characters
+                  </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Description *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Description *
+                  </label>
                   <textarea
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
                     placeholder="Describe your item in detail..."
                     rows={6}
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -371,11 +420,15 @@ export default function HostEditListingPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Price per day (TND) *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Price per day (TND) *
+                  </label>
                   <input
                     type="number"
                     value={formData.pricePerDay}
-                    onChange={(e) => setFormData({ ...formData, pricePerDay: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, pricePerDay: e.target.value })
+                    }
                     placeholder="0.00"
                     min="0"
                     step="0.01"
@@ -385,11 +438,15 @@ export default function HostEditListingPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Address
+                  </label>
                   <input
                     type="text"
                     value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, address: e.target.value })
+                    }
                     placeholder="e.g., 123 Main Street, Kelibia, Tunisia"
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
@@ -397,22 +454,30 @@ export default function HostEditListingPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Latitude</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Latitude
+                    </label>
                     <input
                       type="number"
                       value={formData.latitude}
-                      onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, latitude: e.target.value })
+                      }
                       placeholder="36.8578"
                       step="any"
                       className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Longitude</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Longitude
+                    </label>
                     <input
                       type="number"
                       value={formData.longitude}
-                      onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, longitude: e.target.value })
+                      }
                       placeholder="11.0920"
                       step="any"
                       className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -421,10 +486,14 @@ export default function HostEditListingPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Rules (optional)</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Rules (optional)
+                  </label>
                   <textarea
                     value={formData.rules}
-                    onChange={(e) => setFormData({ ...formData, rules: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, rules: e.target.value })
+                    }
                     placeholder="e.g., No smoking, No pets, Check-in after 2 PM..."
                     rows={4}
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"

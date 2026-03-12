@@ -1,11 +1,15 @@
 import axios from 'axios';
 import { toast } from '@/components/ui/Toaster';
 import { readAuth, clearAuth } from '@/lib/auth/storage';
+import { API_URL } from '@/lib/api/env';
 
 // Re-export for backward compatibility (used by openapi.ts)
 export { AUTH_STORAGE_KEY } from '@/lib/auth/storage';
 
-const baseURL = 'http://localhost:3000/api';
+// Base URL comes from NEXT_PUBLIC_API_URL env var.
+// Local dev:  http://localhost:3000  → Next.js proxy rewrites /api/* → port 3001
+// Production: https://your-api.up.railway.app
+const baseURL = `${API_URL}/api`;
 
 export const api = axios.create({
   baseURL,
@@ -23,10 +27,25 @@ let refreshPromise: Promise<string> | null = null;
  * ------------------------------------------------------------------ */
 api.interceptors.request.use((config) => {
   if (typeof window === 'undefined') return config;
+
+  const url = config.url ?? '';
+  // Do not attach tokens to auth endpoints to avoid expired token contamination
+  if (
+    url.includes('/auth/login') ||
+    url.includes('/auth/register') ||
+    url.includes('/auth/refresh')
+  ) {
+    return config;
+  }
+
   const { accessToken } = readAuth();
   if (accessToken) {
     config.headers = config.headers ?? {};
-    config.headers.Authorization = `Bearer ${accessToken}`;
+    if (typeof config.headers.set === 'function') {
+      config.headers.set('Authorization', `Bearer ${accessToken}`);
+    } else {
+      config.headers.Authorization = `Bearer ${accessToken}`;
+    }
   }
   return config;
 });
@@ -83,7 +102,11 @@ api.interceptors.response.use(
       const newToken = await refreshPromise;
 
       // Retry with the fresh token
-      originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      if (originalRequest.headers && typeof originalRequest.headers.set === 'function') {
+        originalRequest.headers.set('Authorization', `Bearer ${newToken}`);
+      } else {
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      }
       return api(originalRequest);
     } catch {
       // Refresh failed — clear everything and notify AuthProvider

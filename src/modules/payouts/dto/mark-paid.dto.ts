@@ -1,9 +1,9 @@
 import { IsString } from 'class-validator';
 
 export class MarkPaidDto {
-    @IsString()
-    method: string;
+  @IsString()
+  method: string;
 
-    @IsString()
-    reference: string;
+  @IsString()
+  reference: string;
 }

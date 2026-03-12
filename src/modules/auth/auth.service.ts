@@ -21,7 +21,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {}
+  ) { }
 
   async register(registerDto: RegisterDto) {
     try {
@@ -37,9 +37,20 @@ export class AuthService {
       this.logger.debug('Password hashed successfully');
 
       // Exclude password field, only send passwordHash
-      const { password, ...userDataWithoutPassword } = registerDto;
+      // Also exclude firstName and lastName for the db entity itself, combining them into `name` if missing.
+      const { password: _password, firstName, lastName, ...userDataWithoutPassword } = registerDto;
+
+      let finalName = userDataWithoutPassword.name;
+      if (!finalName) {
+        finalName = [firstName, lastName].filter(Boolean).join(' ').trim();
+      }
+      if (!finalName) {
+        finalName = 'User';
+      }
+
       const user = await this.usersService.create({
         ...userDataWithoutPassword,
+        name: finalName,
         passwordHash: hashedPassword,
       });
       this.logger.log(`User created: ${user.id}`);
@@ -57,19 +68,22 @@ export class AuthService {
         user: result,
         ...tokens,
       };
-    } catch (error) {
-      this.logger.error(`Registration error: ${error.message}`);
-      throw error;
+    } catch (_error) {
+      this.logger.error(`Registration error: ${_error.message}`);
+      throw _error;
     }
   }
 
   async login(loginDto: LoginDto) {
     try {
-      this.logger.log(`Login attempt for: ${loginDto.emailOrPhone}`);
+      const identifier = loginDto.emailOrPhone || loginDto.email;
+      if (!identifier) {
+        throw new BadRequestException('emailOrPhone or email must be provided');
+      }
 
-      const user = await this.usersService.findByEmailOrPhone(
-        loginDto.emailOrPhone,
-      );
+      this.logger.log(`Login attempt for: ${identifier}`);
+
+      const user = await this.usersService.findByEmailOrPhone(identifier);
 
       if (!user) {
         this.logger.warn(
@@ -104,10 +118,10 @@ export class AuthService {
         user: result,
         ...tokens,
       };
-    } catch (error) {
-      if (error instanceof UnauthorizedException) throw error;
-      this.logger.error(`Login error: ${error.message}`);
-      throw error;
+    } catch (_error) {
+      if (_error instanceof UnauthorizedException) throw _error;
+      this.logger.error(`Login error: ${_error.message}`);
+      throw _error;
     }
   }
 
@@ -135,7 +149,7 @@ export class AuthService {
       );
 
       return { accessToken };
-    } catch (error) {
+    } catch (_error) {
       throw new UnauthorizedException('Invalid refresh token');
     }
   }

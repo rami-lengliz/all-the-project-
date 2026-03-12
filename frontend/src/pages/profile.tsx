@@ -36,9 +36,13 @@ export default function ProfilePage() {
         if (typeof errorBody === 'string') {
           message = errorBody;
         } else if (errorBody.message) {
-          message = Array.isArray(errorBody.message) ? errorBody.message.join(', ') : errorBody.message;
+          message = Array.isArray(errorBody.message)
+            ? errorBody.message.join(', ')
+            : errorBody.message;
         } else if (errorBody.error) {
-          message = Array.isArray(errorBody.error) ? errorBody.error.join(', ') : errorBody.error;
+          message = Array.isArray(errorBody.error)
+            ? errorBody.error.join(', ')
+            : errorBody.error;
         }
       } else if (error?.message && error.message !== 'Bad Request') {
         message = error.message;
@@ -50,7 +54,10 @@ export default function ProfilePage() {
   const profileData = query.data as any;
   const isHost = profileData?.isHost || user?.isHost;
   const isVerified = Boolean(
-    profileData?.verifiedEmail || profileData?.verifiedPhone || user?.verifiedEmail || user?.verifiedPhone
+    profileData?.verifiedEmail ||
+    profileData?.verifiedPhone ||
+    user?.verifiedEmail ||
+    user?.verifiedPhone,
   );
 
   const handleVerifyAccount = async () => {
@@ -58,9 +65,16 @@ export default function ProfilePage() {
       await verifyUserMutation.mutateAsync();
       await query.refetch();
       await refreshUser();
-      toast({ title: 'Account verified!', message: 'Your email and phone have been verified.', variant: 'success' });
+      toast({
+        title: 'Account verified!',
+        message: 'Your email and phone have been verified.',
+        variant: 'success',
+      });
     } catch (error: any) {
-      const message = error?.response?.data?.message || error?.message || 'Failed to verify account. Please try again.';
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to verify account. Please try again.';
       toast({ title: 'Error', message, variant: 'error' });
     }
   };
@@ -68,17 +82,31 @@ export default function ProfilePage() {
   // Calculate stats
   const bookings = (bookingsQuery.data as any) || [];
   const totalRentals = bookings.length;
-  const completedRentals = bookings.filter((b: any) => b.status === 'completed' || b.status === 'confirmed').length;
-  const activeRentals = bookings.filter((b: any) => b.status === 'confirmed' || b.status === 'pending').length;
+  const completedRentals = bookings.filter(
+    (b: any) => b.status === 'completed' || b.status === 'confirmed',
+  ).length;
+  const activeRentals = bookings.filter(
+    (b: any) => b.status === 'confirmed' || b.status === 'pending',
+  ).length;
 
   const reviews = (reviewsQuery.data as any)?.data || [];
   const averageRatingRaw = profileData?.ratingAvg ?? user?.ratingAvg ?? 4.8;
-  const averageRating = typeof averageRatingRaw === 'number' ? averageRatingRaw : parseFloat(String(averageRatingRaw)) || 4.8;
-  const reviewsCountRaw = reviews.length || profileData?.ratingCount || user?.ratingCount || 0;
-  const reviewsCount = typeof reviewsCountRaw === 'number' ? reviewsCountRaw : parseInt(String(reviewsCountRaw), 10) || 0;
+  const averageRating =
+    typeof averageRatingRaw === 'number'
+      ? averageRatingRaw
+      : parseFloat(String(averageRatingRaw)) || 4.8;
+  const reviewsCountRaw =
+    reviews.length || profileData?.ratingCount || user?.ratingCount || 0;
+  const reviewsCount =
+    typeof reviewsCountRaw === 'number'
+      ? reviewsCountRaw
+      : parseInt(String(reviewsCountRaw), 10) || 0;
 
   const memberSince = profileData?.createdAt
-    ? new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    ? new Date(profileData.createdAt).toLocaleDateString('en-US', {
+        month: 'short',
+        year: 'numeric',
+      })
     : 'Jan 2024';
 
   if (query.isLoading) {
@@ -95,7 +123,10 @@ export default function ProfilePage() {
     return (
       <Layout>
         <div className="mx-auto max-w-7xl px-6 py-8">
-          <InlineError message="Failed to load profile." onRetry={() => void query.refetch()} />
+          <InlineError
+            message="Failed to load profile."
+            onRetry={() => void query.refetch()}
+          />
         </div>
       </Layout>
     );
@@ -105,7 +136,11 @@ export default function ProfilePage() {
     return (
       <Layout>
         <div className="mx-auto max-w-7xl px-6 py-8">
-          <EmptyState icon="fa-solid fa-user" title="Not signed in" message="Please log in to view your profile." />
+          <EmptyState
+            icon="fa-solid fa-user"
+            title="Not signed in"
+            message="Please log in to view your profile."
+          />
         </div>
       </Layout>
     );
@@ -113,19 +148,32 @@ export default function ProfilePage() {
 
   const displayUser = profileData || user;
   const displayName = displayUser?.name || 'User';
-  const displayLocation = displayUser?.address?.split(',')?.slice(-2)?.join(',')?.trim() || 'Tunis, Tunisia';
-  const displayAvatar = displayUser?.avatarUrl || 'https://via.placeholder.com/128';
+  const displayLocation =
+    displayUser?.address?.split(',')?.slice(-2)?.join(',')?.trim() ||
+    'Tunis, Tunisia';
+  const displayAvatar = displayUser?.avatarUrl || '/placeholder.png';
 
   return (
     <Layout>
       {/* Profile Hero Section */}
-      <section id="profile-hero" className="border-b border-gray-200 bg-white py-8">
+      <section
+        id="profile-hero"
+        className="border-b border-gray-200 bg-white py-8"
+      >
         <div className="mx-auto max-w-7xl px-6">
           <div className="flex items-start justify-between">
             <div className="flex items-start space-x-6">
               <div className="relative">
                 <div className="h-32 w-32 overflow-hidden rounded-full border-4 border-white shadow-lg">
-                  <img src={displayAvatar} alt="Profile" className="h-full w-full object-cover" />
+                  <img
+                    src={displayAvatar}
+                    alt="Profile"
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = '/placeholder.png';
+                      e.currentTarget.onerror = null;
+                    }}
+                  />
                 </div>
                 <button className="absolute bottom-0 right-0 flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 shadow-lg transition hover:bg-blue-600">
                   <i className="fa-solid fa-camera text-sm text-white"></i>
@@ -133,12 +181,18 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <h1 className="mb-2 text-3xl font-bold text-gray-900">{displayName}</h1>
+                <h1 className="mb-2 text-3xl font-bold text-gray-900">
+                  {displayName}
+                </h1>
                 <div className="mb-3 flex items-center space-x-4">
                   <div className="flex items-center">
                     <i className="fa-solid fa-star mr-1 text-yellow-400"></i>
-                    <span className="font-semibold text-gray-900">{averageRating.toFixed(1)}</span>
-                    <span className="ml-1 text-gray-500">({reviewsCount} reviews)</span>
+                    <span className="font-semibold text-gray-900">
+                      {averageRating.toFixed(1)}
+                    </span>
+                    <span className="ml-1 text-gray-500">
+                      ({reviewsCount} reviews)
+                    </span>
                   </div>
                   <span className="text-gray-400">•</span>
                   <div className="flex items-center text-gray-600">
@@ -152,7 +206,9 @@ export default function ProfilePage() {
                     Currently a {isHost ? 'Host' : 'Renter'}
                   </div>
                   <span className="text-gray-400">•</span>
-                  <span className="text-sm text-gray-600">Member since {memberSince}</span>
+                  <span className="text-sm text-gray-600">
+                    Member since {memberSince}
+                  </span>
                 </div>
                 <p className="max-w-2xl text-gray-600">
                   {displayUser?.description ||
@@ -167,7 +223,8 @@ export default function ProfilePage() {
                   <div className="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 p-4">
                     <p className="mb-3 text-sm text-yellow-800">
                       <i className="fa-solid fa-exclamation-triangle mr-2"></i>
-                      Your account needs to be verified before you can become a host.
+                      Your account needs to be verified before you can become a
+                      host.
                     </p>
                     <button
                       type="button"
@@ -176,7 +233,9 @@ export default function ProfilePage() {
                       className="flex items-center rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-yellow-600 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <i className="fa-solid fa-check-circle mr-2"></i>
-                      {verifyUserMutation.isPending ? 'Verifying...' : 'Verify Account'}
+                      {verifyUserMutation.isPending
+                        ? 'Verifying...'
+                        : 'Verify Account'}
                     </button>
                   </div>
                 )}
@@ -189,7 +248,9 @@ export default function ProfilePage() {
                     className="flex items-center rounded-xl bg-blue-500 px-6 py-3 font-medium text-white shadow-md transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <i className="fa-solid fa-home mr-2"></i>
-                    {becomeHostMutation.isPending ? 'Processing...' : 'Become a host'}
+                    {becomeHostMutation.isPending
+                      ? 'Processing...'
+                      : 'Become a host'}
                   </button>
                 )}
 
@@ -198,7 +259,8 @@ export default function ProfilePage() {
                     <InlineError
                       message={
                         (becomeHostMutation.error as any)?.body?.message ||
-                        (becomeHostMutation.error as any)?.response?.data?.message ||
+                        (becomeHostMutation.error as any)?.response?.data
+                          ?.message ||
                         'Failed to become a host. Please try again.'
                       }
                       onRetry={handleBecomeHost}
@@ -221,7 +283,9 @@ export default function ProfilePage() {
                   <i className="fa-solid fa-calendar-check text-xl text-blue-500"></i>
                 </div>
               </div>
-              <h3 className="mb-1 text-2xl font-bold text-gray-900">{totalRentals}</h3>
+              <h3 className="mb-1 text-2xl font-bold text-gray-900">
+                {totalRentals}
+              </h3>
               <p className="text-sm text-gray-600">Total Rentals</p>
             </div>
 
@@ -231,7 +295,9 @@ export default function ProfilePage() {
                   <i className="fa-solid fa-star text-xl text-green-500"></i>
                 </div>
               </div>
-              <h3 className="mb-1 text-2xl font-bold text-gray-900">{averageRating.toFixed(1)}</h3>
+              <h3 className="mb-1 text-2xl font-bold text-gray-900">
+                {averageRating.toFixed(1)}
+              </h3>
               <p className="text-sm text-gray-600">Average Rating</p>
             </div>
 
@@ -241,7 +307,9 @@ export default function ProfilePage() {
                   <i className="fa-solid fa-message text-xl text-purple-500"></i>
                 </div>
               </div>
-              <h3 className="mb-1 text-2xl font-bold text-gray-900">{reviewsCount}</h3>
+              <h3 className="mb-1 text-2xl font-bold text-gray-900">
+                {reviewsCount}
+              </h3>
               <p className="text-sm text-gray-600">Reviews Received</p>
             </div>
 
@@ -272,13 +340,19 @@ export default function ProfilePage() {
                 </div>
                 <i className="fa-solid fa-arrow-right text-xl text-blue-500 transition group-hover:translate-x-1"></i>
               </div>
-              <h3 className="mb-2 text-2xl font-bold text-gray-900">My Rentals</h3>
-              <p className="mb-4 text-gray-600">View and manage your current and past bookings</p>
+              <h3 className="mb-2 text-2xl font-bold text-gray-900">
+                My Rentals
+              </h3>
+              <p className="mb-4 text-gray-600">
+                View and manage your current and past bookings
+              </p>
               <div className="flex items-center space-x-2">
                 <span className="rounded-full bg-blue-500 px-3 py-1 text-xs font-semibold text-white">
                   {activeRentals} Active
                 </span>
-                <span className="text-sm text-gray-600">{completedRentals} Completed</span>
+                <span className="text-sm text-gray-600">
+                  {completedRentals} Completed
+                </span>
               </div>
             </Link>
 
@@ -293,8 +367,12 @@ export default function ProfilePage() {
                   </div>
                   <i className="fa-solid fa-arrow-right text-xl text-green-500 transition group-hover:translate-x-1"></i>
                 </div>
-                <h3 className="mb-2 text-2xl font-bold text-gray-900">My Listings</h3>
-                <p className="mb-4 text-gray-600">Manage items you&apos;re offering for rent</p>
+                <h3 className="mb-2 text-2xl font-bold text-gray-900">
+                  My Listings
+                </h3>
+                <p className="mb-4 text-gray-600">
+                  Manage items you&apos;re offering for rent
+                </p>
                 <div className="flex items-center space-x-2">
                   <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-semibold text-gray-600">
                     View listings
@@ -309,8 +387,12 @@ export default function ProfilePage() {
                   </div>
                   <i className="fa-solid fa-arrow-right text-xl text-green-500 transition group-hover:translate-x-1"></i>
                 </div>
-                <h3 className="mb-2 text-2xl font-bold text-gray-900">My Listings</h3>
-                <p className="mb-4 text-gray-600">Manage items you&apos;re offering for rent</p>
+                <h3 className="mb-2 text-2xl font-bold text-gray-900">
+                  My Listings
+                </h3>
+                <p className="mb-4 text-gray-600">
+                  Manage items you&apos;re offering for rent
+                </p>
                 <div className="flex items-center space-x-2">
                   <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-semibold text-gray-600">
                     No listings yet
@@ -326,10 +408,16 @@ export default function ProfilePage() {
                 </div>
                 <i className="fa-solid fa-arrow-right text-xl text-purple-500 transition group-hover:translate-x-1"></i>
               </div>
-              <h3 className="mb-2 text-2xl font-bold text-gray-900">Settings</h3>
-              <p className="mb-4 text-gray-600">Update your profile and preferences</p>
+              <h3 className="mb-2 text-2xl font-bold text-gray-900">
+                Settings
+              </h3>
+              <p className="mb-4 text-gray-600">
+                Update your profile and preferences
+              </p>
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Account · Privacy · Notifications</span>
+                <span className="text-sm text-gray-600">
+                  Account · Privacy · Notifications
+                </span>
               </div>
             </div>
           </div>
@@ -342,8 +430,12 @@ export default function ProfilePage() {
           <div className="mx-auto max-w-7xl px-6">
             <div className="mb-8 flex items-center justify-between">
               <div>
-                <h2 className="mb-2 text-3xl font-bold text-gray-900">Reviews</h2>
-                <p className="text-gray-600">What others say about {displayName}</p>
+                <h2 className="mb-2 text-3xl font-bold text-gray-900">
+                  Reviews
+                </h2>
+                <p className="text-gray-600">
+                  What others say about {displayName}
+                </p>
               </div>
               <div className="flex items-center space-x-2">
                 <button className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 transition hover:bg-white">
@@ -357,31 +449,50 @@ export default function ProfilePage() {
 
             <div className="grid grid-cols-3 gap-6">
               {reviews.slice(0, 3).map((review: any) => (
-                <div key={review.id} className="rounded-xl border border-gray-200 bg-white p-6">
+                <div
+                  key={review.id}
+                  className="rounded-xl border border-gray-200 bg-white p-6"
+                >
                   <div className="mb-4 flex items-start justify-between">
                     <div className="flex items-center space-x-3">
                       <img
-                        src={review.author?.avatarUrl || 'https://via.placeholder.com/48'}
+                        src={review.author?.avatarUrl || '/placeholder.png'}
                         alt={review.author?.name || 'Reviewer'}
                         className="h-12 w-12 rounded-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.src = '/placeholder.png';
+                          e.currentTarget.onerror = null;
+                        }}
                       />
                       <div>
-                        <h4 className="font-semibold text-gray-900">{review.author?.name || 'Anonymous'}</h4>
+                        <h4 className="font-semibold text-gray-900">
+                          {review.author?.name || 'Anonymous'}
+                        </h4>
                         <p className="text-sm text-gray-500">
-                          {new Date(review.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                          {new Date(review.createdAt).toLocaleDateString(
+                            'en-US',
+                            { month: 'long', year: 'numeric' },
+                          )}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center">
                       <i className="fa-solid fa-star text-sm text-yellow-400"></i>
-                      <span className="ml-1 font-semibold text-gray-900">{review.rating}</span>
+                      <span className="ml-1 font-semibold text-gray-900">
+                        {review.rating}
+                      </span>
                     </div>
                   </div>
-                  <p className="leading-relaxed text-gray-700">&quot;{review.comment}&quot;</p>
+                  <p className="leading-relaxed text-gray-700">
+                    &quot;{review.comment}&quot;
+                  </p>
                   {review.booking?.listing && (
                     <div className="mt-4 border-t border-gray-100 pt-4">
                       <span className="text-sm text-gray-500">
-                        Rented: {review.booking.listing.title || review.booking.listing.category?.name || 'Item'}
+                        Rented:{' '}
+                        {review.booking.listing.title ||
+                          review.booking.listing.category?.name ||
+                          'Item'}
                       </span>
                     </div>
                   )}
@@ -407,17 +518,22 @@ export default function ProfilePage() {
       {/* Verification & Trust Section */}
       <section id="verification-section" className="bg-white py-12">
         <div className="mx-auto max-w-7xl px-6">
-          <h2 className="mb-8 text-3xl font-bold text-gray-900">Verification & Trust</h2>
+          <h2 className="mb-8 text-3xl font-bold text-gray-900">
+            Verification & Trust
+          </h2>
 
           <div className="grid grid-cols-2 gap-8">
             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-8">
-              <h3 className="mb-6 text-xl font-bold text-gray-900">Verified Information</h3>
+              <h3 className="mb-6 text-xl font-bold text-gray-900">
+                Verified Information
+              </h3>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div
-                      className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full ${isVerified ? 'bg-green-100' : 'bg-gray-200'
-                        }`}
+                      className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full ${
+                        isVerified ? 'bg-green-100' : 'bg-gray-200'
+                      }`}
                     >
                       <i
                         className={`fa-solid ${isVerified ? 'fa-check text-green-500' : 'fa-times text-gray-400'}`}
@@ -426,7 +542,9 @@ export default function ProfilePage() {
                     <span className="text-gray-700">Email address</span>
                   </div>
                   {isVerified ? (
-                    <span className="text-sm font-medium text-green-600">Verified</span>
+                    <span className="text-sm font-medium text-green-600">
+                      Verified
+                    </span>
                   ) : (
                     <button
                       onClick={handleVerifyAccount}
@@ -441,8 +559,9 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div
-                      className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full ${isVerified ? 'bg-green-100' : 'bg-gray-200'
-                        }`}
+                      className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full ${
+                        isVerified ? 'bg-green-100' : 'bg-gray-200'
+                      }`}
                     >
                       <i
                         className={`fa-solid ${isVerified ? 'fa-check text-green-500' : 'fa-times text-gray-400'}`}
@@ -451,7 +570,9 @@ export default function ProfilePage() {
                     <span className="text-gray-700">Phone number</span>
                   </div>
                   {isVerified ? (
-                    <span className="text-sm font-medium text-green-600">Verified</span>
+                    <span className="text-sm font-medium text-green-600">
+                      Verified
+                    </span>
                   ) : (
                     <button
                       onClick={handleVerifyAccount}
@@ -470,7 +591,9 @@ export default function ProfilePage() {
                     </div>
                     <span className="text-gray-700">Identity document</span>
                   </div>
-                  <span className="text-sm font-medium text-gray-500">Not verified</span>
+                  <span className="text-sm font-medium text-gray-500">
+                    Not verified
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -480,21 +603,29 @@ export default function ProfilePage() {
                     </div>
                     <span className="text-gray-700">Payment method</span>
                   </div>
-                  <button className="text-sm font-medium text-blue-500 transition hover:text-blue-600">Add</button>
+                  <button className="text-sm font-medium text-blue-500 transition hover:text-blue-600">
+                    Add
+                  </button>
                 </div>
               </div>
             </div>
 
             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-8">
-              <h3 className="mb-6 text-xl font-bold text-gray-900">Trust Badges</h3>
+              <h3 className="mb-6 text-xl font-bold text-gray-900">
+                Trust Badges
+              </h3>
               <div className="space-y-4">
                 <div className="flex items-start">
                   <div className="mr-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100">
                     <i className="fa-solid fa-shield-halved text-blue-500"></i>
                   </div>
                   <div>
-                    <h4 className="mb-1 font-semibold text-gray-900">Trusted Member</h4>
-                    <p className="text-sm text-gray-600">Active member with verified identity and positive reviews</p>
+                    <h4 className="mb-1 font-semibold text-gray-900">
+                      Trusted Member
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      Active member with verified identity and positive reviews
+                    </p>
                   </div>
                 </div>
 
@@ -504,8 +635,12 @@ export default function ProfilePage() {
                       <i className="fa-solid fa-award text-purple-500"></i>
                     </div>
                     <div>
-                      <h4 className="mb-1 font-semibold text-gray-900">Top Renter</h4>
-                      <p className="text-sm text-gray-600">Consistent 5-star ratings and responsible rental history</p>
+                      <h4 className="mb-1 font-semibold text-gray-900">
+                        Top Renter
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        Consistent 5-star ratings and responsible rental history
+                      </p>
                     </div>
                   </div>
                 )}
@@ -515,8 +650,12 @@ export default function ProfilePage() {
                     <i className="fa-solid fa-clock text-green-500"></i>
                   </div>
                   <div>
-                    <h4 className="mb-1 font-semibold text-gray-900">Quick Responder</h4>
-                    <p className="text-sm text-gray-600">Usually responds within an hour</p>
+                    <h4 className="mb-1 font-semibold text-gray-900">
+                      Quick Responder
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      Usually responds within an hour
+                    </p>
                   </div>
                 </div>
               </div>

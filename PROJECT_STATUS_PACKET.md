@@ -8,9 +8,9 @@
 
 - **Product**: RentEverything — an all-in-one, location-aware rental marketplace (stays, vehicles, sports facilities, beach gear, etc.) targeting Tunisia (Kelibia, Tunis, Nabeul).
 - **Stack**: NestJS + PostgreSQL/PostGIS backend, Next.js 16 frontend, FastAPI ML microservice, Socket.IO realtime chat.
-- **Production-ready**: Auth (JWT access+refresh), bookings lifecycle with conflict prevention, PostGIS geo search, AI search (OpenAI + fallback), payments with commission, admin moderation, chat.
+- **Production-ready**: Auth (JWT access+refresh), bookings lifecycle with listing-mutex conflict prevention, PostGIS geo search, AI search (OpenAI + fallback), payments with commissions, Wallet Ledger (audit trails), Host Payouts (FIFO allocation), Refund Guardrails, admin moderation, chat.
 - **Demo-only**: Payments are simulated (no real payment gateway), email/phone verification is stubbed (`verify` endpoint auto-approves), ML service uses rule-based heuristics (no real ML model), Cloudinary not wired (local uploads only).
-- **Current blockers**: No real payment provider integration. Verification flow is a placeholder. No CI/CD pipeline. Not deployed to any hosting environment.
+- **Current blockers**: No real payment provider integration. Verification flow is a placeholder. No CI/CD pipeline.
 
 ---
 
@@ -126,25 +126,23 @@ docker compose up -d          # Starts postgres, backend, ml-service, adminer
 | **reviews** | `src/modules/reviews/` | Post-booking reviews (1 per booking). |
 | **admin** | `src/modules/admin/` | Moderation (hide listings/users), audit logs. |
 | **ai** | `src/modules/ai/` | AI Search (OpenAI), Listing Assistant, Price suggestion. |
+| **ledger** | `src/modules/ledger/` | Wallet Ledger system (idempotent captures/refunds, audit trails). |
+| **payouts** | `src/modules/payouts/` | Host payout management, FIFO credit allocation, dispute freezing. |
 | **ml** | `src/modules/ml/` | Proxy to FastAPI ML microservice (category + price suggestions). |
 | **chat** | `src/chat/` | Socket.IO WebSocket gateway for realtime messaging. |
 
 ### DB Schema Overview (Prisma — 11 models)
 
 ```
-User ──┬── Listing ──┬── Booking ──── Review
-       │             │             └── PaymentIntent
-       │             ├── SlotConfiguration
-       │             └── Conversation ── Message
-       ├── AdminLog
-       └── AiSearchLog
 Category ── Listing
+LedgerEntry ── PayoutItem ── Payout
 ```
 
 **Key relationships:**
-- `User` → `Listing` (host), `Booking` (renter/host), `Review` (author/target), `PaymentIntent`, `Conversation`, `Message`
+- `User` → `Listing` (host), `Booking` (renter/host), `Review` (author/target), `PaymentIntent`, `Conversation`, `Message`, `Payout`
 - `Listing` → `Category`, `Booking`, `Review`, `Conversation`, `SlotConfiguration`
-- `Booking` → one `Review`, one `PaymentIntent`, many `Conversation`
+- `Booking` → one `Review`, one `PaymentIntent`, many `Conversation`, many `LedgerEntry`
+- `LedgerEntry` → `Booking`, `PaymentIntent`, `User` (actor), `PayoutItem`
 - `Conversation` → renter, host, optional booking/listing
 
 ### Frontend Routing (Next.js Pages Router)
@@ -194,15 +192,19 @@ Category ── Listing
 | **Listings search (geo)** | ✅ | PostGIS `ST_DWithin` radius filter | `src/modules/listings/listings.service.ts` (L172–374) |
 | **Listings search (sort distance)** | ✅ | `ST_Distance` + `ORDER BY distance ASC` when `sortBy=distance` | `src/modules/listings/listings.service.ts` (L240–248) |
 | **Listings search (fallback)** | ✅ | If raw SQL fails, falls back to Prisma `findMany` without geo | `src/modules/listings/listings.service.ts` (L302–373) |
-| **Categories nearby** | ✅ | `GET /api/categories/nearby?lat=&lng=&radiusKm=` with PostGIS | `src/modules/categories/categories.service.ts` |
+| **Categories nearby** | ✅ | `GET /api/categories/nearby` with PostGIS. Verified with 11 E2E tests + proof artifacts. | `src/modules/categories/categories.service.ts` |
+| **Wallet Ledger v1** | ✅ | Atomic audit trail for all captures/refunds. Idempotent `postCapture/postRefund`. | `src/modules/ledger/` |
+| **Payouts v1** | ✅ | Admin-only FIFO payout allocation, mark-paid flow, host balance tracking. | `src/modules/payouts/` |
+| **Dispute Freeze v1** | ✅ | `disputeStatus` (NONE/OPEN/RESOLVED). OPEN disputes block ledger entries from payouts. | `src/modules/payouts/payouts.service.ts` |
+| **Refund Guardrail v1** | ✅ | Hard block on refunds if a `HOST_PAYOUT` ledger entry already exists. | `src/modules/payments/payments.service.ts` |
 | **Listing create/edit + images** | ✅ | Multer disk storage, 5MB/file, 5 files max, JPEG/PNG only | `src/modules/listings/listings.controller.ts` |
-| **Availability rules** | ✅ | DAILY: date ranges. SLOT: `SlotConfiguration` with operating hours. Blocking statuses prevent conflicts. | `src/modules/listings/listings.service.ts`, `src/common/utils/availability.service.ts` |
-| **Booking lifecycle + locking** | ✅ | pending → confirmed → paid → completed. Conflict prevention on confirmed/paid bookings. | `src/modules/bookings/bookings.service.ts` |
+| **Availability rules** | ✅ | DAILY: date ranges. SLOT: `SlotConfiguration` with operating hours. Blocking statuses (confirmed, paid, completed) prevent conflicts. | `src/modules/listings/listings.service.ts`, `src/common/utils/availability.service.ts` |
+| **Booking lifecycle + locking** | ✅ | pending → confirmed → paid → completed. Concurrency-safe listing mutex lock on `confirm`. Verified with parallel E2E races. | `src/modules/bookings/bookings.service.ts` |
 | **Booking reject** | ✅ | Host rejects pending → status `rejected`, slot freed | `src/modules/bookings/bookings.service.ts` (L300–337) |
-| **Payments + commission** | ⚠️ | Simulated (no real gateway). Commission = `COMMISSION_PERCENTAGE` × totalPrice. PaymentIntent lifecycle works. | `src/modules/payments/`, `src/modules/bookings/bookings.service.ts` |
-| **Refunds** | ⚠️ | `POST /api/payments/booking/:id/refund` exists but is simulated | `src/modules/payments/payments.controller.ts` |
+| **Payments + commission** | ⚠️ | Simulated gateway. Calculations use `COMMISSION_PERCENTAGE`. Ledger audit integrated. | `src/modules/payments/`, `src/modules/ledger/` |
+| **Refunds** | ⚠️ | Full ledger reversal, but payment gateway part is simulated. | `src/modules/payments/payments.controller.ts` |
 | **Reviews** | ✅ | One review per booking (unique constraint). Post-booking only. | `src/modules/reviews/` |
-| **Admin pages** | ✅ | Dashboard, listing moderation, user management, audit logs | `frontend/src/pages/admin/` |
+| **Admin pages** | ✅ | Dashboard, listing moderation, user management, audit logs, ledger summaries, payouts. | `frontend/src/pages/admin/` |
 | **Host pages** | ✅ | Dashboard, create listing, my listings, bookings | `frontend/src/pages/host/` |
 | **Client pages** | ✅ | Dashboard, bookings, reviews | `frontend/src/pages/client/` |
 | **Chat (realtime)** | ✅ | Socket.IO on `/chat` namespace. JWT auth. Send/read/typing/join. | `src/chat/` |
@@ -422,13 +424,7 @@ If the NestJS exception response is an object, `message` is extracted from `.mes
 ## 8) Known Issues / Bugs
 
 ### Bug 1: `debug_findAll.log` file written on every listings search
-
-- **Symptom**: A `debug_findAll.log` file gets created/appended at the project root on every call to `GET /api/listings`.
-- **Steps to reproduce**: Call `GET /api/listings` (even without filters). Check project root for `debug_findAll.log`.
-- **Expected**: No debug file in production code.
-- **Actual**: `fs.appendFileSync('debug_findAll.log', ...)` is left in the code.
-- **Likely cause**: Debug logging left behind during development.
-- **File**: `src/modules/listings/listings.service.ts` (line ~180–183)
+- **Status**: ✅ FIXED. Disk I/O successfully eliminated from the search route. No rogue `.log` outputs during standard requests.
 
 ### Bug 2: Email/Phone verification is a no-op
 
@@ -440,22 +436,10 @@ If the NestJS exception response is an object, `message` is extracted from `.mes
 - **File**: `src/modules/auth/auth.service.ts` (L137–159)
 
 ### Bug 3: 401 interceptor does not attempt token refresh before redirect
-
-- **Symptom**: On 401 response, frontend immediately clears auth and redirects to `/auth/login` instead of trying the refresh token first.
-- **Steps to reproduce**: Wait for access token to expire (15m), then make any API call.
-- **Expected**: Axios interceptor should attempt `POST /auth/refresh` before clearing auth.
-- **Actual**: Immediately clears localStorage `re_auth_v1` and redirects to `/auth/login`. The `refreshAccessToken` function exists in `AuthProvider` but is not used by the interceptor.
-- **Likely cause**: The 401 interceptor in `http.ts` was written separately from the `AuthProvider` refresh logic.
-- **Files**: `frontend/src/lib/api/http.ts` (L37–61), `frontend/src/lib/auth/AuthProvider.tsx` (L133–153)
+- **Status**: ✅ FIXED. The Axios interceptor now successfully traps 401s, attempts a background `POST /api/auth/refresh`, and transparently retries the failed requests before defaulting to logout if expired.
 
 ### Bug 4: Listing create requires images but error happens after DB insert
-
-- **Symptom**: A listing record is created in the DB but then an error is thrown if no images are provided.
-- **Steps to reproduce**: Call `POST /api/listings` with valid fields but no image files.
-- **Expected**: Validation should reject before DB insert.
-- **Actual**: Listing is inserted, images array is empty, then `BadRequestException('At least one image is required')` is thrown at line ~140–142. Orphan listing remains.
-- **Likely cause**: Image validation check is placed after the `INSERT` query.
-- **File**: `src/modules/listings/listings.service.ts` (L73–142)
+- **Status**: ✅ FIXED. Image payload validation was moved up line 0 in `listings.service.ts`, immediately blocking the Postgres `INSERT INTO` and blocking orphan listings. Covered by `test/listings-create.e2e-spec.ts`.
 
 ### Bug 5: Chat gateway CORS set to wildcard
 
@@ -477,20 +461,27 @@ If the NestJS exception response is an object, `message` is extracted from `.mes
 2. **2026-02-15**: Added SlotConfiguration model and Chat models (Conversation + Message). Added `bookingType` enum (DAILY/SLOT).
 3. **2026-02-21**: Added `AiSearchLog` model for AI search analytics.
 4. **2026-02-22**: Added `rejected` status to `BookingStatus` enum.
-
+5. **2026-02-24**: **Wallet Ledger v1**. Added LedgerEntry model, postCapture/postRefund logic, and admin read-only ledger endpoints.
+6. **2026-02-24**: **Payouts v1 & Dispute Freeze**. Added Payout/PayoutItem models, disputeStatus to Booking. Implemented FIFO payout allocation.
+7. **2026-02-24**: **Refund Guardrail v1**. Implementation to block refunds if a payout was already processed.
+8. **2026-02-27**: **Nearby Categories Stability**. exhaustive 11-test E2E suite, proof artifacts, and Swagger runbook.
+9. **2026-02-27**: **DevOps/DB Maintenance**. Fixed migration sequence order by re-indexing timestamps.
+10. **2026-03-02**: **Availability & Conflict Hardening**. Ported DAILY/SLOT checks to use `BLOCKING_BOOKING_STATUSES` constant. Added listing-level MUTEX lock (`SELECT FOR UPDATE`) in `confirm` to prevent race conditions during acceptance.
+11. **2026-03-04**: **Demo Hardening & Offline Resilience**. Successfully eliminated NextJS broken image icons natively resolving to `/placeholder.png`. Cleansed stale `/api/api` OpenAPI SDK generator. Added 401 silent background refresh interceptor. Patched remaining database vulnerabilities (orphan queries, lingering fs logs).
 ### Inferred recent work areas
 
-- **AI Search module**: Full implementation with OpenAI integration, Zod validation, follow-up enforcement, fallback search, and logging. High-risk area (OpenAI prompt engineering, JSON parsing).
+- **Financial Core**: Wallet Ledger, Payouts, and Refund Guardrails (Atomic transactions, idempotent ledger postings).
+- **AI Search module**: Full implementation with OpenAI integration, Zod validation, follow-up enforcement, fallback search, and logging.
+- **Nearby Categories Stability**: PostGIS optimizations, includeEmpty flag, and secondary sorting by name.
+- **Availability Hardening**: Listing-level mutex locks, transaction-safe SLOT checks, and 100% pass rate on concurrent race E2E tests.
 - **Slot booking system**: SlotConfiguration, operating hours, buffer minutes, available slots endpoint.
 - **Chat system**: Socket.IO gateway with JWT auth, multi-socket tracking, typing indicators.
-- **Booking reject flow**: Added `rejected` status, host can reject pending bookings.
-- **Frontend AuthProvider**: Hydration-safe restore, SSR-compatible, StorageEvent sync.
 
 ### Risky areas
 
 - `listings.service.ts` — complex raw SQL with PostGIS, dual fallback paths, debug logging left in.
 - `ai-search.service.ts` — OpenAI prompt engineering, JSON parse with 3 retry strategies.
-- `bookings.service.ts` — complex conflict detection across DAILY and SLOT types.
+- `bookings.service.ts` — complex conflict detection across DAILY and SLOT types. Heavily reliant on DB row locks for correctness.
 
 ---
 
@@ -520,6 +511,10 @@ npm run test:e2e
 #   test/slot-booking-conflict.e2e-spec.ts
 #   test/categories-nearby.e2e-spec.ts
 #   test/ai-search-guardrails.e2e-spec.ts
+#   test/ledger.e2e-spec.ts
+#   test/payouts.e2e-spec.ts
+#   test/refund-guard.e2e-spec.ts
+#   test/listings-create.e2e-spec.ts
 ```
 
 ### Frontend
