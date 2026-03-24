@@ -19,5 +19,5 @@ COPY prisma ./prisma
 RUN npm ci --only=production && npm cache clean --force
 RUN npx prisma generate
 COPY --from=development /usr/src/app/dist ./dist
-CMD ["node", "dist/main"]
+CMD ["node", "dist/src/main.js"]
 
