@@ -78,7 +78,7 @@ export class MlService {
       combinedText.includes('snorkel')
     ) {
       return {
-        suggestedCategorySlug: 'water-beach-activities',
+        suggestedCategorySlug: 'beach-gear',
         confidence: 0.85,
       };
     }
@@ -94,7 +94,7 @@ export class MlService {
       return { suggestedCategorySlug: 'mobility', confidence: 0.8 };
     }
 
-    return { suggestedCategorySlug: 'accommodation', confidence: 0.6 };
+    return { suggestedCategorySlug: 'stays', confidence: 0.6 };
   }
 
   private mockSuggestPrice(data: {
@@ -103,9 +103,9 @@ export class MlService {
   }): { suggestedPricePerDay: number } {
     // Base prices by category (in TND)
     const basePrices: Record<string, number> = {
-      accommodation: 150.0,
+      stays: 150.0,
       mobility: 60.0,
-      'water-beach-activities': 30.0,
+      'beach-gear': 30.0,
     };
 
     const basePrice = basePrices[data.categorySlug] || 100.0;

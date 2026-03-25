@@ -78,7 +78,7 @@ export class AiController {
               type: 'object',
               properties: {
                 q: { type: 'string', example: 'villa' },
-                categorySlug: { type: 'string', example: 'accommodation' },
+                categorySlug: { type: 'string', example: 'stays' },
                 minPrice: { type: 'number', nullable: true },
                 maxPrice: { type: 'number', example: 250 },
                 bookingType: {
@@ -107,7 +107,7 @@ export class AiController {
               },
               example: [
                 { key: 'q', label: 'villa' },
-                { key: 'category', label: 'Accommodation' },
+                { key: 'category', label: 'stays' },
                 { key: 'price', label: 'Up to 250 TND' },
               ],
             },
@@ -126,14 +126,14 @@ export class AiController {
             },
             filters: {
               q: 'villa',
-              categorySlug: 'accommodation',
+              categorySlug: 'stays',
               maxPrice: 250,
               sortBy: 'distance',
               radiusKm: 10,
             },
             chips: [
               { key: 'q', label: 'villa' },
-              { key: 'category', label: 'Accommodation' },
+              { key: 'category', label: 'stays' },
               { key: 'price', label: 'Up to 250 TND' },
             ],
             results: [],
@@ -148,7 +148,7 @@ export class AiController {
               type: 'object',
               properties: {
                 q: { type: 'string', example: 'villa' },
-                categorySlug: { type: 'string', example: 'accommodation' },
+                categorySlug: { type: 'string', example: 'stays' },
                 minPrice: { type: 'number', nullable: true },
                 maxPrice: { type: 'number', example: 250 },
                 bookingType: {
@@ -177,7 +177,7 @@ export class AiController {
               },
               example: [
                 { key: 'q', label: 'villa' },
-                { key: 'category', label: 'Accommodation' },
+                { key: 'category', label: 'stays' },
                 { key: 'price', label: 'Up to 250 TND' },
                 { key: 'dates', label: '2026-02-17 to 2026-02-19' },
               ],
@@ -196,7 +196,7 @@ export class AiController {
                   id: '123e4567-e89b-12d3-a456-426614174000',
                   title: 'Luxury Beach Villa',
                   pricePerDay: 200,
-                  category: 'accommodation',
+                  category: 'stays',
                 },
               ],
             },
@@ -205,7 +205,7 @@ export class AiController {
             mode: 'RESULT',
             filters: {
               q: 'villa',
-              categorySlug: 'accommodation',
+              categorySlug: 'stays',
               maxPrice: 250,
               bookingType: 'DAILY',
               availableFrom: '2026-02-17',
@@ -215,7 +215,7 @@ export class AiController {
             },
             chips: [
               { key: 'q', label: 'villa' },
-              { key: 'category', label: 'Accommodation' },
+              { key: 'category', label: 'stays' },
               { key: 'price', label: 'Up to 250 TND' },
               { key: 'dates', label: '2026-02-17 to 2026-02-19' },
             ],
@@ -225,7 +225,7 @@ export class AiController {
                 id: '123e4567-e89b-12d3-a456-426614174000',
                 title: 'Luxury Beach Villa',
                 pricePerDay: 200,
-                category: 'accommodation',
+                category: 'stays',
               },
             ],
           },

@@ -135,8 +135,8 @@ export class CategoriesController {
             },
             {
               id: '223e4567-e89b-12d3-a456-426614174001',
-              name: 'Sports Equipment',
-              slug: 'sports-equipment',
+              name: 'Beach Gear',
+              slug: 'beach-gear',
               icon: 'fa-football',
               count: 8,
             },

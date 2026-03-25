@@ -96,17 +96,17 @@ export class DemoSeedService {
   // ─── Categories ─────────────────────────────────────────────────────────────
   private async seedCategories() {
     const cats = [
-      { name: 'Accommodation', slug: 'accommodation', icon: '🏠' },
+      { name: 'stays', slug: 'stays', icon: '🏠' },
       { name: 'Mobility', slug: 'mobility', icon: '🚗' },
       {
-        name: 'Water & Beach Activities',
-        slug: 'water-beach-activities',
+        name: 'Beach Gear',
+        slug: 'beach-gear',
         icon: '🏖️',
       },
       { name: 'Sports Facilities', slug: 'sports-facilities', icon: '🏟️' },
-      { name: 'Sports Equipment', slug: 'sports-equipment', icon: '⚽' },
-      { name: 'Tools', slug: 'tools', icon: '🔧' },
-      { name: 'Other', slug: 'other', icon: '📦' },
+      { name: 'Beach Gear', slug: 'beach-gear', icon: '⚽' },
+      { name: 'Beach Gear', slug: 'Beach Gear', icon: '🔧' },
+      { name: 'Beach Gear', slug: 'Beach Gear', icon: '📦' },
     ];
     const created = await Promise.all(
       cats.map((c) =>
@@ -331,7 +331,7 @@ export class DemoSeedService {
         lat: offsetLat,
         lng: offsetLng,
         address: `${i + 1} Rue de la Corniche, Kelibia`,
-        categoryId: cats['accommodation'].id,
+        categoryId: cats['stays'].id,
         hostId: i % 2 === 0 ? hostA.id : hostB.id,
         images: [`/uploads/demo/kelibia-accommodation-${i + 1}.jpg`],
       });
@@ -390,7 +390,7 @@ export class DemoSeedService {
         lat: lat - i * 0.005,
         lng: lng + i * 0.005,
         address: `Plage Mansoura, Kelibia`,
-        categoryId: cats['water-beach-activities'].id,
+        categoryId: cats['beach-gear'].id,
         hostId: i % 2 === 0 ? hostA.id : hostB.id,
         images: [`/uploads/demo/kelibia-beach-${i + 1}.jpg`],
       });
@@ -481,7 +481,7 @@ export class DemoSeedService {
         lat: lat + 0.01 + i * 0.004,
         lng: lng - 0.03 - i * 0.003,
         address: `Kelibia, Cap Bon`,
-        categoryId: cats['sports-equipment'].id,
+        categoryId: cats['beach-gear'].id,
         hostId: hostA.id,
         images: [`/uploads/demo/kelibia-equipment-${i + 1}.jpg`],
       });
@@ -554,7 +554,7 @@ export class DemoSeedService {
         lat: lat + ((i * 0.009) % 0.05),
         lng: lng + ((i * 0.007) % 0.05),
         address: `Avenue ${i + 1}, Tunis`,
-        categoryId: cats['accommodation'].id,
+        categoryId: cats['stays'].id,
         hostId: i % 2 === 0 ? hostA.id : hostB.id,
         images: [`/uploads/demo/tunis-accommodation-${i + 1}.jpg`],
       });
@@ -646,7 +646,7 @@ export class DemoSeedService {
         lat: lat - 0.03 - i * 0.006,
         lng: lng - 0.02 - i * 0.005,
         address: `Tunis, Grand Tunis`,
-        categoryId: cats['tools'].id,
+        categoryId: cats['Beach Gear'].id,
         hostId: hostA.id,
         images: [`/uploads/demo/tunis-tools-${i + 1}.jpg`],
       });
@@ -669,7 +669,7 @@ export class DemoSeedService {
         lat: lat + 0.02 - i * 0.005,
         lng: lng - 0.04 + i * 0.004,
         address: `Tunis`,
-        categoryId: cats['sports-equipment'].id,
+        categoryId: cats['beach-gear'].id,
         hostId: hostB.id,
         images: [`/uploads/demo/tunis-equipment-${i + 1}.jpg`],
       });
@@ -700,7 +700,7 @@ export class DemoSeedService {
       lat: lat + 0.05,
       lng: lng + 0.05,
       address: '1 Rue du Phare, Kelibia',
-      categoryId: cats['accommodation'].id,
+      categoryId: cats['stays'].id,
       hostId: host.id,
       images: ['/uploads/demo/demo-daily-villa.jpg'],
       bookingType: 'DAILY',

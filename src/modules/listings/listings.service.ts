@@ -25,13 +25,10 @@ export class ListingsService {
 
   // Allowed category slugs for MVP scope (all categories)
   private readonly ALLOWED_CATEGORY_SLUGS = [
-    'accommodation',
-    'mobility',
-    'water-beach-activities',
+    'stays',
     'sports-facilities',
-    'sports-equipment',
-    'tools',
-    'other',
+    'mobility',
+    'beach-gear',
   ];
 
   constructor(

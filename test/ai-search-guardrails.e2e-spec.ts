@@ -81,14 +81,14 @@ describe('POST /api/ai/search — guardrails', () => {
       mode: 'RESULT',
       filters: {
         q: 'villa',
-        categorySlug: 'accommodation',
+        categorySlug: 'stays',
         maxPrice: 250,
         sortBy: 'date',
         radiusKm: 10,
       },
       chips: [
         { key: 'q', label: 'villa' },
-        { key: 'category', label: 'Accommodation' },
+        { key: 'category', label: 'stays' },
         { key: 'price', label: 'Up to 250 TND' },
       ],
     });
@@ -261,7 +261,7 @@ describe('POST /api/ai/search — guardrails', () => {
 
   it('TC-8  RESULT mode chips are non-empty when filters carry data', async () => {
     mockGenerateCompletion.mockResolvedValueOnce(resultJson());
-    // resultJson() returns q='villa', categorySlug='accommodation', maxPrice=250
+    // resultJson() returns q='villa', categorySlug='stays', maxPrice=250
     // → 3 chips expected: q, category, price
 
     const res = await request(app.getHttpServer())

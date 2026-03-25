@@ -238,12 +238,12 @@ describe('AiSearchService - JSON Parsing and Validation', () => {
             mode: 'RESULT',
             filters: {
               q: 'villa',
-              categorySlug: 'accommodation',
+              categorySlug: 'stays',
               maxPrice: 250,
             },
             chips: [
               { key: 'q', label: 'villa' },
-              { key: 'category', label: 'Accommodation' },
+              { key: 'category', label: 'stays' },
             ],
           }),
         );
@@ -343,11 +343,11 @@ describe('AiSearchService - JSON Parsing and Validation', () => {
             mode: 'RESULT',
             filters: {
               q: 'villa',
-              categorySlug: 'accommodation',
+              categorySlug: 'stays',
             },
             chips: [
               { key: 'q', label: 'villa' },
-              { key: 'category', label: 'Accommodation' },
+              { key: 'category', label: 'stays' },
             ],
           }),
         );

@@ -171,7 +171,7 @@ For RESULT mode (normal case):
   "mode": "RESULT",
   "filters": {
     "q": "keyword",
-    "categorySlug": "accommodation|mobility|sports-facilities|...",
+    "categorySlug": "stays|sports-facilities|mobility|beach-gear",
     "minPrice": number or null,
     "maxPrice": number or null,
     "bookingType": "DAILY|SLOT|ANY",
@@ -182,7 +182,7 @@ For RESULT mode (normal case):
   },
   "chips": [
     { "key": "q", "label": "villa" },
-    { "key": "category", "label": "Accommodation" },
+    { "key": "category", "label": "Stays" },
     { "key": "price", "label": "Up to 250 TND" }
   ]
 }
@@ -470,13 +470,10 @@ Remember: Output JSON only!`;
 
   private categorySlugToName(slug: string): string {
     const names: Record<string, string> = {
-      accommodation: 'Accommodation',
-      mobility: 'Mobility',
-      'water-beach-activities': 'Water & Beach',
+      stays: 'Stays',
       'sports-facilities': 'Sports Facilities',
-      'sports-equipment': 'Sports Equipment',
-      tools: 'Tools',
-      other: 'Other',
+      mobility: 'Mobility',
+      'beach-gear': 'Beach Gear',
     };
     return names[slug] || slug;
   }
