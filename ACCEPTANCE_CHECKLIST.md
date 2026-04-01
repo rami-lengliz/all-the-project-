@@ -215,3 +215,5 @@ The MVP is accepted when:
 - [ ] No empty marketplace: seeded data supports realistic browsing in Kelibia and Tunis.
 - [ ] AI guardrails (single-shot + max 1 follow-up + JSON output + fallback) are enforced.
 - [ ] Booking pay/commission rules and reviews are present and functional.
+
+
