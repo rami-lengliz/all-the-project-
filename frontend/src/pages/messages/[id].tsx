@@ -8,6 +8,7 @@ import { markRead } from '@/lib/api/chat';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import type { Message } from '@/lib/api/chat';
 
+// ─── helpers ────────────────────────────────────────────────────────
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
@@ -22,81 +23,168 @@ function formatDateLabel(iso: string) {
   return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
+// ─── page ────────────────────────────────────────────────────────────
 export default function ChatThreadPage() {
   const router = useRouter();
   const { id } = router.query;
-  const conversationId = typeof id === 'string' ? id : null;
+  const conversationId = typeof id === 'string' ? id : '';
 
   const { user } = useAuth();
-  const myId = (user as any)?.id ?? (user as any)?.sub;
+  const myId: string = (user as any)?.id ?? (user as any)?.sub ?? '';
 
-  const messagesQuery = useMessages(conversationId ?? '');
-  const [localMessages, setLocalMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [typingVisible, setTypingVisible] = useState(false);
-  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  // ── REST: load message history ──────────────────────────────────
+  const messagesQuery = useMessages(conversationId);
 
-  // Sync query data into local state
+  // ── local message state (merge REST history + real-time) ────────
+  const [messages, setMessages] = useState<Message[]>([]);
+  const seenIds = useRef<Set<string>>(new Set());
+
+  const appendMessage = useCallback((msg: Message) => {
+    if (seenIds.current.has(msg.id)) return; // deduplicate
+    seenIds.current.add(msg.id);
+    setMessages((prev) => [...prev, msg]);
+  }, []);
+
+  // Seed from REST on first load
   useEffect(() => {
-    const msgs = messagesQuery.data?.messages ?? [];
-    if (msgs.length > 0) setLocalMessages(msgs);
+    const loaded = messagesQuery.data?.messages ?? [];
+    if (loaded.length === 0) return;
+    seenIds.current.clear();
+    const deduped: Message[] = [];
+    for (const m of loaded) {
+      if (!seenIds.current.has(m.id)) {
+        seenIds.current.add(m.id);
+        deduped.push(m);
+      }
+    }
+    setMessages(deduped);
   }, [messagesQuery.data]);
 
-  // Scroll to bottom on new messages
+  // ── Mark unread as read after history loads ─────────────────────
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [localMessages]);
-
-  // Mark messages as read when thread opens
-  useEffect(() => {
-    const unread = localMessages
+    const unread = messages
       .filter((m) => m.senderId !== myId && !m.readAt)
       .map((m) => m.id);
     if (unread.length > 0) markRead(unread).catch(() => {});
-  }, [localMessages, myId]);
+  }, [messages, myId]);
 
-  const handleNewMessage = useCallback((msg: Message) => {
-    setLocalMessages((prev) => {
-      if (prev.some((m) => m.id === msg.id)) return prev;
-      return [...prev, msg];
-    });
-  }, []);
+  // ── Socket ───────────────────────────────────────────────────────
+  const {
+    joinConversation,
+    leaveConversation,
+    sendMessage: socketSend,
+    emitTyping,
+    onNewMessage,
+    onMessageSent,
+    onTyping,
+  } = useChatSocket();
 
-  const handleTyping = useCallback(({ userId, isTyping }: { userId: string; isTyping: boolean }) => {
-    if (userId === myId) return;
-    setTypingVisible(isTyping);
-    if (isTyping) {
-      if (typingTimer.current) clearTimeout(typingTimer.current);
-      typingTimer.current = setTimeout(() => setTypingVisible(false), 3000);
-    }
-  }, [myId]);
-
-  const { joinConversation, leaveConversation, sendMessage, emitTyping, onNewMessage, onTyping } =
-    useChatSocket();
-
-  // Subscribe to real-time events — cleaned up on unmount
-  useEffect(() => {
-    const cleanupMsg = onNewMessage(handleNewMessage);
-    const cleanupTyping = onTyping(({ userId, isTyping }) => handleTyping({ userId, isTyping }));
-    return () => { cleanupMsg(); cleanupTyping(); };
-  }, [onNewMessage, onTyping, handleNewMessage, handleTyping]);
-
+  // Join / leave room on mount
   useEffect(() => {
     if (!conversationId) return;
     joinConversation(conversationId);
     return () => leaveConversation(conversationId);
   }, [conversationId, joinConversation, leaveConversation]);
 
-  const handleSend = () => {
+  // Listen for new messages from the OTHER user
+  useEffect(() => {
+    const cleanup = onNewMessage((msg) => {
+      appendMessage(msg);
+      // Mark it read immediately since thread is open
+      if (msg.senderId !== myId) {
+        markRead([msg.id]).catch(() => {});
+      }
+    });
+    return cleanup;
+  }, [onNewMessage, appendMessage, myId]);
+
+  // messageSent — backend echoes the saved message back to the sender
+  useEffect(() => {
+    const cleanup = onMessageSent(appendMessage);
+    return cleanup;
+  }, [onMessageSent, appendMessage]);
+
+  // ── Typing state ────────────────────────────────────────────────
+  const [otherTyping, setOtherTyping] = useState(false);
+  const typingClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const cleanup = onTyping(({ userId, conversationId: cid, isTyping }) => {
+      if (userId === myId) return;
+      if (cid !== conversationId) return;
+      setOtherTyping(isTyping);
+      // Safety fallback: clear after 3s if server doesn't send false
+      if (typingClearTimer.current) clearTimeout(typingClearTimer.current);
+      if (isTyping) {
+        typingClearTimer.current = setTimeout(() => setOtherTyping(false), 3000);
+      }
+    });
+    return cleanup;
+  }, [onTyping, myId, conversationId]);
+
+  // ── Scroll to bottom ────────────────────────────────────────────
+  const bottomRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, otherTyping]);
+
+  // ── Input + typing emit ─────────────────────────────────────────
+  const [input, setInput] = useState('');
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Two separate timers:
+  // typingStartTimer — debounce before emitting typing:true  (400ms)
+  // typingStopTimer  — idle timeout before emitting typing:false (1200ms)
+  const typingStartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingStopTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup both timers on unmount to prevent emitting after navigation
+  useEffect(() => {
+    return () => {
+      if (typingStartTimer.current) clearTimeout(typingStartTimer.current);
+      if (typingStopTimer.current)  clearTimeout(typingStopTimer.current);
+    };
+  }, []);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    if (!conversationId) return;
+
+    // Debounce typing:true — don't spam on every keystroke
+    if (!typingStartTimer.current) {
+      typingStartTimer.current = setTimeout(() => {
+        emitTyping(conversationId, true);
+        typingStartTimer.current = null;
+      }, 400);
+    }
+
+    // Reset idle timer — emit typing:false after 1200ms of no input
+    if (typingStopTimer.current) clearTimeout(typingStopTimer.current);
+    typingStopTimer.current = setTimeout(() => {
+      emitTyping(conversationId, false);
+      typingStopTimer.current = null;
+      // Also cancel the start debounce if user stopped before it fired
+      if (typingStartTimer.current) {
+        clearTimeout(typingStartTimer.current);
+        typingStartTimer.current = null;
+      }
+    }, 1200);
+  };
+
+  // ── Send ────────────────────────────────────────────────────────
+  const handleSend = useCallback(() => {
     const content = input.trim();
     if (!content || !conversationId) return;
-    sendMessage(conversationId, content);
+
+    socketSend(conversationId, content);
     setInput('');
+
+    // Cancel both timers and emit typing:false immediately on send
+    if (typingStartTimer.current) { clearTimeout(typingStartTimer.current); typingStartTimer.current = null; }
+    if (typingStopTimer.current)  { clearTimeout(typingStopTimer.current);  typingStopTimer.current  = null; }
     emitTyping(conversationId, false);
+
     inputRef.current?.focus();
-  };
+  }, [input, conversationId, socketSend, emitTyping]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -105,147 +193,128 @@ export default function ChatThreadPage() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-    if (conversationId) {
-      emitTyping(conversationId, e.target.value.length > 0);
-      if (typingTimer.current) clearTimeout(typingTimer.current);
-      typingTimer.current = setTimeout(() => {
-        emitTyping(conversationId, false);
-      }, 2000);
-    }
-  };
-
-  // Group messages by date
-  const groupedMessages: { label: string; messages: Message[] }[] = [];
-  for (const msg of localMessages) {
+  // ── Group messages by date ──────────────────────────────────────
+  const grouped: { label: string; msgs: Message[] }[] = [];
+  for (const msg of messages) {
     const label = formatDateLabel(msg.createdAt);
-    const last = groupedMessages[groupedMessages.length - 1];
+    const last = grouped[grouped.length - 1];
     if (last?.label === label) {
-      last.messages.push(msg);
+      last.msgs.push(msg);
     } else {
-      groupedMessages.push({ label, messages: [msg] });
+      grouped.push({ label, msgs: [msg] });
     }
   }
 
-  const conversation = messagesQuery.data as any;
-  const other = conversation?.renter?.id === myId ? conversation?.host : conversation?.renter;
-  const booking = conversation?.booking;
-
+  // ─────────────────────────────────────────────────────────────────
   return (
     <Layout>
-      <div className="flex flex-col h-screen bg-gray-50">
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f8fafc' }}>
+
         {/* ── Header ── */}
-        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+        <header style={{
+          background: '#fff', borderBottom: '1px solid #e2e8f0',
+          padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12,
+          position: 'sticky', top: 0, zIndex: 10,
+        }}>
           <Link
             href="/messages"
-            className="text-gray-500 hover:text-gray-900 transition p-1 rounded-lg hover:bg-gray-100"
+            style={{ color: '#64748b', textDecoration: 'none', fontSize: 18, padding: '4px 8px', borderRadius: 8 }}
           >
-            <i className="fa-solid fa-arrow-left text-lg" />
+            ←
           </Link>
-
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-            {other?.name?.[0]?.toUpperCase() ?? '?'}
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-gray-900 truncate">{other?.name ?? 'Chat'}</p>
-            {booking && (
-              <p className="text-xs text-gray-500 truncate">
-                {booking.listing?.title}
-                {' · '}
-                <span className={`font-medium ${
-                  booking.status === 'confirmed' || booking.status === 'paid'
-                    ? 'text-green-600'
-                    : booking.status === 'pending'
-                    ? 'text-blue-600'
-                    : 'text-gray-500'
-                }`}>
-                  {booking.status === 'confirmed' || booking.status === 'paid'
-                    ? 'Accepted'
-                    : booking.status === 'pending'
-                    ? 'Pending'
-                    : booking.status}
-                </span>
-              </p>
-            )}
+          <div>
+            <p style={{ margin: 0, fontWeight: 600, color: '#0f172a', fontSize: 15 }}>
+              Conversation
+            </p>
+            <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>
+              {conversationId ? `${conversationId.slice(0, 8)}…` : '—'}
+            </p>
           </div>
         </header>
 
         {/* ── Messages ── */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 12px' }}>
+
+          {/* Loading */}
           {messagesQuery.isLoading && (
-            <div className="flex justify-center py-12">
-              <i className="fa-solid fa-circle-notch fa-spin text-blue-400 text-2xl" />
-            </div>
+            <p style={{ textAlign: 'center', color: '#94a3b8', marginTop: 40 }}>Loading…</p>
           )}
 
-          {!messagesQuery.isLoading && localMessages.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-4">
-                <i className="fa-solid fa-message text-blue-400 text-2xl" />
-              </div>
-              <p className="text-gray-500 font-medium">No messages yet</p>
-              <p className="text-gray-400 text-sm mt-1">Send a message to start the conversation</p>
-            </div>
+          {/* Error */}
+          {messagesQuery.isError && (
+            <p style={{ textAlign: 'center', color: '#ef4444', marginTop: 40 }}>
+              Failed to load messages.{' '}
+              <button
+                onClick={() => void messagesQuery.refetch()}
+                style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                Retry
+              </button>
+            </p>
           )}
 
-          {groupedMessages.map((group) => (
+          {/* Empty */}
+          {!messagesQuery.isLoading && messages.length === 0 && (
+            <p style={{ textAlign: 'center', color: '#94a3b8', marginTop: 60 }}>
+              No messages yet — say hello!
+            </p>
+          )}
+
+          {/* Grouped by date */}
+          {grouped.map((group) => (
             <div key={group.label}>
               {/* Date separator */}
-              <div className="flex items-center gap-3 my-4">
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-xs text-gray-400 font-medium px-2">{group.label}</span>
-                <div className="flex-1 h-px bg-gray-200" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0' }}>
+                <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+                <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>{group.label}</span>
+                <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
               </div>
 
-              <div className="space-y-2">
-                {group.messages.map((msg) => {
-                  const isMe = msg.senderId === myId;
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}
-                    >
-                      {!isMe && (
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                          {msg.sender?.name?.[0]?.toUpperCase() ?? '?'}
-                        </div>
-                      )}
-                      <div className={`max-w-xs lg:max-w-md ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                        <div
-                          className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                            isMe
-                              ? 'bg-blue-500 text-white rounded-br-md'
-                              : 'bg-white text-gray-900 border border-gray-200 rounded-bl-md shadow-sm'
-                          }`}
-                        >
-                          {msg.content}
-                        </div>
-                        <span className="text-xs text-gray-400 mt-1 px-1">
-                          {formatTime(msg.createdAt)}
-                          {isMe && msg.readAt && (
-                            <i className="fa-solid fa-check-double ml-1 text-blue-400" />
-                          )}
-                        </span>
+              {group.msgs.map((msg) => {
+                const isMe = msg.senderId === myId;
+                return (
+                  <div key={msg.id} style={{
+                    display: 'flex',
+                    justifyContent: isMe ? 'flex-end' : 'flex-start',
+                    marginBottom: 8,
+                  }}>
+                    <div style={{ maxWidth: '70%' }}>
+                      <div style={{
+                        padding: '10px 14px',
+                        borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                        background: isMe ? '#3b82f6' : '#fff',
+                        color: isMe ? '#fff' : '#0f172a',
+                        border: isMe ? 'none' : '1px solid #e2e8f0',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                        fontSize: 14,
+                        lineHeight: '1.5',
+                        wordBreak: 'break-word',
+                      }}>
+                        {msg.content}
+                      </div>
+                      <div style={{
+                        fontSize: 10, color: '#94a3b8', marginTop: 3,
+                        textAlign: isMe ? 'right' : 'left', paddingInline: 4,
+                      }}>
+                        {formatTime(msg.createdAt)}
+                        {isMe && msg.readAt && ' · ✓✓'}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
           ))}
 
           {/* Typing indicator */}
-          {typingVisible && (
-            <div className="flex items-end gap-2 justify-start">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center flex-shrink-0" />
-              <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
-                <div className="flex gap-1 items-center h-4">
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
+          {otherTyping && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, marginBottom: 4 }}>
+              <div style={{
+                background: '#fff', border: '1px solid #e2e8f0',
+                borderRadius: '18px 18px 18px 4px',
+                padding: '10px 14px', display: 'flex', gap: 4, alignItems: 'center',
+              }}>
+                <DotDot />
               </div>
             </div>
           )}
@@ -254,8 +323,11 @@ export default function ChatThreadPage() {
         </div>
 
         {/* ── Input ── */}
-        <div className="bg-white border-t border-gray-200 px-4 py-3">
-          <div className="flex items-end gap-3 max-w-4xl mx-auto">
+        <div style={{
+          background: '#fff', borderTop: '1px solid #e2e8f0',
+          padding: '12px 16px',
+        }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', maxWidth: 800, margin: '0 auto' }}>
             <textarea
               ref={inputRef}
               value={input}
@@ -263,20 +335,63 @@ export default function ChatThreadPage() {
               onKeyDown={handleKeyDown}
               placeholder="Type a message…"
               rows={1}
-              className="flex-1 resize-none rounded-2xl border border-gray-300 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition max-h-32 overflow-y-auto"
-              style={{ minHeight: '48px' }}
+              style={{
+                flex: 1, resize: 'none', borderRadius: 20,
+                border: '1px solid #cbd5e1', padding: '10px 16px',
+                fontSize: 14, color: '#0f172a', outline: 'none',
+                fontFamily: 'inherit', lineHeight: '1.5', maxHeight: 120,
+                overflowY: 'auto', boxSizing: 'border-box',
+              }}
+              onFocus={(e) => { e.target.style.border = '1px solid #3b82f6'; }}
+              onBlur={(e) => { e.target.style.border = '1px solid #cbd5e1'; }}
             />
             <button
               onClick={handleSend}
               disabled={!input.trim()}
-              className="w-11 h-11 flex-shrink-0 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 text-white disabled:text-gray-400 rounded-full flex items-center justify-center transition"
+              style={{
+                width: 42, height: 42, borderRadius: '50%', border: 'none',
+                background: input.trim() ? '#3b82f6' : '#e2e8f0',
+                color: input.trim() ? '#fff' : '#94a3b8',
+                cursor: input.trim() ? 'pointer' : 'not-allowed',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 16, flexShrink: 0, transition: 'background 0.15s',
+              }}
+              aria-label="Send message"
             >
-              <i className="fa-solid fa-paper-plane text-sm" />
+              ➤
             </button>
           </div>
-          <p className="text-center text-xs text-gray-400 mt-2">Enter to send · Shift+Enter for new line</p>
+          <p style={{ textAlign: 'center', fontSize: 11, color: '#cbd5e1', margin: '6px 0 0' }}>
+            Enter to send · Shift+Enter for new line
+          </p>
         </div>
+
       </div>
     </Layout>
+  );
+}
+
+// ── Typing dots animation ─────────────────────────────────────────
+function DotDot() {
+  return (
+    <>
+      {[0, 150, 300].map((delay, i) => (
+        <span
+          key={i}
+          style={{
+            width: 7, height: 7, borderRadius: '50%', background: '#94a3b8',
+            display: 'inline-block',
+            animation: 'bounce 1.2s infinite',
+            animationDelay: `${delay}ms`,
+          }}
+        />
+      ))}
+      <style>{`
+        @keyframes bounce {
+          0%, 60%, 100% { transform: translateY(0); }
+          30% { transform: translateY(-5px); }
+        }
+      `}</style>
+    </>
   );
 }

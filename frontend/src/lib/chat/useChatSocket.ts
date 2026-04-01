@@ -32,10 +32,15 @@ export interface UseChatSocketReturn {
   /** Emit a typing indicator. */
   emitTyping: (conversationId: string, isTyping: boolean) => void;
   /**
-   * Subscribe to incoming messages.
+   * Subscribe to incoming messages (from the other participant).
    * Returns a cleanup function — call it in useEffect cleanup.
    */
   onNewMessage: (cb: NewMessageCallback) => () => void;
+  /**
+   * Subscribe to message-sent confirmation (echoed back to sender by backend).
+   * Returns a cleanup function — call it in useEffect cleanup.
+   */
+  onMessageSent: (cb: NewMessageCallback) => () => void;
   /**
    * Subscribe to typing events from the other participant.
    * Returns a cleanup function — call it in useEffect cleanup.
@@ -132,9 +137,12 @@ export function useChatSocket(): UseChatSocketReturn {
 
   const onNewMessage = useCallback((cb: NewMessageCallback) => {
     socketRef.current?.on('newMessage', cb);
-    return () => {
-      socketRef.current?.off('newMessage', cb);
-    };
+    return () => { socketRef.current?.off('newMessage', cb); };
+  }, []);
+
+  const onMessageSent = useCallback((cb: NewMessageCallback) => {
+    socketRef.current?.on('messageSent', cb);
+    return () => { socketRef.current?.off('messageSent', cb); };
   }, []);
 
   const onTyping = useCallback((cb: TypingCallback) => {
@@ -152,6 +160,7 @@ export function useChatSocket(): UseChatSocketReturn {
     sendMessage,
     emitTyping,
     onNewMessage,
+    onMessageSent,
     onTyping,
   };
 }
