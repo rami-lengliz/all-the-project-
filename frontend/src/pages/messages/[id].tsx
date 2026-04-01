@@ -30,7 +30,7 @@ export default function ChatThreadPage() {
   const { user } = useAuth();
   const myId = (user as any)?.id ?? (user as any)?.sub;
 
-  const messagesQuery = useMessages(conversationId);
+  const messagesQuery = useMessages(conversationId ?? '');
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [typingVisible, setTypingVisible] = useState(false);
@@ -73,10 +73,15 @@ export default function ChatThreadPage() {
     }
   }, [myId]);
 
-  const { joinConversation, leaveConversation, sendMessage, emitTyping } = useChatSocket({
-    onNewMessage: handleNewMessage,
-    onTyping: handleTyping,
-  });
+  const { joinConversation, leaveConversation, sendMessage, emitTyping, onNewMessage, onTyping } =
+    useChatSocket();
+
+  // Subscribe to real-time events — cleaned up on unmount
+  useEffect(() => {
+    const cleanupMsg = onNewMessage(handleNewMessage);
+    const cleanupTyping = onTyping(({ userId, isTyping }) => handleTyping({ userId, isTyping }));
+    return () => { cleanupMsg(); cleanupTyping(); };
+  }, [onNewMessage, onTyping, handleNewMessage, handleTyping]);
 
   useEffect(() => {
     if (!conversationId) return;
