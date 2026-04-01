@@ -219,15 +219,22 @@ export class BookingsService {
         },
         renter: true,
         host: true,
+        Conversation: {
+          select: { id: true },
+          take: 1,
+        },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
-    return bookings.map(withDisplay);
+    return bookings.map((b) => ({
+      ...withDisplay(b),
+      conversationId: b.Conversation?.[0]?.id ?? null,
+    }));
   }
 
-  async findOne(id: string): Promise<Booking> {
+  async findOne(id: string) {
     const booking = await this.prisma.booking.findUnique({
       where: { id },
       include: {
@@ -238,12 +245,19 @@ export class BookingsService {
         },
         renter: true,
         host: true,
+        Conversation: {
+          select: { id: true },
+          take: 1,
+        },
       },
     });
     if (!booking) {
       throw new NotFoundException(`Booking with ID ${id} not found`);
     }
-    return withDisplay(booking);
+    return {
+      ...withDisplay(booking),
+      conversationId: booking.Conversation?.[0]?.id ?? null,
+    };
   }
 
   async confirm(id: string, userId: string): Promise<Booking> {

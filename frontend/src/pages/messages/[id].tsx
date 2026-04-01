@@ -60,13 +60,28 @@ export default function ChatThreadPage() {
     setMessages(deduped);
   }, [messagesQuery.data]);
 
-  // ── Mark unread as read after history loads ─────────────────────
+  // ── Mark unread as read (once, when history first loads) ───────────
+  // Stamps readAt locally so read-receipt ✓✓ renders immediately.
+  const markedOnLoad = useRef(false);
   useEffect(() => {
+    if (markedOnLoad.current || messages.length === 0) return;
     const unread = messages
       .filter((m) => m.senderId !== myId && !m.readAt)
       .map((m) => m.id);
-    if (unread.length > 0) markRead(unread).catch(() => {});
-  }, [messages, myId]);
+    if (unread.length === 0) return;
+    markedOnLoad.current = true;
+    markRead(unread)
+      .then(() => {
+        // Stamp readAt in local state so ✓✓ appears instantly
+        const now = new Date().toISOString();
+        const idSet = new Set(unread);
+        setMessages((prev) =>
+          prev.map((m) => (idSet.has(m.id) ? { ...m, readAt: now } : m)),
+        );
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, myId]); // length-dep: fires when first batch arrives
 
   // ── Socket ───────────────────────────────────────────────────────
   const {

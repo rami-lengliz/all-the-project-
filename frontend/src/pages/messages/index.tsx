@@ -98,8 +98,9 @@ function ConversationList({ myId }: { myId: string }) {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['conversations'],
     queryFn:  fetchConversations,
-    refetchInterval: 5_000,
-    staleTime:       4_000,
+    refetchInterval:      5_000,
+    refetchOnWindowFocus: true,   // re-fetches when user returns from thread page
+    staleTime:            4_000,
     retry: 1,
   });
 
@@ -107,8 +108,9 @@ function ConversationList({ myId }: { myId: string }) {
   const { data: totalUnread = 0 } = useQuery({
     queryKey: ['chat', 'unread'],
     queryFn:  fetchUnreadCount,
-    refetchInterval: 5_000,
-    staleTime:       4_000,
+    refetchInterval:      5_000,
+    refetchOnWindowFocus: true,   // badge updates immediately on tab/page focus
+    staleTime:            4_000,
   });
 
   const sorted = sortConversations(data ?? []);
