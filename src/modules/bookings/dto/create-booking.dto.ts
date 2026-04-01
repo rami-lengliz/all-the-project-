@@ -3,6 +3,7 @@ import {
   IsDateString,
   IsOptional,
   IsString,
+  MaxLength,
   Matches,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -41,4 +42,14 @@ export class CreateBookingDto {
     message: 'End time must be in HH:mm format (e.g., 16:00)',
   })
   endTime?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional opening message from renter (shown in chat thread)',
+    example: 'Hi, is this available for a family of 4?',
+    maxLength: 500,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  message?: string;
 }

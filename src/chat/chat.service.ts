@@ -186,6 +186,10 @@ export class ChatService {
       where: {
         OR: [{ renterId: userId }, { hostId: userId }],
       },
+      orderBy: [
+        { lastMessageAt: 'desc' },
+        { updatedAt: 'desc' }, // fallback for conversations with no messages yet
+      ],
       include: {
         renter: {
           select: {

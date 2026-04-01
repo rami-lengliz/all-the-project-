@@ -17,6 +17,7 @@ import { AvailabilityService } from '../../common/utils/availability.service';
 import { BookingStateMachine } from '../../common/utils/booking-state-machine';
 import { PaymentsService } from '../payments/payments.service';
 import { CancellationPolicyService } from '../../common/policies/cancellation-policy.service';
+import { ChatService } from '../../chat/chat.service';
 
 /**
  * Maps internal DB booking statuses to stable MVP-facing vocabulary.
@@ -72,6 +73,7 @@ export class BookingsService {
     @Inject(forwardRef(() => PaymentsService))
     private paymentsService: PaymentsService,
     private cancellationPolicyService: CancellationPolicyService,
+    private chatService: ChatService,
   ) {
     this.commissionPercentage =
       this.configService.get<number>('commission.percentage') || 0.1;
@@ -80,7 +82,7 @@ export class BookingsService {
   async create(
     createBookingDto: CreateBookingDto,
     renterId: string,
-  ): Promise<Booking> {
+  ): Promise<any> {
     const listing = await this.listingsService.findOne(
       createBookingDto.listingId,
     );
@@ -180,7 +182,28 @@ export class BookingsService {
       // Non-fatal — payment intent can be created lazily
     }
 
-    return withDisplay(booking);
+    // Auto-create chat conversation for this booking (idempotent via unique constraint)
+    let conversationId: string | null = null;
+    try {
+      const conversation = await this.chatService.getOrCreateConversation(
+        renterId,
+        listing.hostId,
+        booking.id,
+        listing.id,
+      );
+      conversationId = conversation.id;
+      if (createBookingDto.message) {
+        await this.chatService.sendMessage(
+          conversation.id,
+          renterId,
+          createBookingDto.message,
+        );
+      }
+    } catch (_e) {
+      // Non-fatal — conversation can be created on demand from the UI
+    }
+
+    return { ...withDisplay(booking), conversationId };
   }
 
   async findAll(userId: string) {
@@ -555,7 +578,7 @@ export class BookingsService {
     renterId: string,
     listing: any,
     startDate: Date,
-  ): Promise<Booking> {
+  ): Promise<any> {
     if (!createBookingDto.startTime || !createBookingDto.endTime) {
       throw new BadRequestException(
         'Start time and end time are required for slot bookings',
@@ -652,7 +675,28 @@ export class BookingsService {
       // Non-fatal — payment intent can be created lazily
     }
 
-    return withDisplay(booking);
+    // Auto-create chat conversation for this slot booking
+    let conversationId: string | null = null;
+    try {
+      const conversation = await this.chatService.getOrCreateConversation(
+        renterId,
+        listing.hostId,
+        booking.id,
+        listing.id,
+      );
+      conversationId = conversation.id;
+      if (createBookingDto.message) {
+        await this.chatService.sendMessage(
+          conversation.id,
+          renterId,
+          createBookingDto.message,
+        );
+      }
+    } catch (_e) {
+      // Non-fatal
+    }
+
+    return { ...withDisplay(booking), conversationId };
   }
 
   private calculateSlotPrice(

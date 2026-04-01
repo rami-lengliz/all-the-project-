@@ -25,7 +25,8 @@ function RouteGuard({ children }: { children: React.ReactNode }) {
       p.startsWith('/host') ||
       p.startsWith('/booking') ||
       p.startsWith('/client') ||
-      p.startsWith('/admin');
+      p.startsWith('/admin') ||
+      p.startsWith('/messages');
     const isAuthRoute = p.startsWith('/auth');
 
     if (protectedRoute && !accessToken && !isAuthRoute) {

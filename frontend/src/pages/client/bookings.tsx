@@ -222,10 +222,13 @@ export default function ClientBookingsPage() {
                       </div>
 
                       <div className="flex items-center space-x-3">
-                        <button className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 px-4 rounded-lg transition">
+                        <Link
+                          href={(b as any).conversationId ? `/messages/${(b as any).conversationId}` : '/messages'}
+                          className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 px-4 rounded-lg transition text-center"
+                        >
                           <i className="fa-solid fa-message mr-2" />
                           Contact host
-                        </button>
+                        </Link>
                         <Link
                           href={
                             listing?.id ? `/listings/${listing.id}` : '/search'
