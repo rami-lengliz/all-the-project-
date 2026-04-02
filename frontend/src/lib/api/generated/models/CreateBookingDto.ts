@@ -14,5 +14,9 @@ export type CreateBookingDto = {
      * End time for slot bookings (HH:mm format)
      */
     endTime?: string;
+    /**
+     * Optional opening message from renter (shown in chat thread)
+     */
+    message?: string;
 };
 

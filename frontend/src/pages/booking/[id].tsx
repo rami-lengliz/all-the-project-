@@ -16,6 +16,7 @@ export default function BookingPage() {
   const listingId = router.query.id as string | undefined;
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [message, setMessage] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [acceptRules, setAcceptRules] = useState(false);
@@ -29,7 +30,12 @@ export default function BookingPage() {
       return;
     setPaid(false);
     try {
-      await createBooking.mutateAsync({ listingId, startDate, endDate });
+      await createBooking.mutateAsync({
+        listingId,
+        startDate,
+        endDate,
+        ...(message.trim() ? { message: message.trim() } : {}),
+      });
     } catch (error) {
       // Error handled by InlineError component
     }
@@ -135,6 +141,34 @@ export default function BookingPage() {
                     {days} {days === 1 ? 'day' : 'days'}
                   </span>
                 </div>
+              </div>
+            </section>
+
+            {/* Message to host */}
+            <section
+              id="message-to-host"
+              className="mb-6 rounded-xl border border-gray-200 bg-white p-6"
+            >
+              <h2 className="mb-1 text-xl font-semibold text-gray-900">
+                Message to host
+              </h2>
+              <p className="mb-3 text-sm text-gray-500">
+                Share why you&apos;re booking, your plans, or any questions.
+                This is optional — a booking summary will be sent automatically.
+              </p>
+              <textarea
+                id="host-message"
+                rows={4}
+                maxLength={500}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Hi! I&apos;m planning a weekend trip and would love to know if early check-in is possible..."
+                className="w-full resize-none rounded-lg border border-gray-200 p-3 text-sm
+                           text-gray-900 placeholder-gray-400 focus:border-blue-400
+                           focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
+              />
+              <div className="mt-1 text-right text-xs text-gray-400">
+                {message.length}/500
               </div>
             </section>
 

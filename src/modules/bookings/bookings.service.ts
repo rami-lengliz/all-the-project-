@@ -192,6 +192,18 @@ export class BookingsService {
         listing.id,
       );
       conversationId = conversation.id;
+
+      // Always send an auto-generated booking summary (Airbnb-style)
+      const autoMsg = this.buildBookingAutoMessage({
+        listingTitle: listing.title,
+        startDate,
+        endDate,
+        totalPrice: Number(booking.totalPrice),
+        isSlot: false,
+      });
+      await this.chatService.sendMessage(conversation.id, renterId, autoMsg);
+
+      // Then the renter's optional personal note
       if (createBookingDto.message) {
         await this.chatService.sendMessage(
           conversation.id,
@@ -699,6 +711,20 @@ export class BookingsService {
         listing.id,
       );
       conversationId = conversation.id;
+
+      // Always send an auto-generated booking summary (Airbnb-style)
+      const autoMsg = this.buildBookingAutoMessage({
+        listingTitle: listing.title,
+        startDate,
+        endDate: startDate,
+        totalPrice: Number(booking.totalPrice),
+        isSlot: true,
+        startTime: createBookingDto.startTime,
+        endTime: createBookingDto.endTime,
+      });
+      await this.chatService.sendMessage(conversation.id, renterId, autoMsg);
+
+      // Then the renter's optional personal note
       if (createBookingDto.message) {
         await this.chatService.sendMessage(
           conversation.id,
@@ -746,5 +772,48 @@ export class BookingsService {
   private timeStringToMinutes(timeStr: string): number {
     const [hours, minutes] = timeStr.split(':').map(Number);
     return hours * 60 + minutes;
+  }
+
+  /**
+   * Builds an Airbnb-style booking summary auto-message.
+   * Sent as the very first message in the thread whenever a booking is created.
+   */
+  private buildBookingAutoMessage(params: {
+    listingTitle: string;
+    startDate: Date;
+    endDate: Date;
+    totalPrice: number;
+    isSlot: boolean;
+    startTime?: string;
+    endTime?: string;
+  }): string {
+    const fmt = (d: Date) =>
+      d.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+
+    const price = `TND ${params.totalPrice.toFixed(2)}`;
+
+    if (params.isSlot) {
+      return [
+        `📅 Booking request — "${params.listingTitle}"`,
+        `🗓 ${fmt(params.startDate)} · ${params.startTime ?? ''} → ${params.endTime ?? ''}`,
+        `💰 ${price}`,
+      ].join('\n');
+    }
+
+    const nights = Math.round(
+      (params.endDate.getTime() - params.startDate.getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+    return [
+      `📅 Booking request — "${params.listingTitle}"`,
+      `🗓 ${fmt(params.startDate)} → ${fmt(params.endDate)} · ${nights} night${
+        nights !== 1 ? 's' : ''
+      }`,
+      `💰 ${price}`,
+    ].join('\n');
   }
 }
