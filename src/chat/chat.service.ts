@@ -228,7 +228,6 @@ export class ChatService {
           },
         },
       },
-      orderBy: { lastMessageAt: 'desc' },
     });
   }
 

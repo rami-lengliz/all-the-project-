@@ -40,9 +40,14 @@ export default function ChatThreadPage() {
   const seenIds = useRef<Set<string>>(new Set());
 
   const appendMessage = useCallback((msg: Message) => {
-    if (seenIds.current.has(msg.id)) return; // deduplicate
+    if (seenIds.current.has(msg.id)) return; // deduplicate by id
     seenIds.current.add(msg.id);
-    setMessages((prev) => [...prev, msg]);
+    // Sort by createdAt so socket messages that arrive out-of-order are placed correctly
+    setMessages((prev) =>
+      [...prev, msg].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      ),
+    );
   }, []);
 
   // Seed from REST on first load
