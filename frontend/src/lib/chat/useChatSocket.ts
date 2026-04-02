@@ -23,6 +23,11 @@ export interface UseChatSocketReturn {
   connected: boolean;
   /** Last connection error message, if any. */
   lastError: string | null;
+  /**
+   * Increments each time a new socket is created (token refresh / reconnect).
+   * Add to subscription effect deps so listeners re-register on the new socket.
+   */
+  socketVersion: number;
   /** Join a conversation room so you receive push events for it. */
   joinConversation: (conversationId: string) => void;
   /** Leave a conversation room (call on unmount). */
@@ -53,9 +58,11 @@ export interface UseChatSocketReturn {
 // ─────────────────────────────────────────────
 
 export function useChatSocket(): UseChatSocketReturn {
-  const socketRef       = useRef<Socket | null>(null);
-  const [connected,   setConnected]   = useState(false);
-  const [lastError,   setLastError]   = useState<string | null>(null);
+  const socketRef     = useRef<Socket | null>(null);
+  const joinedRooms   = useRef<Set<string>>(new Set()); // RC-2: re-join after reconnect
+  const [connected,     setConnected]     = useState(false);
+  const [lastError,     setLastError]     = useState<string | null>(null);
+  const [socketVersion, setSocketVersion] = useState(0); // RC-3: bumped on each new socket
 
   // Re-read token every render so effect dependency tracks real changes
   const { accessToken } = readAuth();
@@ -85,6 +92,12 @@ export function useChatSocket(): UseChatSocketReturn {
     socket.on('connect', () => {
       setConnected(true);
       setLastError(null);
+      // RC-3: increment version so page subscription effects re-run on new socket
+      setSocketVersion((v) => v + 1);
+      // RC-2: re-join any rooms that were active before this socket connected
+      joinedRooms.current.forEach((id) => {
+        socket.emit('joinConversation', { conversationId: id });
+      });
     });
 
     socket.on('disconnect', () => {
@@ -115,10 +128,17 @@ export function useChatSocket(): UseChatSocketReturn {
   // ─────────────────────────────────────────────
 
   const joinConversation = useCallback((conversationId: string) => {
-    socketRef.current?.emit('joinConversation', { conversationId });
+    joinedRooms.current.add(conversationId);
+    // RC-4: use ack callback to surface join failures in console
+    socketRef.current?.emit('joinConversation', { conversationId }, (ack: any) => {
+      if (ack && !ack.success) {
+        console.error('[useChatSocket] joinConversation failed:', ack.error);
+      }
+    });
   }, []);
 
   const leaveConversation = useCallback((conversationId: string) => {
+    joinedRooms.current.delete(conversationId); // RC-2: stop re-joining on reconnect
     socketRef.current?.emit('leaveConversation', { conversationId });
   }, []);
 
@@ -155,6 +175,7 @@ export function useChatSocket(): UseChatSocketReturn {
   return {
     connected,
     lastError,
+    socketVersion,
     joinConversation,
     leaveConversation,
     sendMessage,

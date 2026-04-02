@@ -72,14 +72,17 @@ export default function ChatThreadPage() {
     markedOnLoad.current = true;
     markRead(unread)
       .then(() => {
-        // Stamp readAt in local state so ✓✓ appears instantly
         const now = new Date().toISOString();
         const idSet = new Set(unread);
         setMessages((prev) =>
           prev.map((m) => (idSet.has(m.id) ? { ...m, readAt: now } : m)),
         );
       })
-      .catch(() => {});
+      .catch((err: any) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[markRead] on-load failed:', err?.response?.status, err?.message);
+        }
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, myId]); // length-dep: fires when first batch arrives
 
@@ -92,32 +95,36 @@ export default function ChatThreadPage() {
     onNewMessage,
     onMessageSent,
     onTyping,
+    socketVersion,
   } = useChatSocket();
 
-  // Join / leave room on mount
+  // Join / leave room on mount (and re-join if socket reconnects)
   useEffect(() => {
     if (!conversationId) return;
     joinConversation(conversationId);
     return () => leaveConversation(conversationId);
-  }, [conversationId, joinConversation, leaveConversation]);
+  }, [conversationId, joinConversation, leaveConversation, socketVersion]);
 
   // Listen for new messages from the OTHER user
   useEffect(() => {
     const cleanup = onNewMessage((msg) => {
       appendMessage(msg);
-      // Mark it read immediately since thread is open
       if (msg.senderId !== myId) {
-        markRead([msg.id]).catch(() => {});
+        markRead([msg.id]).catch((err: any) => {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('[markRead] incoming msg failed:', err?.response?.status);
+          }
+        });
       }
     });
     return cleanup;
-  }, [onNewMessage, appendMessage, myId]);
+  }, [onNewMessage, appendMessage, myId, socketVersion]); // socketVersion: re-register on reconnect
 
   // messageSent — backend echoes the saved message back to the sender
   useEffect(() => {
     const cleanup = onMessageSent(appendMessage);
     return cleanup;
-  }, [onMessageSent, appendMessage]);
+  }, [onMessageSent, appendMessage, socketVersion]);
 
   // ── Typing state ────────────────────────────────────────────────
   const [otherTyping, setOtherTyping] = useState(false);
@@ -128,14 +135,13 @@ export default function ChatThreadPage() {
       if (userId === myId) return;
       if (cid !== conversationId) return;
       setOtherTyping(isTyping);
-      // Safety fallback: clear after 3s if server doesn't send false
       if (typingClearTimer.current) clearTimeout(typingClearTimer.current);
       if (isTyping) {
         typingClearTimer.current = setTimeout(() => setOtherTyping(false), 3000);
       }
     });
     return cleanup;
-  }, [onTyping, myId, conversationId]);
+  }, [onTyping, myId, conversationId, socketVersion]);
 
   // ── Scroll to bottom ────────────────────────────────────────────
   const bottomRef = useRef<HTMLDivElement>(null);

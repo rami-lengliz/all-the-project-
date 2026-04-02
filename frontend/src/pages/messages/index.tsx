@@ -1,8 +1,10 @@
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '@/components/layout/Layout';
 import { fetchConversations, fetchUnreadCount } from '@/lib/api/chat';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { useChatSocket } from '@/lib/chat/useChatSocket';
 import type { Conversation } from '@/lib/api/chat';
 
 // ── helpers ───────────────────────────────────────────────────────────
@@ -112,6 +114,20 @@ function ConversationList({ myId }: { myId: string }) {
     refetchOnWindowFocus: true,   // badge updates immediately on tab/page focus
     staleTime:            4_000,
   });
+
+  const queryClient = useQueryClient();
+  const { onNewMessage, socketVersion } = useChatSocket();
+
+  // Real-time invalidation: when any new message arrives, immediately
+  // refresh both the conversation list and the unread badge.
+  // The 5s poll remains as fallback for when the socket is offline.
+  useEffect(() => {
+    const cleanup = onNewMessage(() => {
+      void queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      void queryClient.invalidateQueries({ queryKey: ['chat', 'unread'] });
+    });
+    return cleanup;
+  }, [onNewMessage, queryClient, socketVersion]);
 
   const sorted = sortConversations(data ?? []);
 
