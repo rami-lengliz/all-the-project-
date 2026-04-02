@@ -93,6 +93,7 @@ export default function ChatThreadPage() {
 
   // ── Socket ───────────────────────────────────────────────────────
   const {
+    connected,
     joinConversation,
     leaveConversation,
     sendMessage: socketSend,
@@ -244,18 +245,47 @@ export default function ChatThreadPage() {
         }}>
           <Link
             href="/messages"
-            style={{ color: '#64748b', textDecoration: 'none', fontSize: 18, padding: '4px 8px', borderRadius: 8 }}
+            style={{ color: '#64748b', textDecoration: 'none', fontSize: 20, padding: '4px 8px', borderRadius: 8 }}
           >
             ←
           </Link>
-          <div>
-            <p style={{ margin: 0, fontWeight: 600, color: '#0f172a', fontSize: 15 }}>
-              Conversation
-            </p>
-            <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>
-              {conversationId ? `${conversationId.slice(0, 8)}…` : '—'}
-            </p>
-          </div>
+
+          {/* Avatar initial */}
+          {(() => {
+            const other = messages.find(m => m.senderId !== myId)?.sender;
+            const name = other?.name ?? 'Chat';
+            const initial = name[0]?.toUpperCase() ?? '?';
+            return (
+              <>
+                <div style={{
+                  width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                  background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontWeight: 700, fontSize: 15,
+                }}>
+                  {initial}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontWeight: 600, color: '#0f172a', fontSize: 15, lineHeight: 1.2 }}>
+                    {name}
+                  </p>
+                  {/* Connection status */}
+                  <span style={{
+                    fontSize: 11, fontWeight: 500,
+                    color: connected ? '#22c55e' : '#f59e0b',
+                    display: 'flex', alignItems: 'center', gap: 4, marginTop: 1,
+                  }}>
+                    <span style={{
+                      width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                      background: connected ? '#22c55e' : '#f59e0b',
+                      boxShadow: connected ? '0 0 4px #22c55e' : 'none',
+                    }} />
+                    {connected ? 'Live' : 'Reconnecting…'}
+                  </span>
+                </div>
+              </>
+            );
+          })()}
         </header>
 
         {/* ── Messages ── */}
