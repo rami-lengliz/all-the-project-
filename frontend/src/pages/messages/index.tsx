@@ -40,6 +40,23 @@ function SkeletonRow() {
   );
 }
 
+/** Convert raw message content into a readable inbox preview line. */
+function formatPreview(content: string): string {
+  if (content?.startsWith('{"type":"BOOKING_CARD"')) {
+    try {
+      const c = JSON.parse(content) as {
+        listingTitle: string; dateLabel: string;
+        nightsLabel: string | null; totalPrice: number; currency: string;
+      };
+      const nights = c.nightsLabel ? ` · ${c.nightsLabel}` : '';
+      return `📋 ${c.listingTitle} · ${c.dateLabel}${nights} · ${c.currency}\u00a0${c.totalPrice.toFixed(2)}`;
+    } catch {
+      return '📋 Booking request';
+    }
+  }
+  return content ?? '';
+}
+
 // ── Conversation row ──────────────────────────────────────────────────
 function ConvRow({ conv, myId }: { conv: Conversation; myId: string }) {
   const other   = conv.renterId === myId ? conv.host : conv.renter;
@@ -47,7 +64,7 @@ function ConvRow({ conv, myId }: { conv: Conversation; myId: string }) {
   const initial = name[0]?.toUpperCase() ?? '?';
   const lastMsg = conv.messages?.[0];
   const preview = lastMsg
-    ? (lastMsg.senderId === myId ? 'You: ' : '') + lastMsg.content
+    ? (lastMsg.senderId === myId ? 'You: ' : '') + formatPreview(lastMsg.content)
     : 'No messages yet';
   const ts      = conv.lastMessageAt ?? conv.updatedAt;
   const unread  = (conv.unreadCount ?? 0) > 0;

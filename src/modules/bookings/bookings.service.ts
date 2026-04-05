@@ -6,6 +6,7 @@ import {
   ConflictException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Booking } from '@prisma/client';
@@ -64,6 +65,7 @@ export function withDisplay<T extends { status: string }>(
 @Injectable()
 export class BookingsService {
   private readonly commissionPercentage: number;
+  private readonly logger = new Logger(BookingsService.name);
 
   constructor(
     private prisma: PrismaService,
@@ -193,9 +195,13 @@ export class BookingsService {
       );
       conversationId = conversation.id;
 
-      // Always send an auto-generated booking summary (Airbnb-style)
+      // Always send an auto-generated booking summary (Airbnb-style rich card)
       const autoMsg = this.buildBookingAutoMessage({
+        listingId: listing.id,
         listingTitle: listing.title,
+        listingImage: (listing.images ?? [])[0] ?? null,
+        categoryName: (listing as any).category?.name ?? null,
+        bookingId: booking.id,
         startDate,
         endDate,
         totalPrice: Number(booking.totalPrice),
@@ -211,7 +217,8 @@ export class BookingsService {
           createBookingDto.message,
         );
       }
-    } catch (_e) {
+    } catch (_e: any) {
+      this.logger.error('[CHAT-AUTO] Failed to create conversation/messages after booking', _e?.message, _e?.stack);
       // Non-fatal — conversation can be created on demand from the UI
     }
 
@@ -712,9 +719,13 @@ export class BookingsService {
       );
       conversationId = conversation.id;
 
-      // Always send an auto-generated booking summary (Airbnb-style)
+      // Always send an auto-generated booking summary (Airbnb-style rich card)
       const autoMsg = this.buildBookingAutoMessage({
+        listingId: listing.id,
         listingTitle: listing.title,
+        listingImage: (listing.images ?? [])[0] ?? null,
+        categoryName: (listing as any).category?.name ?? null,
+        bookingId: booking.id,
         startDate,
         endDate: startDate,
         totalPrice: Number(booking.totalPrice),
@@ -774,12 +785,14 @@ export class BookingsService {
     return hours * 60 + minutes;
   }
 
-  /**
-   * Builds an Airbnb-style booking summary auto-message.
-   * Sent as the very first message in the thread whenever a booking is created.
-   */
+
+
   private buildBookingAutoMessage(params: {
+    listingId: string;
     listingTitle: string;
+    listingImage: string | null;
+    categoryName: string | null;
+    bookingId: string;
     startDate: Date;
     endDate: Date;
     totalPrice: number;
@@ -794,26 +807,37 @@ export class BookingsService {
         year: 'numeric',
       });
 
-    const price = `TND ${params.totalPrice.toFixed(2)}`;
-
     if (params.isSlot) {
-      return [
-        `📅 Booking request — "${params.listingTitle}"`,
-        `🗓 ${fmt(params.startDate)} · ${params.startTime ?? ''} → ${params.endTime ?? ''}`,
-        `💰 ${price}`,
-      ].join('\n');
+      return JSON.stringify({
+        type: 'BOOKING_CARD',
+        listingId: params.listingId,
+        listingTitle: params.listingTitle,
+        listingImage: params.listingImage,
+        categoryName: params.categoryName,
+        bookingId: params.bookingId,
+        dateLabel: `${fmt(params.startDate)} · ${params.startTime ?? ''} — ${params.endTime ?? ''}`,
+        nightsLabel: null,
+        totalPrice: params.totalPrice,
+        currency: 'TND',
+      });
     }
 
     const nights = Math.round(
       (params.endDate.getTime() - params.startDate.getTime()) /
         (1000 * 60 * 60 * 24),
     );
-    return [
-      `📅 Booking request — "${params.listingTitle}"`,
-      `🗓 ${fmt(params.startDate)} → ${fmt(params.endDate)} · ${nights} night${
-        nights !== 1 ? 's' : ''
-      }`,
-      `💰 ${price}`,
-    ].join('\n');
+
+    return JSON.stringify({
+      type: 'BOOKING_CARD',
+      listingId: params.listingId,
+      listingTitle: params.listingTitle,
+      listingImage: params.listingImage,
+      categoryName: params.categoryName,
+      bookingId: params.bookingId,
+      dateLabel: `${fmt(params.startDate)} → ${fmt(params.endDate)}`,
+      nightsLabel: `${nights} night${nights !== 1 ? 's' : ''}`,
+      totalPrice: params.totalPrice,
+      currency: 'TND',
+    });
   }
 }

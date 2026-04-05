@@ -328,26 +328,122 @@ export default function ChatThreadPage() {
 
               {group.msgs.map((msg) => {
                 const isMe = msg.senderId === myId;
+
+                // ── Detect booking card ───────────────────────────────
+                let card: null | {
+                  type: string; listingId: string; listingTitle: string;
+                  listingImage: string | null; categoryName: string | null;
+                  bookingId: string; dateLabel: string; nightsLabel: string | null;
+                  totalPrice: number; currency: string;
+                } = null;
+                if (msg.content?.startsWith('{"type":"BOOKING_CARD"')) {
+                  try { card = JSON.parse(msg.content); } catch { /* ignore */ }
+                }
+
                 return (
                   <div key={msg.id} style={{
                     display: 'flex',
                     justifyContent: isMe ? 'flex-end' : 'flex-start',
                     marginBottom: 8,
                   }}>
-                    <div style={{ maxWidth: '70%' }}>
-                      <div style={{
-                        padding: '10px 14px',
-                        borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                        background: isMe ? '#3b82f6' : '#fff',
-                        color: isMe ? '#fff' : '#0f172a',
-                        border: isMe ? 'none' : '1px solid #e2e8f0',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-                        fontSize: 14,
-                        lineHeight: '1.5',
-                        wordBreak: 'break-word',
-                      }}>
-                        {msg.content}
-                      </div>
+                    <div style={{ maxWidth: card ? '85%' : '70%', width: card ? '320px' : undefined }}>
+
+                      {/* ── Rich booking card ── */}
+                      {card ? (
+                        <Link href={`/listings/${card.listingId}`} style={{ textDecoration: 'none' }}>
+                          <div style={{
+                            borderRadius: 16, overflow: 'hidden',
+                            border: '1px solid #e2e8f0',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                            background: '#fff', cursor: 'pointer',
+                            transition: 'box-shadow 0.15s',
+                          }}
+                            onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.14)')}
+                            onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.08)')}
+                          >
+                            {/* Image */}
+                            <div style={{ width: '100%', height: 160, background: '#f1f5f9', position: 'relative', overflow: 'hidden' }}>
+                              {card.listingImage ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={card.listingImage.startsWith('http') || card.listingImage.startsWith('/') ? card.listingImage : `http://localhost:3001${card.listingImage}`}
+                                  alt={card.listingTitle}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 40 }}>🏠</span>
+                                </div>
+                              )}
+                              {/* Booking request badge */}
+                              <div style={{
+                                position: 'absolute', top: 10, left: 10,
+                                background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+                                borderRadius: 20, padding: '4px 10px',
+                                fontSize: 11, fontWeight: 600, color: '#fff',
+                                display: 'flex', alignItems: 'center', gap: 5,
+                              }}>
+                                📋 Booking request
+                              </div>
+                            </div>
+
+                            {/* Body */}
+                            <div style={{ padding: '12px 14px 14px' }}>
+                              {/* Category pill */}
+                              {card.categoryName && (
+                                <span style={{
+                                  display: 'inline-block', fontSize: 11, fontWeight: 600,
+                                  color: '#3b82f6', background: '#eff6ff',
+                                  borderRadius: 20, padding: '2px 8px', marginBottom: 6,
+                                }}>
+                                  {card.categoryName}
+                                </span>
+                              )}
+
+                              {/* Title */}
+                              <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: 15, color: '#0f172a', lineHeight: 1.3 }}>
+                                {card.listingTitle}
+                              </p>
+
+                              {/* Dates */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                <span style={{ fontSize: 13 }}>📅</span>
+                                <span style={{ fontSize: 13, color: '#475569' }}>{card.dateLabel}</span>
+                                {card.nightsLabel && (
+                                  <span style={{
+                                    fontSize: 11, background: '#f8fafc', border: '1px solid #e2e8f0',
+                                    borderRadius: 10, padding: '1px 7px', color: '#64748b', fontWeight: 600,
+                                  }}>{card.nightsLabel}</span>
+                                )}
+                              </div>
+
+                              {/* Price */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTop: '1px solid #f1f5f9' }}>
+                                <span style={{ fontSize: 12, color: '#94a3b8' }}>Total</span>
+                                <span style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                                  {card.currency} {card.totalPrice.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      ) : (
+                        /* ── Plain text bubble ── */
+                        <div style={{
+                          padding: '10px 14px',
+                          borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                          background: isMe ? '#3b82f6' : '#fff',
+                          color: isMe ? '#fff' : '#0f172a',
+                          border: isMe ? 'none' : '1px solid #e2e8f0',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                          fontSize: 14, lineHeight: '1.5', wordBreak: 'break-word',
+                        }}>
+                          {msg.content}
+                        </div>
+                      )}
+
+                      {/* Timestamp */}
                       <div style={{
                         fontSize: 10, color: '#94a3b8', marginTop: 3,
                         textAlign: isMe ? 'right' : 'left', paddingInline: 4,

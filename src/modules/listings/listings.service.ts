@@ -81,7 +81,7 @@ export class ListingsService {
           ${createListingDto.categoryId}, ARRAY[]::text[], ${createListingDto.pricePerDay},
           ST_SetSRID(ST_GeomFromText(${locationWKT}), 4326), ${createListingDto.address},
           ${createListingDto.rules || null}, ${createListingDto.availability ? JSON.stringify(createListingDto.availability) : null}::jsonb,
-          true, 'PENDING_REVIEW'::"ListingStatus", ${bookingType}::"BookingType", NOW(), NOW()
+          true, 'ACTIVE'::"ListingStatus", ${bookingType}::"BookingType", NOW(), NOW()
         )
         RETURNING *
       `;
@@ -458,39 +458,51 @@ export class ListingsService {
       });
     }
 
-    // Handle new image uploads
+    // Handle new image uploads — use Cloudinary (production) or local disk (dev fallback)
     if (imageFiles && imageFiles.length > 0) {
-      const baseDir =
-        this.configService.get<string>('upload.dir') || './uploads';
-      const listingDir = path.join(baseDir, 'listings', listing.id);
+      // Attempt Cloudinary upload first
+      const cloudinaryResults = await this.cloudinaryService.uploadFiles(
+        imageFiles,
+        `rentai/listings/${listing.id}`,
+      );
 
-      if (!fs.existsSync(listingDir)) {
-        fs.mkdirSync(listingDir, { recursive: true });
-      }
+      const useCloudinary = cloudinaryResults.some((url) => url !== null);
 
-      const newImageUrls: string[] = [];
-      for (const file of imageFiles) {
-        const timestamp = Date.now();
-        const randomStr = Array(8)
-          .fill(null)
-          .map(() => Math.round(Math.random() * 16).toString(16))
-          .join('');
-        const ext = path.extname(file.originalname);
-        const fileName = `${timestamp}-${randomStr}${ext}`;
-        const filePath = path.join(listingDir, fileName);
+      if (useCloudinary) {
+        // Cloudinary succeeded — use returned HTTPS URLs
+        for (const url of cloudinaryResults) {
+          if (url) currentImages.push(url);
+        }
+      } else {
+        // Cloudinary not configured — fallback to local disk (dev only)
+        const baseDir =
+          this.configService.get<string>('upload.dir') || './uploads';
+        const listingDir = path.join(baseDir, 'listings', listing.id);
 
-        const tempPath = file.path;
-        if (fs.existsSync(tempPath)) {
-          fs.renameSync(tempPath, filePath);
-        } else {
-          fs.writeFileSync(filePath, file.buffer);
+        if (!fs.existsSync(listingDir)) {
+          fs.mkdirSync(listingDir, { recursive: true });
         }
 
-        newImageUrls.push(`/uploads/listings/${listing.id}/${fileName}`);
-      }
+        for (const file of imageFiles) {
+          const timestamp = Date.now();
+          const randomStr = Array(8)
+            .fill(null)
+            .map(() => Math.round(Math.random() * 16).toString(16))
+            .join('');
+          const ext = path.extname(file.originalname);
+          const fileName = `${timestamp}-${randomStr}${ext}`;
+          const filePath = path.join(listingDir, fileName);
 
-      // Append new images to existing ones
-      currentImages = [...currentImages, ...newImageUrls];
+          const tempPath = file.path;
+          if (tempPath && fs.existsSync(tempPath)) {
+            fs.renameSync(tempPath, filePath);
+          } else {
+            fs.writeFileSync(filePath, file.buffer);
+          }
+
+          currentImages.push(`/uploads/listings/${listing.id}/${fileName}`);
+        }
+      }
     }
 
     // Ensure at least one image remains
