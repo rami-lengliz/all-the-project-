@@ -6,6 +6,7 @@ import {
   ConflictException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Booking } from '@prisma/client';
@@ -17,6 +18,7 @@ import { AvailabilityService } from '../../common/utils/availability.service';
 import { BookingStateMachine } from '../../common/utils/booking-state-machine';
 import { PaymentsService } from '../payments/payments.service';
 import { CancellationPolicyService } from '../../common/policies/cancellation-policy.service';
+import { ChatService } from '../../chat/chat.service';
 
 /**
  * Maps internal DB booking statuses to stable MVP-facing vocabulary.
@@ -63,6 +65,7 @@ export function withDisplay<T extends { status: string }>(
 @Injectable()
 export class BookingsService {
   private readonly commissionPercentage: number;
+  private readonly logger = new Logger(BookingsService.name);
 
   constructor(
     private prisma: PrismaService,
@@ -72,6 +75,7 @@ export class BookingsService {
     @Inject(forwardRef(() => PaymentsService))
     private paymentsService: PaymentsService,
     private cancellationPolicyService: CancellationPolicyService,
+    private chatService: ChatService,
   ) {
     this.commissionPercentage =
       this.configService.get<number>('commission.percentage') || 0.1;
@@ -80,7 +84,7 @@ export class BookingsService {
   async create(
     createBookingDto: CreateBookingDto,
     renterId: string,
-  ): Promise<Booking> {
+  ): Promise<any> {
     const listing = await this.listingsService.findOne(
       createBookingDto.listingId,
     );
@@ -180,7 +184,45 @@ export class BookingsService {
       // Non-fatal — payment intent can be created lazily
     }
 
-    return withDisplay(booking);
+    // Auto-create chat conversation for this booking (idempotent via unique constraint)
+    let conversationId: string | null = null;
+    try {
+      const conversation = await this.chatService.getOrCreateConversation(
+        renterId,
+        listing.hostId,
+        booking.id,
+        listing.id,
+      );
+      conversationId = conversation.id;
+
+      // Always send an auto-generated booking summary (Airbnb-style rich card)
+      const autoMsg = this.buildBookingAutoMessage({
+        listingId: listing.id,
+        listingTitle: listing.title,
+        listingImage: (listing.images ?? [])[0] ?? null,
+        categoryName: (listing as any).category?.name ?? null,
+        bookingId: booking.id,
+        startDate,
+        endDate,
+        totalPrice: Number(booking.totalPrice),
+        isSlot: false,
+      });
+      await this.chatService.sendMessage(conversation.id, renterId, autoMsg);
+
+      // Then the renter's optional personal note
+      if (createBookingDto.message) {
+        await this.chatService.sendMessage(
+          conversation.id,
+          renterId,
+          createBookingDto.message,
+        );
+      }
+    } catch (_e: any) {
+      this.logger.error('[CHAT-AUTO] Failed to create conversation/messages after booking', _e?.message, _e?.stack);
+      // Non-fatal — conversation can be created on demand from the UI
+    }
+
+    return { ...withDisplay(booking), conversationId };
   }
 
   async findAll(userId: string) {
@@ -196,15 +238,22 @@ export class BookingsService {
         },
         renter: true,
         host: true,
+        Conversation: {
+          select: { id: true },
+          take: 1,
+        },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
-    return bookings.map(withDisplay);
+    return bookings.map((b) => ({
+      ...withDisplay(b),
+      conversationId: b.Conversation?.[0]?.id ?? null,
+    }));
   }
 
-  async findOne(id: string): Promise<Booking> {
+  async findOne(id: string) {
     const booking = await this.prisma.booking.findUnique({
       where: { id },
       include: {
@@ -215,12 +264,19 @@ export class BookingsService {
         },
         renter: true,
         host: true,
+        Conversation: {
+          select: { id: true },
+          take: 1,
+        },
       },
     });
     if (!booking) {
       throw new NotFoundException(`Booking with ID ${id} not found`);
     }
-    return withDisplay(booking);
+    return {
+      ...withDisplay(booking),
+      conversationId: booking.Conversation?.[0]?.id ?? null,
+    };
   }
 
   async confirm(id: string, userId: string): Promise<Booking> {
@@ -555,7 +611,7 @@ export class BookingsService {
     renterId: string,
     listing: any,
     startDate: Date,
-  ): Promise<Booking> {
+  ): Promise<any> {
     if (!createBookingDto.startTime || !createBookingDto.endTime) {
       throw new BadRequestException(
         'Start time and end time are required for slot bookings',
@@ -652,7 +708,46 @@ export class BookingsService {
       // Non-fatal — payment intent can be created lazily
     }
 
-    return withDisplay(booking);
+    // Auto-create chat conversation for this slot booking
+    let conversationId: string | null = null;
+    try {
+      const conversation = await this.chatService.getOrCreateConversation(
+        renterId,
+        listing.hostId,
+        booking.id,
+        listing.id,
+      );
+      conversationId = conversation.id;
+
+      // Always send an auto-generated booking summary (Airbnb-style rich card)
+      const autoMsg = this.buildBookingAutoMessage({
+        listingId: listing.id,
+        listingTitle: listing.title,
+        listingImage: (listing.images ?? [])[0] ?? null,
+        categoryName: (listing as any).category?.name ?? null,
+        bookingId: booking.id,
+        startDate,
+        endDate: startDate,
+        totalPrice: Number(booking.totalPrice),
+        isSlot: true,
+        startTime: createBookingDto.startTime,
+        endTime: createBookingDto.endTime,
+      });
+      await this.chatService.sendMessage(conversation.id, renterId, autoMsg);
+
+      // Then the renter's optional personal note
+      if (createBookingDto.message) {
+        await this.chatService.sendMessage(
+          conversation.id,
+          renterId,
+          createBookingDto.message,
+        );
+      }
+    } catch (_e) {
+      // Non-fatal
+    }
+
+    return { ...withDisplay(booking), conversationId };
   }
 
   private calculateSlotPrice(
@@ -688,5 +783,61 @@ export class BookingsService {
   private timeStringToMinutes(timeStr: string): number {
     const [hours, minutes] = timeStr.split(':').map(Number);
     return hours * 60 + minutes;
+  }
+
+
+
+  private buildBookingAutoMessage(params: {
+    listingId: string;
+    listingTitle: string;
+    listingImage: string | null;
+    categoryName: string | null;
+    bookingId: string;
+    startDate: Date;
+    endDate: Date;
+    totalPrice: number;
+    isSlot: boolean;
+    startTime?: string;
+    endTime?: string;
+  }): string {
+    const fmt = (d: Date) =>
+      d.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+
+    if (params.isSlot) {
+      return JSON.stringify({
+        type: 'BOOKING_CARD',
+        listingId: params.listingId,
+        listingTitle: params.listingTitle,
+        listingImage: params.listingImage,
+        categoryName: params.categoryName,
+        bookingId: params.bookingId,
+        dateLabel: `${fmt(params.startDate)} · ${params.startTime ?? ''} — ${params.endTime ?? ''}`,
+        nightsLabel: null,
+        totalPrice: params.totalPrice,
+        currency: 'TND',
+      });
+    }
+
+    const nights = Math.round(
+      (params.endDate.getTime() - params.startDate.getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+
+    return JSON.stringify({
+      type: 'BOOKING_CARD',
+      listingId: params.listingId,
+      listingTitle: params.listingTitle,
+      listingImage: params.listingImage,
+      categoryName: params.categoryName,
+      bookingId: params.bookingId,
+      dateLabel: `${fmt(params.startDate)} → ${fmt(params.endDate)}`,
+      nightsLabel: `${nights} night${nights !== 1 ? 's' : ''}`,
+      totalPrice: params.totalPrice,
+      currency: 'TND',
+    });
   }
 }

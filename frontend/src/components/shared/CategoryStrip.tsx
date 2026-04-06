@@ -2,9 +2,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 
 export type CategorySlug =
-  | 'accommodation'
+  | 'stays'
+  | 'sports-facilities'
   | 'mobility'
-  | 'water-beach-activities';
+  | 'beach-gear';
 
 const CATEGORIES: Array<{
   slug: CategorySlug;
@@ -13,16 +14,22 @@ const CATEGORIES: Array<{
   icon: string;
 }> = [
   {
-    slug: 'accommodation',
-    labelEn: 'Accommodation',
+    slug: 'stays',
+    labelEn: 'Stays',
     labelAr: 'إقامة',
     icon: '🏠',
   },
+  {
+    slug: 'sports-facilities',
+    labelEn: 'Sports Facilities',
+    labelAr: 'ملاعب رياضية',
+    icon: '🏟️',
+  },
   { slug: 'mobility', labelEn: 'Mobility', labelAr: 'تنقل', icon: '🚗' },
   {
-    slug: 'water-beach-activities',
-    labelEn: 'Water & Beach',
-    labelAr: 'شاطئ وماء',
+    slug: 'beach-gear',
+    labelEn: 'Beach Gear',
+    labelAr: 'معدات الشاطئ',
     icon: '🏖️',
   },
 ];

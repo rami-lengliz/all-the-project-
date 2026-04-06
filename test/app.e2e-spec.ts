@@ -116,7 +116,7 @@ describe('AppController (e2e)', () => {
     const cat = await prisma.category.create({
       data: {
         name: `Accommodation ${SUFFIX}`,
-        slug: `accommodation-${SUFFIX}`,
+        slug: `stays-${SUFFIX}`,
         icon: '🏠',
         allowedForPrivate: true,
       },

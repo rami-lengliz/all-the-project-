@@ -58,7 +58,7 @@ export class AiSearchRequestDto {
 
   @ApiProperty({
     description: 'Available category slugs within radius (optional)',
-    example: ['accommodation', 'sports-facilities'],
+    example: ['stays', 'sports-facilities'],
     required: false,
     type: [String],
   })

@@ -3,6 +3,8 @@ import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { CategoryStrip } from '@/components/shared/CategoryStrip';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { useQuery } from '@tanstack/react-query';
+import { fetchUnreadCount } from '@/lib/api/chat';
 
 export function Header() {
   const router = useRouter();
@@ -12,6 +14,14 @@ export function Header() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ['chat', 'unread'],
+    queryFn: fetchUnreadCount,
+    enabled: isMounted && !!user,
+    refetchInterval: 10000,
+    staleTime: 5000,
+  });
 
   return (
     <header className="border-b border-slate-200 bg-white">
@@ -78,14 +88,22 @@ export function Header() {
             🌐
           </button>
 
-          {/*
-            Hydration-safe auth rendering:
-            - SSR always has no localStorage => user is null, so it renders Login.
-            - On first client render, we must match SSR exactly to avoid hydration mismatch.
-            - After mount, we can safely switch to the real auth-dependent UI.
-          */}
           {isMounted && user ? (
             <div className="flex items-center gap-2">
+              {/* Messages icon with unread badge */}
+              <Link
+                href="/messages"
+                className="relative rounded-full p-2 text-slate-700 hover:bg-slate-100 transition"
+                aria-label="Messages"
+              >
+                <i className="fa-solid fa-message text-base" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Link>
+
               <Link
                 href="/profile"
                 className="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"

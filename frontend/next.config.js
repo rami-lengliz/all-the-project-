@@ -12,6 +12,11 @@ const nextConfig = {
                 source: '/api/:path*',
                 destination: `${apiBase}/api/:path*`,
             },
+            {
+                // Proxy uploaded images from NestJS backend static file server
+                source: '/uploads/:path*',
+                destination: `${apiBase}/uploads/:path*`,
+            },
         ];
     },
 };

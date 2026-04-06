@@ -28,21 +28,9 @@ export class SeedService {
     console.log('Creating categories...');
     const categories = [
       {
-        name: 'Accommodation',
-        slug: 'accommodation',
+        name: 'Stays',
+        slug: 'stays',
         icon: '🏠',
-        allowedForPrivate: true,
-      },
-      {
-        name: 'Mobility',
-        slug: 'mobility',
-        icon: '🚗',
-        allowedForPrivate: true,
-      },
-      {
-        name: 'Water & Beach Activities',
-        slug: 'water-beach-activities',
-        icon: '🏖️',
         allowedForPrivate: true,
       },
       {
@@ -52,13 +40,17 @@ export class SeedService {
         allowedForPrivate: true,
       },
       {
-        name: 'Sports Equipment',
-        slug: 'sports-equipment',
-        icon: '⚽',
+        name: 'Mobility',
+        slug: 'mobility',
+        icon: '🚗',
         allowedForPrivate: true,
       },
-      { name: 'Tools', slug: 'tools', icon: '🔧', allowedForPrivate: true },
-      { name: 'Other', slug: 'other', icon: '📦', allowedForPrivate: true },
+      {
+        name: 'Beach Gear',
+        slug: 'beach-gear',
+        icon: '🏖️',
+        allowedForPrivate: true,
+      },
     ];
 
     const savedCategories = await Promise.all(
@@ -356,8 +348,8 @@ export class SeedService {
     const renterA = users[5]; // user6
     const renterB = users[6]; // user7
 
-    const accommodationCat = categories.find(
-      (c) => c.slug === 'accommodation',
+    const staysCat = categories.find(
+      (c) => c.slug === 'stays',
     )!;
     const sportsCat = categories.find((c) => c.slug === 'sports-facilities')!;
 
@@ -377,7 +369,7 @@ export class SeedService {
         ${150},
         ST_SetSRID(ST_GeomFromText(${'POINT(' + (KELIBIA_LNG + 0.05) + ' ' + (KELIBIA_LAT + 0.05) + ')'}), 4326),
         ${'Demo Street 1, Kelibia'},
-        ${accommodationCat.id}::uuid,
+        ${staysCat.id}::uuid,
         ${host.id}::uuid,
         ARRAY['/uploads/demo-villa.jpg']::TEXT[],
         true, 'ACTIVE'::"ListingStatus",
@@ -663,7 +655,7 @@ export class SeedService {
 
     // Conv 5 — Beach activity enquiry — 11 messages
     const beachListing = await this.prisma.listing.findFirst({
-      where: { category: { slug: 'water-beach-activities' } },
+      where: { category: { slug: 'beach-gear' } },
     });
     if (beachListing) {
       const conv5 = await this.prisma.conversation.create({

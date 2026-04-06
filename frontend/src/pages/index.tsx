@@ -113,25 +113,38 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Categories Section - Only show 3 allowed categories */}
+      {/* Categories Section - Only show 4 allowed categories */}
       <section id="categories" className="bg-gray-50 py-8">
         <div className="mx-auto max-w-7xl px-6">
           <h2 className="mb-6 text-2xl font-bold text-gray-900">
             Popular categories in Tunis
           </h2>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Link
-              href="/search?categorySlug=accommodation"
+              href="/search?categorySlug=stays"
               className="group cursor-pointer rounded-xl border border-gray-200 bg-white p-6 transition hover:shadow-lg"
             >
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 transition group-hover:bg-blue-500">
                 <i className="fa-solid fa-house text-xl text-blue-500 transition group-hover:text-white"></i>
               </div>
               <h3 className="text-sm font-semibold text-gray-900">
-                Accommodation
+                Stays
               </h3>
-              <p className="mt-1 text-xs text-gray-500">Houses & Apartments</p>
+              <p className="mt-1 text-xs text-gray-500">Houses & Villas</p>
+            </Link>
+
+            <Link
+              href="/search?categorySlug=sports-facilities"
+              className="group cursor-pointer rounded-xl border border-gray-200 bg-white p-6 transition hover:shadow-lg"
+            >
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 transition group-hover:bg-purple-500">
+                <i className="fa-solid fa-futbol text-xl text-purple-500 transition group-hover:text-white"></i>
+              </div>
+              <h3 className="text-sm font-semibold text-gray-900">
+                Sports Facilities
+              </h3>
+              <p className="mt-1 text-xs text-gray-500">Football, Volleyball & Paddel</p>
             </Link>
 
             <Link
@@ -146,17 +159,17 @@ export default function HomePage() {
             </Link>
 
             <Link
-              href="/search?categorySlug=water-beach-activities"
+              href="/search?categorySlug=beach-gear"
               className="group cursor-pointer rounded-xl border border-gray-200 bg-white p-6 transition hover:shadow-lg"
             >
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-orange-100 transition group-hover:bg-orange-500">
                 <i className="fa-solid fa-water text-xl text-orange-500 transition group-hover:text-white"></i>
               </div>
               <h3 className="text-sm font-semibold text-gray-900">
-                Water & Beach
+                Beach Gear
               </h3>
               <p className="mt-1 text-xs text-gray-500">
-                Activities & Equipment
+                Paddle, Kayak & More
               </p>
             </Link>
           </div>

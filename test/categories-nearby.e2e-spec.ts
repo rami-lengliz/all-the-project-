@@ -64,7 +64,7 @@ describe('GET /api/categories/nearby (e2e)', () => {
     const catA = await prisma.category.create({
       data: {
         name: `Accommodation ${SUFFIX}`,
-        slug: `accommodation-${SUFFIX}`,
+        slug: `stays-${SUFFIX}`,
         icon: '🏠',
         allowedForPrivate: true,
       },
@@ -228,7 +228,7 @@ describe('GET /api/categories/nearby (e2e)', () => {
     const data: any[] = res.body.data;
 
     const idxA = data.findIndex(
-      (d: any) => d.slug === `accommodation-${SUFFIX}`,
+      (d: any) => d.slug === `stays-${SUFFIX}`,
     );
     const idxB = data.findIndex((d: any) => d.slug === `mobility-${SUFFIX}`);
 

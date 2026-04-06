@@ -1,18 +1,44 @@
+import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { HostLayout } from '@/components/host/HostLayout';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { useMyBookings } from '@/lib/api/hooks/useMyBookings';
 import { useConfirmBooking } from '@/lib/api/hooks/useConfirmBooking';
+import { useRejectBooking } from '@/lib/api/hooks/useRejectBooking';
+import { createConversation } from '@/lib/api/chat';
 import { formatTnd } from '@/lib/utils/format';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { InlineError } from '@/components/ui/InlineError';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 export default function HostBookingsPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const meId = user?.id;
   const bookingsQuery = useMyBookings();
   const confirm = useConfirmBooking();
+  const reject = useRejectBooking();
+  const [creatingFor, setCreatingFor] = useState<string | null>(null);
+
+  /** Navigate to the conversation thread, creating one if needed */
+  const goToChat = async (b: any) => {
+    if (b.conversationId) {
+      router.push(`/messages/${b.conversationId}`);
+      return;
+    }
+    try {
+      setCreatingFor(b.id);
+      const renterId = b.renter?.id ?? b.renterId;
+      if (!renterId) { router.push('/messages'); return; }
+      const conv = await createConversation(renterId, b.id, b.listing?.id);
+      router.push(`/messages/${conv.id}`);
+    } catch {
+      router.push('/messages');
+    } finally {
+      setCreatingFor(null);
+    }
+  };
 
   const allBookings = (bookingsQuery.data as any) ?? [];
   const hostBookings = meId
@@ -135,14 +161,35 @@ export default function HostBookingsPage() {
                         >
                           {confirm.isPending ? 'Accepting…' : 'Accept booking'}
                         </button>
-                        <button className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 rounded-lg text-sm font-medium transition">
-                          Decline
+                        <button
+                          className="flex-1 border border-red-300 hover:bg-red-50 text-red-600 py-2 rounded-lg text-sm font-medium transition disabled:opacity-60"
+                          onClick={() => reject.mutate(b.id)}
+                          disabled={reject.isPending}
+                        >
+                          {reject.isPending ? 'Declining…' : 'Decline'}
+                        </button>
+                        <button
+                          onClick={() => void goToChat(b)}
+                          disabled={creatingFor === b.id}
+                          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm disabled:opacity-60"
+                        >
+                          {creatingFor === b.id
+                            ? <i className="fa-solid fa-spinner fa-spin text-gray-600" />
+                            : <i className="fa-solid fa-message text-gray-600" />}
                         </button>
                       </div>
                     ) : (
                       <div className="flex items-center space-x-3 mt-6 pt-4 border-t border-gray-200">
-                        <button className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-sm font-medium transition">
-                          Message renter
+                        <button
+                          onClick={() => void goToChat(b)}
+                          disabled={creatingFor === b.id}
+                          className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white py-2 rounded-lg text-sm font-medium transition text-center"
+                        >
+                          {creatingFor === b.id ? (
+                            <><i className="fa-solid fa-spinner fa-spin mr-2" />Opening…</>
+                          ) : (
+                            <><i className="fa-solid fa-message mr-2" />Message renter</>
+                          )}
                         </button>
                         <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
                           <i className="fa-solid fa-ellipsis-vertical text-gray-600" />

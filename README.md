@@ -41,7 +41,7 @@ RentEverything supports multiple “templates” (so users see only relevant fie
 - Availability: **date range calendar**
 - Conflict rule: once paid/confirmed, dates are blocked
 
-### 2) Sports facilities (football/volleyball/pitches/courts)
+### 2) Sports facilities (football/volleyball/paddel)
 - Pricing: per slot / per hour
 - Availability: **slot calendar** (recommended)
 - Conflict rule: once paid/confirmed, slots are blocked
@@ -50,7 +50,7 @@ RentEverything supports multiple “templates” (so users see only relevant fie
 - Pricing: per day (MVP)
 - Availability: simple available/unavailable or day-based (MVP)
 
-### 4) Items (beach gear, tools, etc.)
+### 4) beach gear (beach paddle, kayak, etc.)
 - Pricing: per day or per item/day (MVP)
 - Availability: simple available/unavailable (MVP)
 

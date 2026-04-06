@@ -24,11 +24,11 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '@prisma/client';
 
 @ApiTags('chat')
-@Controller('chat')
+@Controller('api/chat')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class ChatController {
-  constructor(private chatService: ChatService) {}
+  constructor(private chatService: ChatService) { }
 
   @Get('conversations')
   @ApiOperation({ summary: 'Get all conversations for the current user' })
@@ -87,3 +87,6 @@ export class ChatController {
     return { count };
   }
 }
+
+
+

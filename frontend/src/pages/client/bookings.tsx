@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { ClientLayout } from '@/components/client/ClientLayout';
 import { useMyBookings } from '@/lib/api/hooks/useMyBookings';
+import { createConversation } from '@/lib/api/chat';
 import { formatTnd } from '@/lib/utils/format';
 import { InlineError } from '@/components/ui/InlineError';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -10,8 +12,11 @@ import { LoadingCard } from '@/components/ui/LoadingCard';
 type TabKey = 'current' | 'past' | 'cancelled';
 
 export default function ClientBookingsPage() {
+  const router = useRouter();
   const query = useMyBookings();
   const [tab, setTab] = useState<TabKey>('current');
+  // Track which booking is being created to show a per-row spinner
+  const [creatingFor, setCreatingFor] = useState<string | null>(null);
 
   const bookings = useMemo(
     () => ((query.data as any) ?? []) as any[],
@@ -222,10 +227,39 @@ export default function ClientBookingsPage() {
                       </div>
 
                       <div className="flex items-center space-x-3">
-                        <button className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 px-4 rounded-lg transition">
-                          <i className="fa-solid fa-message mr-2" />
-                          Contact host
-                        </button>
+                        {(b as any).conversationId ? (
+                          <Link
+                            href={`/messages/${(b as any).conversationId}`}
+                            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 px-4 rounded-lg transition text-center"
+                          >
+                            <i className="fa-solid fa-message mr-2" />
+                            Contact host
+                          </Link>
+                        ) : (
+                          <button
+                            disabled={creatingFor === b.id}
+                            onClick={async () => {
+                              try {
+                                setCreatingFor(b.id);
+                                const hostId = b.listing?.userId ?? b.listing?.hostId;
+                                if (!hostId) { router.push('/messages'); return; }
+                                const conv = await createConversation(hostId, b.id, b.listing?.id);
+                                router.push(`/messages/${conv.id}`);
+                              } catch {
+                                router.push('/messages');
+                              } finally {
+                                setCreatingFor(null);
+                              }
+                            }}
+                            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white font-medium py-2.5 px-4 rounded-lg transition text-center"
+                          >
+                            {creatingFor === b.id ? (
+                              <><i className="fa-solid fa-spinner fa-spin mr-2" />Opening…</>
+                            ) : (
+                              <><i className="fa-solid fa-message mr-2" />Contact host</>
+                            )}
+                          </button>
+                        )}
                         <Link
                           href={
                             listing?.id ? `/listings/${listing.id}` : '/search'
