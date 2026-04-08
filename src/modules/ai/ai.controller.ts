@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -12,6 +12,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { ListingAssistantService } from './listing-assistant.service';
 import { AiSearchService } from './ai-search.service';
+import { PriceSuggestionService } from './price-suggestion.service';
 import { PrismaService } from '../../database/prisma.service';
 import {
   GenerateListingDto,
@@ -19,6 +20,10 @@ import {
   GenerateTitleDto,
 } from './dto/listing-assistant.dto';
 import { AiSearchRequestDto } from './dto/ai-search.dto';
+import {
+  PriceSuggestionRequestDto,
+  PriceSuggestionResponseDto,
+} from './dto/price-suggestion.dto';
 
 @ApiTags('AI')
 @Controller('api/ai')
@@ -26,6 +31,7 @@ export class AiController {
   constructor(
     private listingAssistantService: ListingAssistantService,
     private aiSearchService: AiSearchService,
+    private priceSuggestionService: PriceSuggestionService,
     private prisma: PrismaService,
   ) {}
 
@@ -368,5 +374,104 @@ export class AiController {
       dto.location,
     );
     return { titles };
+  }
+
+  // ── AI Price Suggestion ────────────────────────────────────────────────────
+
+  @Post('price-suggestion')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'AI Price Suggestion for new listing',
+    description:
+      'Returns a recommended price, range, confidence score, and 3-bullet explanation. ' +
+      'The user never inputs a price before calling this endpoint. ' +
+      'An override is allowed only on the final listing confirmation step.',
+  })
+  @ApiBody({
+    type: PriceSuggestionRequestDto,
+    examples: {
+      kelibia_accommodation: {
+        summary: '🏖️ Example 1 — Kelibia beachfront villa (near sea, peak)',
+        value: {
+          city: 'Kelibia',
+          category: 'accommodation',
+          unit: 'per_night',
+          lat: 36.8497,
+          lng: 11.1047,
+          area_sqm: 120,
+          capacity: 8,
+          propertyType: 'villa',
+          distanceToSeaKm: 0.2,
+          amenities: ['sea_view', 'pool', 'wifi', 'parking', 'air_conditioning'],
+          condition: 'excellent',
+          season: 'peak',
+        },
+      },
+      kelibia_inland_house: {
+        summary: '🏠 Example 2 — Kelibia inland house (far from sea, off-peak)',
+        value: {
+          city: 'Kelibia',
+          category: 'accommodation',
+          unit: 'per_night',
+          lat: 36.8301,
+          lng: 11.0801,
+          area_sqm: 70,
+          capacity: 4,
+          propertyType: 'house',
+          distanceToSeaKm: 5.0,
+          amenities: ['wifi', 'parking'],
+          condition: 'good',
+          season: 'off_peak',
+        },
+      },
+      tunis_sports: {
+        summary: '⚽ Tunis sports facility (hourly)',
+        value: {
+          city: 'Tunis',
+          category: 'sports_facility',
+          unit: 'per_hour',
+          lat: 36.819,
+          lng: 10.1658,
+          capacity: 22,
+          amenities: ['changing_rooms', 'floodlights', 'parking'],
+          condition: 'good',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Price suggestion returned successfully',
+    type: PriceSuggestionResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid request body' })
+  @ApiResponse({ status: 422, description: 'City not supported' })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async priceSuggestion(
+    @Body() dto: PriceSuggestionRequestDto,
+  ): Promise<PriceSuggestionResponseDto> {
+    return this.priceSuggestionService.suggest(dto);
+  }
+
+  // ── PATCH /api/ai/price-suggestion/log/:id ─────────────────────────────────
+  @Patch('price-suggestion/log/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Patch price suggestion log after publish',
+    description: 'Links the final chosen price and listingId to the suggestion log row. Called by the frontend after a listing is successfully created.',
+  })
+  @ApiResponse({ status: 200, description: 'Log updated' })
+  async patchPriceSuggestionLog(
+    @Param('id') id: string,
+    @Body() body: { listingId: string; finalPrice: number; suggestedPrice: number },
+  ): Promise<void> {
+    return this.priceSuggestionService.patchLog(
+      id,
+      body.listingId,
+      body.finalPrice,
+      body.suggestedPrice,
+    );
   }
 }
