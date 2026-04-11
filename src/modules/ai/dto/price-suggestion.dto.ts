@@ -87,6 +87,18 @@ export class PriceSuggestionRequestDto {
   lng?: number;
 
   @ApiPropertyOptional({
+    example: 25,
+    description:
+      'Search radius in km for PostGIS city comparables. Defaults to 25 km when lat/lng are provided.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(200)
+  @Type(() => Number)
+  radiusKm?: number;
+
+  @ApiPropertyOptional({
     example: 85,
     description: 'Surface area in m². Used for accommodation and spaces.',
   })

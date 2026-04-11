@@ -474,4 +474,45 @@ export class AiController {
       body.suggestedPrice,
     );
   }
+
+  // ── GET /api/ai/price-suggestion/comps (debug/test) ────────────────────────
+  @Get('price-suggestion/comps')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Fetch raw city comparables (PostGIS)',
+    description:
+      'Debug endpoint — returns the raw comp rows used by the pricing engine for a given location + category. ' +
+      'Useful for verifying PostGIS is working and comps are being fetched correctly.',
+  })
+  @ApiQuery({ name: 'lat',      type: Number, required: true,  example: 36.8497 })
+  @ApiQuery({ name: 'lng',      type: Number, required: true,  example: 11.1047 })
+  @ApiQuery({ name: 'radiusKm', type: Number, required: false, example: 25 })
+  @ApiQuery({ name: 'category', type: String, required: true,  example: 'accommodation' })
+  @ApiQuery({ name: 'unit',     type: String, required: true,  example: 'per_night' })
+  @ApiQuery({ name: 'city',     type: String, required: true,  example: 'Kelibia' })
+  @ApiResponse({ status: 200, description: 'Array of comp rows' })
+  async getPriceComps(
+    @Query('lat')      lat:      string,
+    @Query('lng')      lng:      string,
+    @Query('radiusKm') radiusKm: string,
+    @Query('category') category: string,
+    @Query('unit')     unit:     string,
+    @Query('city')     city:     string,
+  ): Promise<any[]> {
+    const dto = {
+      city,
+      category: category as any,
+      unit:     unit     as any,
+      lat:      parseFloat(lat),
+      lng:      parseFloat(lng),
+      radiusKm: radiusKm ? parseFloat(radiusKm) : 25,
+    };
+    return this.priceSuggestionService.fetchCompsGeo(
+      dto as any,
+      dto.lat,
+      dto.lng,
+      dto.radiusKm,
+    );
+  }
 }

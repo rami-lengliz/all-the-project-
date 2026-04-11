@@ -9,11 +9,49 @@ import {
 } from './dto/price-suggestion.dto';
 import { CATEGORY_PRICING_UNITS } from '../../common/constants/category-pricing-units';
 
+// ── Comp row types ──────────────────────────────────────────────────────────
+/** Normalised comp returned by both fetchCompsGeo and the fallback */
+interface CompRow {
+  listingId:    string;
+  price:        number;      // ground-truth booking price, or listing asking price
+  source:       'booking' | 'listing';
+  categorySlug: string;
+  address:      string;
+  lat:          number;
+  lng:          number;
+  distanceM:    number;       // 0 for city-string fallback comps
+}
+
+/** Raw row returned by $queryRaw before normalisation */
+interface RawCompRow {
+  listingId:    string;
+  listingPrice: number;       // Prisma returns ::float as JS number
+  address:      string;
+  lat:          string | number;  // PostGIS returns text from $queryRaw
+  lng:          string | number;
+  distanceM:    string | number;
+  categorySlug: string;
+  bookedPrice:  number | null;
+}
+
 // ── City-first thresholds ─────────────────────────────────────────────────────
-const MIN_CITY_COMPS  = 5;
-const HIGH_CITY_COMPS = 10;
+const MIN_CITY_COMPS  = 5;   // below this → ramp from national
+const HIGH_CITY_COMPS = 10;  // at/above this → full city trust
 const W_CITY_PARTIAL     = 0.60;
 const W_NATIONAL_PARTIAL = 0.40;
+
+// ── Comparable selection constants ───────────────────────────────────────────
+// Primary source: bookings with these statuses carry a real agreed price
+const COMP_BOOKING_STATUSES = ['confirmed', 'paid', 'completed'] as const;
+// How many comps to keep (topK) — enough for a stable average, not so many we
+// include stale/outlier data from years ago
+const TOPK_CITY_BOOKINGS     = 30;   // city-level booking comps
+const TOPK_NATIONAL_BOOKINGS = 100;  // national booking comps
+const TOPK_CITY_LISTINGS     = 30;   // fallback: active listing prices (city)
+const TOPK_NATIONAL_LISTINGS = 150;  // fallback: active listing prices (national)
+// Radius used for city-level comp matching (km stored in address string — PostGIS
+// not used here; we match on city string extracted from address instead)
+const CITY_RADIUS_LABEL = 'city'; // placeholder; filter is address-contains(city)
 
 // ── Season ────────────────────────────────────────────────────────────────────
 const PEAK_MONTHS     = new Set([6, 7]);
@@ -64,14 +102,23 @@ export class PriceSuggestionService {
     dto: PriceSuggestionRequestDto,
   ): Promise<PriceSuggestionResponseDto> {
     // ── 1. City-first weighted base price ───────────────────────────────────
-    const cityComps    = await this.fetchComps(dto, dto.city);
-    const cityPrices   = this.extractPrices(cityComps);
-    const cityAvg      = this.avg(cityPrices);
-    const cityCompsN   = cityPrices.length;
+    //   When lat/lng are provided: use PostGIS radius query (precise)
+    //   Otherwise: fall back to city-string address matching
+    const hasGeo = dto.lat !== undefined && dto.lng !== undefined;
+    const radiusKm = dto.radiusKm ?? 25;
 
-    const nationalComps  = await this.fetchComps(dto, null);
-    const nationalPrices = this.extractPrices(nationalComps);
-    const nationalAvg    = this.avg(nationalPrices) ?? CATEGORY_DEFAULTS[dto.category] ?? 100;
+    const catSlug = this.categoryToSlug(dto.category);
+    const cityPrices: CompRow[] = hasGeo
+      ? await this.fetchCompsGeo(dto, dto.lat!, dto.lng!, radiusKm)
+      : (await this.fetchComps(dto, dto.city)).map((p) => ({
+          listingId: '', price: p, source: 'listing' as const,
+          categorySlug: catSlug, address: dto.city, lat: 0, lng: 0, distanceM: 0,
+        }));
+    const cityAvg    = this.avg(cityPrices.map((c) => c.price));
+    const cityCompsN = cityPrices.length;
+
+    const nationalComps  = await this.fetchNationalComps(dto);
+    const nationalAvg    = this.avg(nationalComps.map((c) => c.price)) ?? CATEGORY_DEFAULTS[dto.category] ?? 100;
 
     const { basePrice, wCity, wNational } = this.cityFirstWeight(
       cityCompsN, cityAvg, nationalAvg, dto.category,
@@ -277,67 +324,318 @@ export class PriceSuggestionService {
 
   // ── DB helpers ─────────────────────────────────────────────────────────────
 
-  private async fetchComps(dto: PriceSuggestionRequestDto, city: string | null) {
-    try {
-      const categoryKeywords = this.categoryToKeywords(dto.category);
-      const cityFilter = city
-        ? { address: { contains: city, mode: 'insensitive' as const } }
-        : {};
+  // ── PostGIS city comp query (used when lat/lng are provided) ──────────────
+  //
+  // Returns structured comp objects — NOT yet ranked/scored.
+  // Sorted by distance ASC so the closest comps come first.
+  //
+  // SQL:
+  //   SELECT l.id, l.price_per_day, l.address, l.availability,
+  //          ST_Y(l.location::geometry) AS lat,
+  //          ST_X(l.location::geometry) AS lng,
+  //          ST_Distance(l.location::geography, ref::geography) AS dist_m,
+  //          c.slug AS category_slug,
+  //          b.snapshot_price_per_day AS booked_price
+  //   FROM listings l
+  //   JOIN categories c ON c.id = l.category_id
+  //   LEFT JOIN bookings b ON b.listing_id = l.id
+  //     AND b.status IN ('confirmed','paid','completed')
+  //     AND b.snapshot_price_per_day IS NOT NULL
+  //   WHERE l.is_active = true
+  //     AND l.deleted_at IS NULL
+  //     AND c.slug = $catSlug
+  //     AND ST_DWithin(
+  //           l.location::geography,
+  //           ST_SetSRID(ST_MakePoint($lng, $lat), 4326)::geography,
+  //           $radiusM
+  //         )
+  //   ORDER BY dist_m ASC
+  //   LIMIT 50;
 
-      return await this.prisma.listing.findMany({
-        where: {
-          isActive: true,
-          status: 'ACTIVE',
-          ...cityFilter,
-          ...(categoryKeywords.length > 0
-            ? {
-                OR: categoryKeywords.map((kw) => ({
-                  category: {
-                    OR: [
-                      { name: { contains: kw, mode: 'insensitive' as const } },
-                      { slug: { contains: kw, mode: 'insensitive' as const } },
-                    ],
-                  },
-                })),
-              }
-            : {}),
-        },
-        select: { pricePerDay: true },
-        take: city ? 50 : 200,
-      });
+  async fetchCompsGeo(
+    dto: PriceSuggestionRequestDto,
+    lat: number,
+    lng: number,
+    radiusKm: number,
+  ): Promise<CompRow[]> {
+    const catSlug = this.categoryToSlug(dto.category);
+    const radiusM = radiusKm * 1000;
+
+    try {
+      const rows = await this.prisma.$queryRaw<RawCompRow[]>`
+        SELECT
+          l.id                                      AS "listingId",
+          l.price_per_day::float                    AS "listingPrice",
+          l.address,
+          ST_Y(l.location::geometry)                AS lat,
+          ST_X(l.location::geometry)                AS lng,
+          ROUND(ST_Distance(
+            l.location::geography,
+            ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography
+          )::numeric, 0)                            AS "distanceM",
+          c.slug                                    AS "categorySlug",
+          -- Best booking price for this listing (most recent confirmed/paid/completed)
+          (
+            SELECT b.snapshot_price_per_day::float
+            FROM   bookings b
+            WHERE  b.listing_id = l.id
+              AND  b.status IN ('confirmed', 'paid', 'completed')
+              AND  b.snapshot_price_per_day IS NOT NULL
+            ORDER  BY b.created_at DESC
+            LIMIT  1
+          )                                         AS "bookedPrice"
+        FROM   listings   l
+        JOIN   categories c ON c.id = l.category_id
+        WHERE  l.is_active   = true
+          AND  l.deleted_at  IS NULL
+          AND  l.status      = 'ACTIVE'
+          AND  c.slug        = ${catSlug}
+          AND  l.location    IS NOT NULL
+          AND  ST_DWithin(
+                 l.location::geography,
+                 ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography,
+                 ${radiusM}
+               )
+        ORDER  BY "distanceM" ASC
+        LIMIT  ${TOPK_CITY_BOOKINGS + TOPK_CITY_LISTINGS}
+      `;
+
+      return rows.map((r) => ({
+        listingId:    r.listingId,
+        // bookedPrice is ground-truth; fall back to listing asking price
+        price:        r.bookedPrice ?? r.listingPrice,
+        source:       r.bookedPrice !== null ? 'booking' : 'listing',
+        categorySlug: r.categorySlug,
+        address:      r.address,
+        lat:          Number(r.lat),
+        lng:          Number(r.lng),
+        distanceM:    Number(r.distanceM),
+      }));
     } catch (err) {
-      this.logger.error('fetchComps error', err);
-      return [];
+      this.logger.error('fetchCompsGeo error', err);
+      // Graceful fallback to city-string query
+      const prices = await this.fetchComps(dto, dto.city);
+      return prices.map((p) => ({ listingId: '', price: p, source: 'listing' as const, categorySlug: catSlug, address: '', lat: 0, lng: 0, distanceM: 0 }));
     }
   }
+  //
+  // Comp selection strategy:
+  //   PRIMARY   → bookings WHERE status IN (confirmed, paid, completed)
+  //               AND snapshotPricePerDay IS NOT NULL
+  //               → uses the actual agreed market price, not asking price
+  //   FALLBACK  → if booking comps < MIN_CITY_COMPS for the scope,
+  //               supplement/replace with active listing asking prices
+  //   FILTERS   → categorySlug (exact), city string match (city scope)
+  //               or no city filter (national scope)
+  //   TOP-K     → city: 30 booking + 30 listing; national: 100 booking + 150 listing
 
-  private extractPrices(
-    comps: { pricePerDay: { toNumber(): number } | number | null }[],
-  ): number[] {
-    return comps
-      .map((c) => {
-        if (c.pricePerDay === null) return null;
-        return typeof (c.pricePerDay as any).toNumber === 'function'
-          ? (c.pricePerDay as any).toNumber()
-          : Number(c.pricePerDay);
+  private async fetchComps(
+    dto: PriceSuggestionRequestDto,
+    city: string | null,
+  ): Promise<number[]> {
+    const catSlug = this.categoryToSlug(dto.category);
+    const topKBookings  = city ? TOPK_CITY_BOOKINGS     : TOPK_NATIONAL_BOOKINGS;
+    const topKListings  = city ? TOPK_CITY_LISTINGS     : TOPK_NATIONAL_LISTINGS;
+
+    // ── 1. Primary: real transaction prices from bookings ─────────────────────
+    let bookingPrices: number[] = [];
+    try {
+      const bookings = await this.prisma.booking.findMany({
+        where: {
+          status:                  { in: COMP_BOOKING_STATUSES as any },
+          snapshotPricePerDay:     { not: null },
+          listing: {
+            isActive:  true,
+            status:    'ACTIVE',
+            category:  { slug: catSlug },
+            ...(city ? { address: { contains: city, mode: 'insensitive' as const } } : {}),
+          },
+        },
+        select:  { snapshotPricePerDay: true },
+        orderBy: { createdAt: 'desc' },   // recency bias: most recent comps first
+        take:    topKBookings,
+      });
+      bookingPrices = this.toNumbers(bookings.map((b) => b.snapshotPricePerDay));
+    } catch (err) {
+      this.logger.error('fetchComps (bookings) error', err);
+    }
+
+    // ── 2. Fallback: active listing asking prices ─────────────────────────────
+    //    Used when booking data is sparse (below MIN_CITY_COMPS threshold)
+    //    or as a supplement to reach a stable average.
+    let listingPrices: number[] = [];
+    if (bookingPrices.length < MIN_CITY_COMPS) {
+      try {
+        const listings = await this.prisma.listing.findMany({
+          where: {
+            isActive:  true,
+            status:    'ACTIVE',
+            category:  { slug: catSlug },
+            ...(city ? { address: { contains: city, mode: 'insensitive' as const } } : {}),
+          },
+          select:  { pricePerDay: true },
+          orderBy: { createdAt: 'desc' },
+          take:    topKListings,
+        });
+        listingPrices = this.toNumbers(listings.map((l) => l.pricePerDay));
+      } catch (err) {
+        this.logger.error('fetchComps (listings) error', err);
+      }
+    }
+
+    // Merge: booking prices first (ground truth), listing prices as supplement
+    const merged = [...bookingPrices, ...listingPrices];
+    return merged;
+  }
+
+  // ── National comparables query ───────────────────────────────────────────────
+  //
+  // Lives in PriceSuggestionService (same file) — it is the “national fallback”
+  // path used whenever city comps are below MIN_CITY_COMPS.
+  //
+  // Input:  dto.category (maps to catSlug), dto.unit, optional dto.city
+  //         (city is accepted only to EXCLUDE same-city rows if needed, not used here)
+  // Scope:  country = Tunisia (all listings, no PostGIS filter)
+  // Output: CompRow[] — same shape as fetchCompsGeo(), price/source/lat/lng present
+  //
+  // Source priority:
+  //   1. snapshotPricePerDay from confirmed/paid/completed bookings (true market price)
+  //   2. listing.pricePerDay for listings with no qualifying booking (asking price)
+  //
+  // Limit: TOPK_NATIONAL_BOOKINGS (100) + TOPK_NATIONAL_LISTINGS (150) = 250 max rows
+  //
+  async fetchNationalComps(
+    dto: Pick<PriceSuggestionRequestDto, 'category' | 'unit'>,
+  ): Promise<CompRow[]> {
+    const catSlug = this.categoryToSlug(dto.category);
+
+    // ── 1. Primary: real transaction prices ──────────────────────────────────
+    // $queryRaw gives us lat/lng + booking price in one shot.
+    // No ST_DWithin — national means the whole country.
+    let rows: CompRow[] = [];
+    try {
+      type NatRaw = {
+        listingId:    string;
+        listingPrice: number;
+        address:      string;
+        lat:          string | number | null;
+        lng:          string | number | null;
+        categorySlug: string;
+        bookedPrice:  number | null;
+      };
+      const rawRows = await this.prisma.$queryRaw<NatRaw[]>`
+        SELECT
+          l.id                            AS "listingId",
+          l.price_per_day::float          AS "listingPrice",
+          l.address,
+          -- coordinates (null when listing has no geometry)
+          ST_Y(l.location::geometry)      AS lat,
+          ST_X(l.location::geometry)      AS lng,
+          c.slug                          AS "categorySlug",
+          -- Most recent confirmed/paid/completed booking price
+          (
+            SELECT b.snapshot_price_per_day::float
+            FROM   bookings b
+            WHERE  b.listing_id = l.id
+              AND  b.status IN ('confirmed', 'paid', 'completed')
+              AND  b.snapshot_price_per_day IS NOT NULL
+            ORDER  BY b.created_at DESC
+            LIMIT  1
+          )                               AS "bookedPrice"
+        FROM   listings   l
+        JOIN   categories c ON c.id = l.category_id
+        WHERE  l.is_active  = true
+          AND  l.deleted_at IS NULL
+          AND  l.status     = 'ACTIVE'
+          AND  c.slug       = ${catSlug}
+        -- Prioritise rows that have a real booking price so they rank first
+        ORDER  BY
+          CASE WHEN (
+            SELECT 1 FROM bookings b2
+            WHERE  b2.listing_id = l.id
+              AND  b2.status IN ('confirmed', 'paid', 'completed')
+              AND  b2.snapshot_price_per_day IS NOT NULL
+            LIMIT  1
+          ) IS NOT NULL THEN 0 ELSE 1 END ASC,
+          l.created_at DESC
+        LIMIT  ${TOPK_NATIONAL_BOOKINGS + TOPK_NATIONAL_LISTINGS}
+      `;
+
+      rows = rawRows.map((r) => ({
+        listingId:    r.listingId,
+        price:        r.bookedPrice ?? r.listingPrice,
+        source:       r.bookedPrice !== null ? 'booking' : 'listing',
+        categorySlug: r.categorySlug,
+        address:      r.address,
+        lat:          r.lat !== null ? Number(r.lat) : 0,
+        lng:          r.lng !== null ? Number(r.lng) : 0,
+        distanceM:    0,   // distance is irrelevant at national scope
+      } as CompRow));
+    } catch (err) {
+      this.logger.error('fetchNationalComps error', err);
+      // Hard fallback: Prisma ORM query (no PostGIS, no lat/lng)
+      try {
+        const bookings = await this.prisma.booking.findMany({
+          where: {
+            status:              { in: COMP_BOOKING_STATUSES as any },
+            snapshotPricePerDay: { not: null },
+            listing: { isActive: true, status: 'ACTIVE', category: { slug: catSlug } },
+          },
+          select:  { snapshotPricePerDay: true, listingId: true },
+          orderBy: { createdAt: 'desc' },
+          take:    TOPK_NATIONAL_BOOKINGS,
+        });
+        const listings = await this.prisma.listing.findMany({
+          where:   { isActive: true, status: 'ACTIVE', category: { slug: catSlug } },
+          select:  { id: true, pricePerDay: true, address: true },
+          orderBy: { createdAt: 'desc' },
+          take:    TOPK_NATIONAL_LISTINGS,
+        });
+        const bookingRows: CompRow[] = bookings.map((b) => ({
+          listingId: b.listingId, price: this.toNumbers([b.snapshotPricePerDay])[0] ?? 0,
+          source: 'booking' as const, categorySlug: catSlug,
+          address: '', lat: 0, lng: 0, distanceM: 0,
+        })).filter((r) => r.price > 0);
+        const listingRows: CompRow[] = listings.map((l) => ({
+          listingId: l.id, price: this.toNumbers([l.pricePerDay])[0] ?? 0,
+          source: 'listing' as const, categorySlug: catSlug,
+          address: l.address, lat: 0, lng: 0, distanceM: 0,
+        })).filter((r) => r.price > 0);
+        rows = [...bookingRows, ...listingRows];
+      } catch (fallbackErr) {
+        this.logger.error('fetchNationalComps ORM fallback error', fallbackErr);
+      }
+    }
+
+    return rows;
+  }
+
+  /** Resolve the canonical category slug from the API category key */
+  private categoryToSlug(cat: string): string {
+    const map: Record<string, string> = {
+      accommodation:   'stays',
+      sports_facility: 'sports-facilities',
+      tool:            'tools-equipment',
+      vehicle:         'mobility',
+      event_space:     'event-spaces',
+    };
+    return map[cat] ?? cat;
+  }
+
+  /** Safely convert Prisma Decimal | number | null[] → positive number[] */
+  private toNumbers(values: (any | null)[]): number[] {
+    return values
+      .map((v) => {
+        if (v === null || v === undefined) return null;
+        const n = typeof v?.toNumber === 'function' ? v.toNumber() : Number(v);
+        return isFinite(n) && n > 0 ? n : null;
       })
-      .filter((p): p is number => p !== null && p > 0);
+      .filter((n): n is number => n !== null);
   }
 
   private avg(prices: number[]): number | null {
     if (prices.length === 0) return null;
     return prices.reduce((a, b) => a + b, 0) / prices.length;
-  }
-
-  private categoryToKeywords(cat: string): string[] {
-    const map: Record<string, string[]> = {
-      accommodation:   ['stays', 'accommodation', 'apartment', 'villa', 'holiday'],
-      sports_facility: ['sports-facilities', 'tennis', 'football', 'basketball', 'court', 'sport'],
-      tool:            ['tools-equipment', 'beach-gear', 'tool', 'equipment', 'gear'],
-      vehicle:         ['mobility', 'vehicle', 'car', 'bike', 'scooter'],
-      event_space:     ['event-spaces', 'event', 'hall', 'venue'],
-    };
-    return map[cat] ?? [];
   }
 
   private deriveConfidence(cityComps: number): 'high' | 'medium' | 'low' {
