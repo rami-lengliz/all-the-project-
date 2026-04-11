@@ -8,6 +8,11 @@ import {
   PropertyType,
 } from './dto/price-suggestion.dto';
 import { CATEGORY_PRICING_UNITS } from '../../common/constants/category-pricing-units';
+import { selectTopKComps, type TargetDraft, type CompCandidate } from '../../common/utils/comp-scorer';
+import { calcBasePrice }   from '../../common/utils/base-price-calculator';
+import { calcPriceRange, percentile } from '../../common/utils/price-range';
+import { calcConfidence }  from '../../common/utils/confidence-score';
+import { buildExplanation } from '../../common/utils/explanation-builder';
 
 // ── Comp row types ──────────────────────────────────────────────────────────
 /** Normalised comp returned by both fetchCompsGeo and the fallback */
@@ -101,63 +106,88 @@ export class PriceSuggestionService {
   async suggest(
     dto: PriceSuggestionRequestDto,
   ): Promise<PriceSuggestionResponseDto> {
-    // ── 1. City-first weighted base price ───────────────────────────────────
-    //   When lat/lng are provided: use PostGIS radius query (precise)
-    //   Otherwise: fall back to city-string address matching
-    const hasGeo = dto.lat !== undefined && dto.lng !== undefined;
+    const hasGeo  = dto.lat !== undefined && dto.lng !== undefined;
     const radiusKm = dto.radiusKm ?? 25;
+    const catSlug  = this.categoryToSlug(dto.category);
+    const season   = dto.season ?? this.currentSeason();
+    const seasonMult = SEASON_MULTIPLIER[season] ?? 1.0;
 
-    const catSlug = this.categoryToSlug(dto.category);
-    const cityPrices: CompRow[] = hasGeo
+    // ── 1. Fetch raw comps ────────────────────────────────────────────────────
+    const rawCityComps: CompRow[] = hasGeo
       ? await this.fetchCompsGeo(dto, dto.lat!, dto.lng!, radiusKm)
       : (await this.fetchComps(dto, dto.city)).map((p) => ({
           listingId: '', price: p, source: 'listing' as const,
           categorySlug: catSlug, address: dto.city, lat: 0, lng: 0, distanceM: 0,
         }));
-    const cityAvg    = this.avg(cityPrices.map((c) => c.price));
-    const cityCompsN = cityPrices.length;
 
-    const nationalComps  = await this.fetchNationalComps(dto);
-    const nationalAvg    = this.avg(nationalComps.map((c) => c.price)) ?? CATEGORY_DEFAULTS[dto.category] ?? 100;
+    const rawNationalComps: CompRow[] = await this.fetchNationalComps(dto);
 
-    const { basePrice, wCity, wNational } = this.cityFirstWeight(
-      cityCompsN, cityAvg, nationalAvg, dto.category,
-    );
+    // ── 2. Score + select topK comps ─────────────────────────────────────────
+    const target: TargetDraft = {
+      categorySlug:  catSlug,
+      city:          dto.city,
+      lat:           dto.lat ?? null,
+      lng:           dto.lng ?? null,
+      propertyType:  dto.propertyType ?? null,
+      capacity:      dto.capacity ?? null,
+      amenities:     dto.amenities ?? null,
+    };
 
-    // ── 2. Accommodation-specific adjustments ───────────────────────────────
+    const scoredCity     = selectTopKComps(target, rawCityComps     as CompCandidate[], 30, 0.10);
+    const scoredNational = selectTopKComps(target, rawNationalComps as CompCandidate[], 80, 0.05);
+
+    // ── 3. Base price (weighted median + city-first blend) ───────────────────
+    const categoryDefault = CATEGORY_DEFAULTS[dto.category] ?? 100;
+    const { baseFinal, baseCity, baseNational, wCity, wNational, cityCompsN } =
+      calcBasePrice(scoredCity, scoredNational, categoryDefault);
+
+    // ── 4. Accommodation-specific adjustments ─────────────────────────────────
     const { adjustedBase, seaTier, seaMult, propMult, capacityMult, adjustments } =
       dto.category === 'accommodation'
-        ? this.accommodationAdjustments(basePrice, dto)
-        : { adjustedBase: basePrice, seaTier: null, seaMult: 1, propMult: 1, capacityMult: 1, adjustments: [] };
+        ? this.accommodationAdjustments(baseFinal, dto)
+        : { adjustedBase: baseFinal, seaTier: null, seaMult: 1, propMult: 1, capacityMult: 1, adjustments: [] };
 
-    // ── 3. Seasonal multiplier ──────────────────────────────────────────────
-    const season     = dto.season ?? this.currentSeason();
-    const seasonMult = SEASON_MULTIPLIER[season] ?? 1.0;
-
-    // ── 4. Final price ──────────────────────────────────────────────────────
-    // formula: recommended = round_0.5( adjustedBase × seasonMult )
+    // ── 5. Final recommended price (round to nearest 0.5 TND) ────────────────
     const raw         = adjustedBase * seasonMult;
     const recommended = Math.round(raw * 2) / 2;
-    const min         = Math.round(recommended * 0.75 * 2) / 2;
-    const max         = Math.round(recommended * 1.25 * 2) / 2;
 
-    // ── 5. Confidence ───────────────────────────────────────────────────────
-    const confidence = this.deriveConfidence(cityCompsN);
+    // ── 6. Price range (IQR-based, not ±25%) ─────────────────────────────────
+    const allPrices = [...scoredCity, ...scoredNational].map((c) => c.price).sort((a, b) => a - b);
+    const { rangeMin, rangeMax, iqr } = calcPriceRange(allPrices, recommended);
+    const medianPrice = percentile(allPrices, 50);
 
-    // ── 6. Explanation ──────────────────────────────────────────────────────
-    let explanation: [string, string, string];
-    try {
-      explanation = await this.buildExplanation(
-        dto, recommended, cityCompsN, wCity, wNational, season, seaTier, adjustments,
-      );
-    } catch (err) {
-      this.logger.warn('AI explanation failed, using heuristic fallback', err);
-      explanation = this.heuristicExplanation(
-        dto, recommended, cityCompsN, wCity, wNational, season, seaTier,
-      );
-    }
+    // ── 7. Confidence (multi-signal) ──────────────────────────────────────────
+    const allScored = [...scoredCity, ...scoredNational];
+    const avgSim    = allScored.length > 0
+      ? allScored.reduce((s, c) => s + c.similarityScore, 0) / allScored.length
+      : 0;
+    const { score: confidenceScore, band: confidence } = calcConfidence({
+      cityCompsN,
+      nationalCompsN: scoredNational.length,
+      avgSimilarity:  avgSim,
+      iqr,
+      medianPrice:    medianPrice || recommended,
+    });
 
-    // ── 7. Write log (fire-and-forget) ────────────────────────────────────
+    // ── 8. Explanation (deterministic 3 bullets) ──────────────────────────────
+    const explanation = buildExplanation({
+      city:             dto.city,
+      cityCompsN,
+      nationalCompsN:   scoredNational.length,
+      wCity,
+      wNational,
+      distanceToSeaKm:  dto.distanceToSeaKm ?? null,
+      propertyType:     dto.propertyType    ?? null,
+      capacity:         dto.capacity        ?? null,
+      confidence,
+      confidenceScore,
+      recommended,
+      rangeMin,
+      rangeMax,
+      categorySlug:     catSlug,
+    });
+
+    // ── 9. Write log (fire-and-forget) ────────────────────────────────────────
     let logId: string | undefined;
     try {
       const log = await (this.prisma as any).priceSuggestionLog.create({
@@ -165,15 +195,15 @@ export class PriceSuggestionService {
           city:            dto.city,
           category:        dto.category,
           unit:            dto.unit,
-          season:          season,
+          season,
           propertyType:    dto.propertyType ?? null,
           distanceToSeaKm: dto.distanceToSeaKm ?? null,
           capacity:        dto.capacity ?? null,
           lat:             dto.lat ?? null,
           lng:             dto.lng ?? null,
           suggestedPrice:  recommended,
-          rangeMin:        min,
-          rangeMax:        max,
+          rangeMin,
+          rangeMax,
           confidence,
           compsUsed:       cityCompsN,
           wCity,
@@ -185,18 +215,17 @@ export class PriceSuggestionService {
       });
       logId = log.id;
     } catch (err) {
-      // Non-critical — never fail the suggestion because of logging
       this.logger.error('Failed to write PriceSuggestionLog', err);
     }
 
     return {
       recommended,
-      range: { min, max },
+      range:       { min: rangeMin, max: rangeMax },
       confidence,
       explanation,
-      compsUsed: cityCompsN,
-      currency: 'TND',
-      unit: dto.unit,
+      compsUsed:   cityCompsN,
+      currency:    'TND',
+      unit:        dto.unit,
       logId,
     };
   }
