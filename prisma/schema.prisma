@@ -368,37 +368,43 @@ model PriceSuggestionLog {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  // ── Request scalars (city-first signals) ──────────────────────────────────
-  city            String  @db.VarChar(255)
-  category        String  @db.VarChar(100)   // accommodation | sports_facility | ...
-  unit            String  @db.VarChar(50)    // per_night | per_hour | per_day
-  season          String? @db.VarChar(50)    // peak | shoulder | off_peak
-  propertyType    String? @db.VarChar(50)    // villa | house | apartment
-  distanceToSeaKm Float?
-  capacity        Int?
-  lat             Float?
-  lng             Float?
+  // ── Request scalars (queryable for analysis / PFE eval) ───────────────────────
+  city         String  @db.VarChar(255)
+  categorySlug String  @map("category_slug") @db.VarChar(100) // stays | sports-facilities | ...
+  unit         String  @db.VarChar(50)                        // per_night | per_hour | per_day
+  season       String? @db.VarChar(50)                        // peak | shoulder | off_peak
+  propertyType String? @map("property_type") @db.VarChar(50)  // villa | house | apartment
+  distanceToSeaKm Float? @map("distance_to_sea_km")
+  capacity     Int?
+  lat          Float?
+  lng          Float?
 
-  // ── Output scalars (core analysis fields) ─────────────────────────────────
-  suggestedPrice Decimal @db.Decimal(10, 2)  // recommended TND value
-  rangeMin       Decimal @db.Decimal(10, 2)
-  rangeMax       Decimal @db.Decimal(10, 2)
-  confidence     String  @db.VarChar(10)      // high | medium | low
-  compsUsed      Int                           // city comps count
-  wCity          Float                         // city weight 0–1
-  wNational      Float                         // national weight 0–1
+  // ── Full request body (JSON) ───────────────────────────────────────────────
+  inputJson Json @map("input_json") @db.JsonB
 
-  // ── JSON blobs (optional detail) ──────────────────────────────────────────
-  adjustments Json? @db.JsonB  // [{label, multiplier}] — accommodation only
-  explanation Json  @db.JsonB  // [bullet1, bullet2, bullet3]
+  // ── Output scalars (queryable for PFE evaluation) ─────────────────────────
+  suggestedPrice Decimal @map("suggested_price") @db.Decimal(10, 2)
+  rangeMin       Decimal @map("range_min")       @db.Decimal(10, 2)
+  rangeMax       Decimal @map("range_max")       @db.Decimal(10, 2)
+  confidence     String  @db.VarChar(10)   // high | medium | low
+  compsCity      Int     @map("comps_city")
+  compsNational  Int     @map("comps_national")
+  wCity          Float   @map("w_city")
+  wNational      Float   @map("w_national")
+
+  // ── JSON blobs (full payload detail) ────────────────────────────────────
+  adjustments Json? @db.JsonB   // [{label, multiplier}] accommodation only
+  explanation Json  @db.JsonB   // [bullet1, bullet2, bullet3]
+  outputJson  Json  @map("output_json") @db.JsonB  // full response object
 
   // ── Post-publish link (patched when host publishes the listing) ───────────
-  listingId  String?           // set after publish; no FK constraint (listing may not exist yet)
-  finalPrice Decimal? @db.Decimal(10, 2)   // price host actually chose
-  overridden Boolean?          // true = host changed it; false = accepted; null = not yet published
+  listingId  String?  @map("listing_id")              // set after publish
+  finalPrice Decimal? @map("final_price") @db.Decimal(10, 2)
+  overridden Boolean? // true = host changed price; false = accepted; null = not published yet
 
   @@index([createdAt])
-  @@index([city, category])
+  @@index([city])
+  @@index([categorySlug])
   @@index([listingId])
   @@map("ai_price_suggestion_logs")
 }

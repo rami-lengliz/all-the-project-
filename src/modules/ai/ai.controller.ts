@@ -383,71 +383,116 @@ export class AiController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'AI Price Suggestion for new listing',
-    description:
-      'Returns a recommended price, range, confidence score, and 3-bullet explanation. ' +
-      'The user never inputs a price before calling this endpoint. ' +
-      'An override is allowed only on the final listing confirmation step.',
+    description: [
+      'Returns a recommended price (TND), a safe range, a confidence band, and 3 explanation bullets.',
+      '',
+      '**Algorithm:**',
+      '1. Fetches comparable listings within `radiusKm` using PostGIS (or city-string fallback)',
+      '2. Scores each comp by location / type / size / amenity similarity',
+      '3. Computes a city-first weighted median; blends with national comps when local data is sparse',
+      '4. Applies accommodation-specific multipliers (sea-proximity tier, property type, capacity)',
+      '5. Applies seasonal multiplier (peak ×1.35, shoulder ×1.10, off-peak ×1.00)',
+      '6. Tightens range using IQR percentiles; clamps output with hard caps per category',
+      '',
+      '**Fallback guarantee:** Always returns a valid 200 — even for unknown cities with zero comps.',
+      'In that case `confidence: "low"` and the baseline table is used.',
+      '',
+      'The host may override the price on the final listing-review step.',
+      'Pass `logId` back to `PATCH /price-suggestion/log/:id` once the listing is published.',
+    ].join('\n'),
   })
   @ApiBody({
     type: PriceSuggestionRequestDto,
     examples: {
-      kelibia_accommodation: {
-        summary: '🏖️ Example 1 — Kelibia beachfront villa (near sea, peak)',
+      // ── Example 1 ────────────────────────────────────────────────────────
+      kelibia_villa_beach: {
+        summary: '🏖️  Ex 1 — Kelibia beachfront villa (peak)',
+        description:
+          'Accommodation near the sea with full geo. Expects high confidence, ' +
+          'villa + beachfront multipliers applied, seasonal peak boost.',
         value: {
-          city: 'Kelibia',
-          category: 'accommodation',
-          unit: 'per_night',
-          lat: 36.8497,
-          lng: 11.1047,
-          area_sqm: 120,
-          capacity: 8,
-          propertyType: 'villa',
-          distanceToSeaKm: 0.2,
-          amenities: ['sea_view', 'pool', 'wifi', 'parking', 'air_conditioning'],
-          condition: 'excellent',
-          season: 'peak',
+          city:            'Kelibia',
+          category:        'accommodation',
+          unit:            'per_night',
+          lat:              36.8497,
+          lng:              11.1047,
+          radiusKm:         20,
+          propertyType:    'villa',
+          distanceToSeaKm:  0.2,
+          capacity:         8,
+          amenities:       ['pool', 'sea_view', 'wifi', 'air_conditioning', 'parking'],
+          season:          'peak',
         },
       },
-      kelibia_inland_house: {
-        summary: '🏠 Example 2 — Kelibia inland house (far from sea, off-peak)',
+      // ── Example 2 ────────────────────────────────────────────────────────
+      tunis_sports_slot: {
+        summary: '⚽  Ex 2 — Tunis sports facility (per-slot)',
+        description:
+          'Sports facility priced per slot. No propertyType or distanceToSeaKm — ' +
+          'accommodation-specific multipliers are skipped entirely.',
         value: {
-          city: 'Kelibia',
-          category: 'accommodation',
-          unit: 'per_night',
-          lat: 36.8301,
-          lng: 11.0801,
-          area_sqm: 70,
-          capacity: 4,
-          propertyType: 'house',
-          distanceToSeaKm: 5.0,
-          amenities: ['wifi', 'parking'],
-          condition: 'good',
-          season: 'off_peak',
-        },
-      },
-      tunis_sports: {
-        summary: '⚽ Tunis sports facility (hourly)',
-        value: {
-          city: 'Tunis',
-          category: 'sports_facility',
-          unit: 'per_hour',
-          lat: 36.819,
-          lng: 10.1658,
-          capacity: 22,
+          city:      'Tunis',
+          category:  'sports_facility',
+          unit:      'per_session',
+          lat:        36.8190,
+          lng:        10.1658,
+          radiusKm:   15,
+          capacity:   22,
           amenities: ['changing_rooms', 'floodlights', 'parking'],
-          condition: 'good',
+        },
+      },
+      // ── Example 3 ────────────────────────────────────────────────────────
+      cold_start_fallback: {
+        summary: '❓  Ex 3 — Unknown city (fallback, low confidence)',
+        description:
+          'City with no listings in DB. Engine falls back to national baseline. ' +
+          'Confidence will be "low". Useful to verify the fallback path works.',
+        value: {
+          city:     'BirMcherga',
+          category: 'accommodation',
+          unit:     'per_night',
         },
       },
     },
   })
   @ApiResponse({
     status: 200,
-    description: 'Price suggestion returned successfully',
-    type: PriceSuggestionResponseDto,
+    description:
+      'Price suggestion returned. `confidence` is always present. ' +
+      'If zero comps found, `confidence: "low"` and baseline range is used.',
+    schema: {
+      example: {
+        recommended:  284.5,
+        range:       { min: 218.0, max: 335.0 },
+        currency:    'TND',
+        unit:        'per_night',
+        confidence:  'high',
+        compsUsed:    12,
+        explanation: [
+          'Price fully based on 12 comparable listings in Kelibia — strong local signal.',
+          'Villa type and Beachfront location (< 300 m) — sea proximity is a key price driver.',
+          'High confidence: market data is consistent. Typical range 218–335 TND/night.',
+        ],
+        logId: 'a1b2c3d4-0000-0000-0000-000000000000',
+      },
+    },
   })
-  @ApiResponse({ status: 400, description: 'Invalid request body' })
-  @ApiResponse({ status: 422, description: 'City not supported' })
-  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error — missing or invalid required fields',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: [
+          'city must be a non-empty string',
+          'category must be one of: accommodation, sports_facility, tool, vehicle, event_space',
+          'unit must be one of: per_night, per_hour, per_day, per_session',
+        ],
+        error: 'Bad Request',
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized — JWT token missing or invalid' })
   async priceSuggestion(
     @Body() dto: PriceSuggestionRequestDto,
   ): Promise<PriceSuggestionResponseDto> {
@@ -513,6 +558,50 @@ export class AiController {
       dto.lat,
       dto.lng,
       dto.radiusKm,
+    );
+  }
+
+  // ── GET /api/ai/price-suggestion/logs (admin only) ─────────────────────────
+  @Get('price-suggestion/logs')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Admin: list recent price suggestion logs',
+    description:
+      'Returns the N most recent PriceSuggestionLog rows (scalar fields only, no JSON blobs). ' +
+      'Useful for PFE evaluation: compare suggestedPrice vs finalPrice, track confidence distribution, ' +
+      'and measure host override rates. Requires admin role.',
+  })
+  @ApiQuery({ name: 'limit', type: Number, required: false, example: 50, description: 'Max rows (1–200)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Array of log rows',
+    schema: {
+      example: [{
+        id:            'uuid',
+        createdAt:     '2026-04-11T22:00:00Z',
+        city:          'Kelibia',
+        categorySlug:  'stays',
+        unit:          'per_night',
+        suggestedPrice: 284.5,
+        rangeMin:       210,
+        rangeMax:       330,
+        confidence:    'high',
+        compsCity:     12,
+        compsNational: 80,
+        wCity:         1,
+        wNational:     0,
+        listingId:     null,
+        finalPrice:    null,
+        overridden:    null,
+      }],
+    },
+  })
+  async getPriceSuggestionLogs(
+    @Query('limit') limit?: string,
+  ): Promise<any[]> {
+    return this.priceSuggestionService.getRecentLogs(
+      limit ? Math.max(1, parseInt(limit, 10)) : 50,
     );
   }
 }

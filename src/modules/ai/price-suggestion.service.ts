@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiService } from './ai.service';
 import {
@@ -13,6 +13,8 @@ import { calcBasePrice }   from '../../common/utils/base-price-calculator';
 import { calcPriceRange, percentile } from '../../common/utils/price-range';
 import { calcConfidence }  from '../../common/utils/confidence-score';
 import { buildExplanation } from '../../common/utils/explanation-builder';
+import { getBaseline }     from '../../common/config/price-baselines';
+import { applyGuardrails } from '../../common/utils/output-guardrails';
 
 // ── Comp row types ──────────────────────────────────────────────────────────
 /** Normalised comp returned by both fetchCompsGeo and the fallback */
@@ -67,13 +69,15 @@ const SEASON_MULTIPLIER: Record<string, number> = {
   off_peak: 1.00,
 };
 
-// ── National baseline prices (per canonical unit) ─────────────────────────────
-const CATEGORY_DEFAULTS: Record<string, number> = {
-  accommodation:   150,  // per_night
-  sports_facility:  30,  // per_hour
-  tool:             60,  // per_day
-  vehicle:         180,  // per_day
-  event_space:      80,  // per_hour
+// ── National baseline prices ──────────────────────────────────────────────────
+// Deprecated stub — now sourced from src/common/config/price-baselines.ts
+// Kept only for the outer suggest() catch block (before catSlug is available)
+const CATEGORY_DEFAULTS_FALLBACK: Record<string, number> = {
+  accommodation:   150,
+  sports_facility:  35,
+  tool:             60,
+  vehicle:         180,
+  event_space:      80,
 };
 
 // ── Accommodation: distance-to-sea tiers ─────────────────────────────────────
@@ -104,6 +108,49 @@ export class PriceSuggestionService {
   ) {}
 
   async suggest(
+    dto: PriceSuggestionRequestDto,
+  ): Promise<PriceSuggestionResponseDto> {
+    // ── Guard: city must be a non-empty string (DTO validator allows '' by default)
+    if (!dto.city?.trim()) {
+      throw new BadRequestException('city must be a non-empty string');
+    }
+
+    try {
+      return await this._suggest(dto);
+    } catch (err) {
+      // Engine error → graceful degradation using category baseline
+      this.logger.error('PriceSuggestionEngine fatal error — using baseline', err);
+      const catSlug = this.categoryToSlug(dto.category);
+      const baseline = getBaseline(catSlug, dto.unit);
+      const raw = {
+        recommended: baseline.recommended,
+        rangeMin:    baseline.rangeMin,
+        rangeMax:    baseline.rangeMax,
+        confidence:  'low' as const,
+        explanation: [
+          `No comparable listings found for ${dto.city} yet.`,
+          `Using national baseline of ${baseline.recommended} TND as a starting point.`,
+          'Low confidence: adjust the price based on your local knowledge.',
+        ] as [string, string, string],
+        compsUsed: 0,
+        currency:  'TND',
+        unit:      dto.unit,
+      };
+      const guarded = applyGuardrails(raw, catSlug, dto.unit, baseline);
+      return {
+        recommended: guarded.recommended,
+        range:       { min: guarded.rangeMin, max: guarded.rangeMax },
+        confidence:  guarded.confidence,
+        explanation: guarded.explanation,
+        compsUsed:   guarded.compsUsed,
+        currency:    guarded.currency,
+        unit:        guarded.unit,
+      };
+    }
+  }
+
+  /** Internal engine — called by suggest(), isolated so errors can be caught cleanly */
+  private async _suggest(
     dto: PriceSuggestionRequestDto,
   ): Promise<PriceSuggestionResponseDto> {
     const hasGeo  = dto.lat !== undefined && dto.lng !== undefined;
@@ -137,7 +184,10 @@ export class PriceSuggestionService {
     const scoredNational = selectTopKComps(target, rawNationalComps as CompCandidate[], 80, 0.05);
 
     // ── 3. Base price (weighted median + city-first blend) ───────────────────
-    const categoryDefault = CATEGORY_DEFAULTS[dto.category] ?? 100;
+    // getBaseline() gives the accurate per-unit default so the weighted median
+    // has a sensible anchor when comps are sparse.
+    const baseline        = getBaseline(catSlug, dto.unit);
+    const categoryDefault = baseline.recommended;
     const { baseFinal, baseCity, baseNational, wCity, wNational, cityCompsN } =
       calcBasePrice(scoredCity, scoredNational, categoryDefault);
 
@@ -193,23 +243,30 @@ export class PriceSuggestionService {
       const log = await (this.prisma as any).priceSuggestionLog.create({
         data: {
           city:            dto.city,
-          category:        dto.category,
+          categorySlug:    catSlug,
           unit:            dto.unit,
           season,
-          propertyType:    dto.propertyType ?? null,
+          propertyType:    dto.propertyType    ?? null,
           distanceToSeaKm: dto.distanceToSeaKm ?? null,
-          capacity:        dto.capacity ?? null,
-          lat:             dto.lat ?? null,
-          lng:             dto.lng ?? null,
+          capacity:        dto.capacity        ?? null,
+          lat:             dto.lat             ?? null,
+          lng:             dto.lng             ?? null,
+          inputJson:       dto as object,
           suggestedPrice:  recommended,
           rangeMin,
           rangeMax,
           confidence,
-          compsUsed:       cityCompsN,
+          compsCity:       cityCompsN,
+          compsNational:   scoredNational.length,
           wCity,
           wNational,
           adjustments:     adjustments.length ? adjustments : null,
           explanation,
+          outputJson: {
+            recommended, range: { min: rangeMin, max: rangeMax },
+            confidence, compsUsed: cityCompsN, currency: 'TND',
+            unit: dto.unit, explanation,
+          },
         },
         select: { id: true },
       });
@@ -218,17 +275,33 @@ export class PriceSuggestionService {
       this.logger.error('Failed to write PriceSuggestionLog', err);
     }
 
+    // ── 10. Apply output guardrails (clamp NaN/outliers before returning) ──────────
+    const guarded = applyGuardrails(
+      { recommended, rangeMin, rangeMax, confidence, explanation,
+        compsUsed: cityCompsN, currency: 'TND', unit: dto.unit, logId },
+      catSlug,
+      dto.unit,
+      baseline,
+    );
+    if (guarded._guardrailApplied) {
+      this.logger.warn('Output guardrail corrected suggestion', {
+        before: { recommended, rangeMin, rangeMax },
+        after:  { recommended: guarded.recommended, rangeMin: guarded.rangeMin, rangeMax: guarded.rangeMax },
+      });
+    }
+
     return {
-      recommended,
-      range:       { min: rangeMin, max: rangeMax },
-      confidence,
-      explanation,
-      compsUsed:   cityCompsN,
-      currency:    'TND',
-      unit:        dto.unit,
-      logId,
+      recommended: guarded.recommended,
+      range:       { min: guarded.rangeMin, max: guarded.rangeMax },
+      confidence:  guarded.confidence,
+      explanation: guarded.explanation,
+      compsUsed:   guarded.compsUsed,
+      currency:    guarded.currency,
+      unit:        guarded.unit,
+      logId:       guarded.logId,
     };
-  }
+    }  // end _suggest
+
 
   /**
    * Patch the log after the host publishes the listing.
@@ -252,6 +325,40 @@ export class PriceSuggestionService {
       });
     } catch (err) {
       this.logger.error('Failed to patch PriceSuggestionLog', err);
+    }
+  }
+
+  /**
+   * Admin: return the N most recent price suggestion log rows.
+   * Scalar fields only — no inputJson/outputJson to keep payload small.
+   */
+  async getRecentLogs(limit = 50) {
+    try {
+      return await (this.prisma as any).priceSuggestionLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        take:    Math.min(limit, 200),
+        select: {
+          id:            true,
+          createdAt:     true,
+          city:          true,
+          categorySlug:  true,
+          unit:          true,
+          suggestedPrice: true,
+          rangeMin:       true,
+          rangeMax:       true,
+          confidence:    true,
+          compsCity:     true,
+          compsNational: true,
+          wCity:         true,
+          wNational:     true,
+          listingId:     true,
+          finalPrice:    true,
+          overridden:    true,
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to fetch PriceSuggestionLogs', err);
+      return [];
     }
   }
 
