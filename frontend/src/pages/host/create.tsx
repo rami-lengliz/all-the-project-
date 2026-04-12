@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { HostLayout } from '@/components/host/HostLayout';
 import { api } from '@/lib/api/http';
@@ -7,20 +7,13 @@ import { toast } from '@/components/ui/Toaster';
 import { useCategories } from '@/lib/api/hooks/useCategories';
 import { fetchPriceSuggestion, PriceSuggestionResponse } from '@/lib/api/price-suggestion';
 import { getApiCategory, getApiUnit } from '@/lib/categoryPricingUnits';
+import { PriceSuggestionCard } from '@/components/ai/PriceSuggestionCard';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface ImagePreview { file: File; preview: string; }
 
 type PropertyType = 'villa' | 'house' | 'apartment' | '';
 
-const UNIT_LABEL: Record<string, string> = {
-  per_night: '/night', per_hour: '/hour', per_day: '/day', per_session: '/session',
-};
-const CONFIDENCE_COLOR: Record<string, string> = {
-  high: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-  medium: 'text-amber-700 bg-amber-50 border-amber-200',
-  low: 'text-orange-700 bg-orange-50 border-orange-200',
-};
 
 function extractCity(addr: string) { return addr.split(',')[0]?.trim() || addr; }
 function isAccomm(slug: string) { return ['stays', 'accommodation', 'holiday-rentals'].includes(slug); }
@@ -90,6 +83,7 @@ export default function HostCreatePage() {
         unit:     getApiUnit(catSlug),
         lat:      formData.latitude  ? parseFloat(formData.latitude)  : undefined,
         lng:      formData.longitude ? parseFloat(formData.longitude) : undefined,
+        radiusKm: 20,
         ...(isAccomm(catSlug) && propertyType   ? { propertyType }                                 : {}),
         ...(isAccomm(catSlug) && distanceToSea  ? { distanceToSeaKm: parseFloat(distanceToSea) }  : {}),
       });
@@ -103,8 +97,29 @@ export default function HostCreatePage() {
       setSuggestionLoading(false);
     }
   }
+  // ── Auto-trigger AI suggestion when Step 6 scrolls into view ───────────────
+  // Uses IntersectionObserver so the call fires exactly once per session
+  // the moment the review panel becomes visible (threshold 20%).
+  useEffect(() => {
+    const el = reviewRef.current;
+    if (!el) return;
 
-  // ── Step 6: publish ──────────────────────────────────────────────────────────
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && canSuggest && !suggestion && !suggestionLoading) {
+          handleGetSuggestion();
+        }
+      },
+      { threshold: 0.20 },   // fire when 20% of the panel is visible
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+    // Re-subscribe when canSuggest changes (e.g. user fills address/category later)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSuggest]);
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -332,12 +347,13 @@ export default function HostCreatePage() {
             <div id="step-ai-price" className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-1">Step 5 — AI Price Suggestion</h2>
               <p className="text-sm text-gray-500 mb-6">
-                Based on comparable listings in {cityName || 'your city'}. You can always override the result below.
+                Based on comparable listings in {cityName || 'your city'}.
+                The result will appear in the review step below automatically.
               </p>
 
               {!canSuggest && (
                 <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                  Complete address and category first to enable the AI suggestion.
+                  ⚡ Complete address and category first to enable the AI suggestion.
                 </p>
               )}
 
@@ -345,33 +361,22 @@ export default function HostCreatePage() {
                 <button type="button" onClick={handleGetSuggestion}
                   className="w-full py-3 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm transition flex items-center justify-center gap-2">
                   <i className="fa-solid fa-wand-magic-sparkles" />
-                  Get AI Price Suggestion
+                  Get AI Price Suggestion now
                 </button>
               )}
 
               {suggestionLoading && (
-                <div className="flex flex-col items-center py-8 gap-3">
-                  <div className="w-10 h-10 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
-                  <p className="text-sm text-gray-500">Analysing listings in {cityName}…</p>
-                </div>
+                <p className="text-sm text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full border-2 border-blue-300 border-t-blue-600 animate-spin flex-shrink-0" />
+                  Analysing {cityName}…
+                </p>
               )}
 
-              {suggestionError && (
-                <div className="rounded-lg bg-red-50 border border-red-200 p-4 flex gap-2">
-                  <i className="fa-solid fa-circle-exclamation text-red-500 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-red-700">{suggestionError}</p>
-                    <button type="button" onClick={handleGetSuggestion}
-                      className="text-xs text-red-600 underline mt-1">Try again</button>
-                  </div>
-                </div>
-              )}
-
-              {suggestion && (
-                <button type="button" onClick={handleGetSuggestion}
-                  className="text-xs text-blue-500 hover:underline mb-4 block">
-                  ↻ Re-run suggestion
-                </button>
+              {suggestion && !suggestionLoading && (
+                <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                  <i className="fa-solid fa-circle-check" />
+                  AI suggestion ready — scroll down to review.
+                </p>
               )}
             </div>
 
@@ -383,54 +388,14 @@ export default function HostCreatePage() {
                 Confirm your price before publishing. You can still edit it below.
               </p>
 
-              {/* AI suggestion result panel */}
-              {suggestion && (() => {
-                const conf = suggestion.confidence;
-                const confClass = CONFIDENCE_COLOR[conf] ?? CONFIDENCE_COLOR.low;
-                return (
-                  <div className="mb-6 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-5 space-y-4">
-                    {/* Header */}
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-3xl font-bold text-gray-900">
-                          {suggestion.recommended.toFixed(2)}{' '}
-                          <span className="text-base font-medium text-gray-500">
-                            TND{UNIT_LABEL[suggestion.unit] ?? ''}
-                          </span>
-                        </p>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          Range: {suggestion.range.min.toFixed(2)} – {suggestion.range.max.toFixed(2)} TND
-                        </p>
-                      </div>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border capitalize ${confClass}`}>
-                        {conf} confidence
-                      </span>
-                    </div>
-
-                    {/* Low-confidence warning */}
-                    {conf === 'low' && (
-                      <div className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 flex gap-2">
-                        <i className="fa-solid fa-triangle-exclamation mt-0.5" />
-                        Only {suggestion.compsUsed} comparable listings found — consider verifying manually.
-                      </div>
-                    )}
-
-                    {/* Explanation bullets */}
-                    <ul className="space-y-1.5">
-                      {suggestion.explanation.map((pt, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                          <i className="fa-solid fa-check-circle text-blue-400 mt-0.5 flex-shrink-0" />
-                          {pt}
-                        </li>
-                      ))}
-                    </ul>
-
-                    <p className="text-xs text-gray-400">
-                      Based on <strong>{suggestion.compsUsed}</strong> listing{suggestion.compsUsed !== 1 ? 's' : ''} in {cityName}.
-                    </p>
-                  </div>
-                );
-              })()}
+              {/* AI suggestion card — loading / error / result */}
+              <PriceSuggestionCard
+                loading={suggestionLoading}
+                error={suggestionError}
+                suggestion={suggestion}
+                cityName={cityName}
+                onRetry={handleGetSuggestion}
+              />
 
               {/* Editable final price — always visible at step 6 */}
               <div className="mb-6">
@@ -447,12 +412,16 @@ export default function HostCreatePage() {
                   type="number"
                   value={finalPrice}
                   onChange={(e) => setFinalPrice(e.target.value)}
-                  placeholder={suggestion ? String(suggestion.recommended) : 'Enter price in TND'}
+                  placeholder={suggestion ? String(suggestion.recommended) : 'e.g. 150 — or use AI suggestion above'}
                   min="1"
                   step="0.5"
                   className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
                 />
+                {!finalPrice && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    ⚠ Price is required to publish — get an AI suggestion above or enter one manually.
+                  </p>
+                )}
                 {suggestion && finalPrice && Math.abs(parseFloat(finalPrice) - suggestion.recommended) > 0.01 && (
                   <p className="text-xs text-amber-600 mt-1">
                     ✎ You've overridden the AI suggestion ({suggestion.recommended.toFixed(2)} TND → {parseFloat(finalPrice).toFixed(2)} TND)
@@ -482,8 +451,9 @@ export default function HostCreatePage() {
                   Cancel
                 </button>
                 <button type="submit"
-                  disabled={isUploading || images.length === 0}
-                  className="px-8 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed">
+                  disabled={isUploading || images.length === 0 || !finalPrice}
+                  className="px-8 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!finalPrice ? 'Enter a price to publish' : undefined}>
                   {isUploading ? 'Publishing…' : 'Publish Listing'}
                 </button>
               </div>

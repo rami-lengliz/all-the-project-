@@ -23,6 +23,7 @@ import { AiSearchRequestDto } from './dto/ai-search.dto';
 import {
   PriceSuggestionRequestDto,
   PriceSuggestionResponseDto,
+  PatchPriceSuggestionLogDto,
 } from './dto/price-suggestion.dto';
 
 @ApiTags('AI')
@@ -499,18 +500,55 @@ export class AiController {
     return this.priceSuggestionService.suggest(dto);
   }
 
-  // ── PATCH /api/ai/price-suggestion/log/:id ─────────────────────────────────
+  // ── PATCH /api/ai/price-suggestion/log/:id ──────────────────────────────────────
   @Patch('price-suggestion/log/:id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Patch price suggestion log after publish',
-    description: 'Links the final chosen price and listingId to the suggestion log row. Called by the frontend after a listing is successfully created.',
+    summary: 'Link listing to price suggestion log after publish',
+    description: [
+      'Called by the frontend immediately after `POST /listings` succeeds.',
+      'Writes three fields into the `ai_price_suggestion_logs` row:',
+      '- `listingId` — foreign key to the created listing',
+      '- `finalPrice` — price the host actually chose (may differ from AI)',
+      '- `overridden` — true when |finalPrice − suggestedPrice| > 0.01 TND',
+      '',
+      'This is fire-and-forget on the frontend (errors are swallowed).',
+      'On the backend it never throws — logging failure never blocks listing creation.',
+    ].join('\n'),
   })
-  @ApiResponse({ status: 200, description: 'Log updated' })
+  @ApiBody({
+    type: PatchPriceSuggestionLogDto,
+    examples: {
+      accepted: {
+        summary: 'Host accepted AI price',
+        value: { listingId: 'b3f2a1c4-0001', finalPrice: 284.5, suggestedPrice: 284.5 },
+      },
+      overridden: {
+        summary: 'Host overrode AI price',
+        value: { listingId: 'b3f2a1c4-0002', finalPrice: 320.0, suggestedPrice: 284.5 },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Log row updated — no response body.',
+    schema: {
+      example: {
+        // ai_price_suggestion_logs row after PATCH:
+        id:            'a1b2c3d4-...',
+        listingId:     'b3f2a1c4-0002',
+        finalPrice:    320.0,
+        overridden:    true,   // |320.0 − 284.5| > 0.01
+        suggestedPrice: 284.5, // readable from outputJson
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Log row not found (logId invalid or expired)' })
   async patchPriceSuggestionLog(
     @Param('id') id: string,
-    @Body() body: { listingId: string; finalPrice: number; suggestedPrice: number },
+    @Body() body: PatchPriceSuggestionLogDto,
   ): Promise<void> {
     return this.priceSuggestionService.patchLog(
       id,

@@ -25,6 +25,8 @@ export interface PriceSuggestionRequest {
   unit: PricingUnit;
   lat?: number;
   lng?: number;
+  /** PostGIS search radius in km. Defaults to 25 on the backend. */
+  radiusKm?: number;
   area_sqm?: number;
   capacity?: number;
   amenities?: string[];

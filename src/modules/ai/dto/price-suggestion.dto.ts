@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsArray,
   IsEnum,
+  IsNotEmpty,
   Min,
   Max,
 } from 'class-validator';
@@ -213,4 +214,39 @@ export class PriceSuggestionResponseDto {
       'ID of the PriceSuggestionLog row. Pass this back when publishing the listing so finalPrice can be linked.',
   })
   logId?: string;
+}
+
+/**
+ * PATCH /api/ai/price-suggestion/log/:id
+ *
+ * Called by the frontend immediately after POST /listings succeeds.
+ * Links the created listing to the suggestion log row and records the
+ * final price the host chose (which may differ from the AI recommendation).
+ */
+export class PatchPriceSuggestionLogDto {
+  @ApiProperty({
+    example: 'b3f2a1c4-0000-0000-0000-000000000001',
+    description: 'ID of the listing that was just created.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  listingId: string;
+
+  @ApiProperty({
+    example: 320.5,
+    description: 'The price the host actually chose at publish time (may differ from AI recommendation).',
+  })
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  finalPrice: number;
+
+  @ApiProperty({
+    example: 284.5,
+    description: 'The AI-recommended price from the suggestion (for override detection).',
+  })
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  suggestedPrice: number;
 }
