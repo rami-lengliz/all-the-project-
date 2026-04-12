@@ -21,41 +21,46 @@
 import { CategoryBaseline } from '../config/price-baselines';
 
 // ── Global constants ──────────────────────────────────────────────────────────
-/** Minimum allowed rangeMin in TND — a listing can never be free */
-const ABSOLUTE_FLOOR = 1;
-/** Maximum rangeMax/rangeMin ratio.  Beyond 5× the range is too wide to be useful. */
-const MAX_RANGE_RATIO = 5;
+/** Minimum allowed rangeMin in TND — a listing can never be near-free */
+const ABSOLUTE_FLOOR = 5;
+/** Maximum rangeMax/rangeMin ratio. Beyond 3.5× the range is too wide to be actionable. */
+const MAX_RANGE_RATIO = 3.5;
 /** Round all output prices to this step (0.5 TND) */
 const ROUND_STEP = 0.5;
 
 // ── Hard caps per categorySlug::unit (maximum sane price in TND) ──────────────
 // A suggestion above these values is almost certainly a bug or outlier contamination.
 const HARD_CAPS: Record<string, number> = {
-  // Accommodation
-  'stays::per_night':          2_000,   // ultra-luxury villa peak cap
-  'accommodation::per_night':  2_000,
-  'holiday-rentals::per_night':2_000,
+  // ── Accommodation — DB slugs ──────────────────────────────────────────────
+  'stays::per_night':           2_000,   // ultra-luxury villa peak Tunisian cap
+  'accommodation::per_night':   2_000,
+  'holiday-rentals::per_night': 2_000,
 
-  // Sports facilities
+  // ── Sports facilities ─────────────────────────────────────────────────────
   'sports-facilities::per_slot':  300,
   'sports-facilities::per_hour':  200,
+  'sports_facility::per_session': 300,  // DTO enum value
+  'sports_facility::per_hour':    200,
   'courts::per_slot':             200,
 
-  // Vehicles
-  'mobility::per_day':   1_000,  // high-end car
-  'vehicles::per_day':   1_000,
-  'scooters::per_day':     200,
+  // ── Vehicles ──────────────────────────────────────────────────────────────
+  'mobility::per_day':    1_000,
+  'vehicles::per_day':    1_000,
+  'vehicle::per_day':     1_000,  // DTO enum value
+  'scooters::per_day':      200,
 
-  // Tools & beach gear
+  // ── Tools & equipment ─────────────────────────────────────────────────────
   'tools-equipment::per_day':   600,
+  'tool::per_day':              600,  // DTO enum value
   'beach-gear::per_day':        200,
   'equipment::per_day':         600,
 
-  // Event spaces
+  // ── Event spaces ──────────────────────────────────────────────────────────
   'event-spaces::per_hour':   1_500,
+  'event_space::per_hour':    1_500,  // DTO enum value
   'venues::per_hour':         1_500,
 
-  // Global catch-all
+  // ── Global catch-all — should rarely trigger ──────────────────────────────
   '*': 5_000,
 };
 

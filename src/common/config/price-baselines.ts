@@ -45,21 +45,21 @@ export const PRICE_BASELINES: Record<string, CategoryBaseline> = {
   'stays::per_night': {
     recommended: 150,
     rangeMin:     80,
-    rangeMax:    280,
+    rangeMax:    220,   // tightened: 280 was too optimistic with zero comps
     unit: 'per_night',
     note: 'Tunisian coastal holiday rental median 2024',
   },
   'accommodation::per_night': {
     recommended: 150,
     rangeMin:     80,
-    rangeMax:    280,
+    rangeMax:    220,
     unit: 'per_night',
     note: 'Alias for stays::per_night',
   },
   'holiday-rentals::per_night': {
     recommended: 160,
     rangeMin:     90,
-    rangeMax:    320,
+    rangeMax:    260,   // premium segment — slightly wider but still honest
     unit: 'per_night',
     note: 'Premium holiday-rental segment',
   },
