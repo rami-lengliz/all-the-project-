@@ -98,7 +98,11 @@ export default function PriceSuggestionCard({
       });
       setResult(suggestion);
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Failed to get price suggestion';
+      const rawMsg = err?.response?.data?.message;
+      const msg =
+        Array.isArray(rawMsg)    ? rawMsg.join(', ') :
+        typeof rawMsg === 'string' ? rawMsg           :
+        err?.message             || 'Failed to get price suggestion';
       setError(msg);
     } finally {
       setLoading(false);

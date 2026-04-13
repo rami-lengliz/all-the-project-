@@ -200,11 +200,11 @@ export default function HostEditListingPage() {
       // Redirect to listings page
       router.push('/host/listings');
     } catch (err: any) {
+      const raw = err?.response?.data?.message ?? err?.response?.data?.error;
       const errorMessage =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        'Failed to update listing';
+        Array.isArray(raw)         ? raw.join(', ')  :
+        typeof raw === 'string'    ? raw              :
+        err?.message               || 'Failed to update listing';
       setError(errorMessage);
     } finally {
       setIsUploading(false);

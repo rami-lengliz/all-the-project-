@@ -92,7 +92,12 @@ export default function HostCreatePage() {
       // Scroll to review panel
       setTimeout(() => reviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     } catch (err: any) {
-      setSuggestionError(err?.response?.data?.message || err?.message || 'Failed to get suggestion');
+      const rawMsg = err?.response?.data?.message;
+      setSuggestionError(
+        Array.isArray(rawMsg) ? rawMsg.join(', ') :
+        typeof rawMsg === 'string' ? rawMsg :
+        err?.message || 'Failed to get suggestion',
+      );
     } finally {
       setSuggestionLoading(false);
     }
@@ -166,8 +171,11 @@ export default function HostCreatePage() {
       toast({ title: 'Success', message: 'Listing created successfully!', variant: 'success' });
       router.push('/host/listings');
     } catch (err: any) {
+      const raw = err?.response?.data?.message ?? err?.response?.data?.error;
       setError(
-        err?.response?.data?.message || err?.response?.data?.error ||
+        Array.isArray(raw)  ? raw.join(', ')        :
+        typeof raw === 'string' ? raw               :
+        typeof raw === 'object' && raw !== null ? JSON.stringify(raw) :
         err?.message || 'Failed to create listing',
       );
     } finally {

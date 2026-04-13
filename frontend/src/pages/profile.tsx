@@ -71,10 +71,11 @@ export default function ProfilePage() {
         variant: 'success',
       });
     } catch (error: any) {
+      const raw = error?.response?.data?.message;
       const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        'Failed to verify account. Please try again.';
+        Array.isArray(raw)      ? raw.join(', ')    :
+        typeof raw === 'string' ? raw               :
+        error?.message          || 'Failed to verify account. Please try again.';
       toast({ title: 'Error', message, variant: 'error' });
     }
   };
