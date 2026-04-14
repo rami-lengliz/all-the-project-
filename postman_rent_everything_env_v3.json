@@ -1,0 +1,123 @@
+{
+  "id": "rent-everything-local",
+  "name": "RentEverything Local Env v3",
+  "values": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "loginEmail",
+      "value": "user1@test.com",
+      "type": "default",
+      "enabled": true,
+      "description": "Email of an existing user. The password must also be set below."
+    },
+    {
+      "key": "loginPassword",
+      "value": "password123",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Auto-populated on Login or Re-login"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Auto-populated on Login"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Auto-populated from login or GET /users/me"
+    },
+    {
+      "key": "categoryId",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Auto-populated from GET /categories - first result"
+    },
+    {
+      "key": "listingId",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Auto-populated from POST /listings"
+    },
+    {
+      "key": "bookingId",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Auto-populated from POST /bookings"
+    },
+    {
+      "key": "reviewId",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Auto-populated from POST /reviews"
+    },
+    {
+      "key": "conversationId",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Auto-populated from POST /chat/conversations"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "secret",
+      "enabled": true,
+      "description": "OPTIONAL: Set to a valid admin JWT to run the Admin Flow folder. Leave empty to skip all admin requests."
+    },
+    {
+      "key": "adminTargetUserId",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Auto-populated from admin user list"
+    },
+    {
+      "key": "testUserEmail",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Auto-set by Register step"
+    },
+    {
+      "key": "testUserPassword",
+      "value": "",
+      "type": "secret",
+      "enabled": true,
+      "description": "Auto-set by Register step"
+    },
+    {
+      "key": "_loginEmail",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Internal computed var"
+    },
+    {
+      "key": "_loginPassword",
+      "value": "",
+      "type": "secret",
+      "enabled": true,
+      "description": "Internal computed var"
+    }
+  ]
+}

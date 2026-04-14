@@ -1,0 +1,806 @@
+  console.log
+    [AuthService] Login attempt for: host-slot-conflict-1771628025291@example.com
+
+      at AuthService.login (../src/modules/auth/auth.service.ts:67:15)
+
+  console.log
+    [AuthService] User found: true
+
+      at AuthService.login (../src/modules/auth/auth.service.ts:72:15)
+
+  console.log
+    [AuthService] Password valid: true
+
+      at AuthService.login (../src/modules/auth/auth.service.ts:83:15)
+
+  console.log
+    [AuthService] Login successful, tokens generated
+
+      at AuthService.login (../src/modules/auth/auth.service.ts:95:15)
+
+  console.log
+    [AuthService] Login attempt for: renterA-slot-conflict-1771628025291@example.com
+
+      at AuthService.login (../src/modules/auth/auth.service.ts:67:15)
+
+  console.log
+    [AuthService] User found: true
+
+      at AuthService.login (../src/modules/auth/auth.service.ts:72:15)
+
+  console.log
+    [AuthService] Password valid: true
+
+      at AuthService.login (../src/modules/auth/auth.service.ts:83:15)
+
+  console.log
+    [AuthService] Login successful, tokens generated
+
+      at AuthService.login (../src/modules/auth/auth.service.ts:95:15)
+
+  console.log
+    [AuthService] Login attempt for: renterB-slot-conflict-1771628025291@example.com
+
+      at AuthService.login (../src/modules/auth/auth.service.ts:67:15)
+
+  console.log
+    [AuthService] User found: true
+
+      at AuthService.login (../src/modules/auth/auth.service.ts:72:15)
+
+  console.log
+    [AuthService] Password valid: true
+
+      at AuthService.login (../src/modules/auth/auth.service.ts:83:15)
+
+  console.log
+    [AuthService] Login successful, tokens generated
+
+      at AuthService.login (../src/modules/auth/auth.service.ts:95:15)
+
+  console.log
+    DB CONFIG CHECK: {
+      id: 'c0df3760-1baa-4d6c-9219-a539f8e7d66e',
+      createdAt: 2026-02-20T22:53:46.611Z,
+      updatedAt: 2026-02-20T22:53:46.611Z,
+      listingId: '9fc2048d-90e3-4937-8196-cdaaff46ee30',
+      slotDurationMinutes: 60,
+      operatingHours: {
+        friday: { end: '22:00', start: '08:00' },
+        monday: { end: '22:00', start: '08:00' },
+        sunday: { end: '22:00', start: '08:00' },
+        tuesday: { end: '22:00', start: '08:00' },
+        saturday: { end: '22:00', start: '08:00' },
+        thursday: { end: '22:00', start: '08:00' },
+        wednesday: { end: '22:00', start: '08:00' }
+      },
+      minBookingSlots: 1,
+      maxBookingSlots: 8,
+      bufferMinutes: 0,
+      pricePerSlot: 30
+    }
+
+      at Object.<anonymous> (slot-booking-conflict.e2e-spec.ts:252:21)
+
+  console.log
+    --- BookingsService.create CALLED --- CreateBookingDto {
+      listingId: '9fc2048d-90e3-4937-8196-cdaaff46ee30',
+      startDate: '2026-05-25',
+      endDate: '2026-05-25',
+      startTime: '10:00',
+      endTime: '12:00'
+    }
+
+      at BookingsService.create (../src/modules/bookings/bookings.service.ts:43:13)
+
+  console.log
+    --- BookingsService.create GOT LISTING --- {
+      id: '9fc2048d-90e3-4937-8196-cdaaff46ee30',
+      hostId: '0e92af66-efeb-449f-acad-8eeb4f6d9ecd',
+      title: 'Slot Court slot-conflict-1771628025291',
+      description: 'SLOT listing for conflict prevention test',
+      categoryId: 'a7769d00-988c-40f8-929e-a86734471af3',
+      images: [],
+      pricePerDay: 0,
+      address: 'Test Arena',
+      rules: null,
+      availability: null,
+      isActive: true,
+      bookingType: 'SLOT',
+      deletedAt: null,
+      createdAt: 2026-02-20T22:53:46.468Z,
+      updatedAt: 2026-02-20T22:53:46.468Z,
+      category: {
+        id: 'a7769d00-988c-40f8-929e-a86734471af3',
+        name: 'Sports slot-conflict-1771628025291',
+        slug: 'sports-slot-conflict-1771628025291',
+        icon: '',
+        allowedForPrivate: true,
+        createdAt: 2026-02-20T22:53:46.407Z
+      },
+      host: {
+        id: '0e92af66-efeb-449f-acad-8eeb4f6d9ecd',
+        name: 'Host slot-conflict-1771628025291',
+        email: 'host-slot-conflict-1771628025291@example.com',
+        avatarUrl: null,
+        isHost: true,
+        ratingAvg: 0,
+        ratingCount: 0
+      },
+      bookings: [],
+      reviews: []
+    }
+
+      at BookingsService.create (../src/modules/bookings/bookings.service.ts:47:13)
+
+[31m[Nest] 10772  - [39m20/02/2026 23:53:46 [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39m[31m
+Invalid `tx.booking.create()` invocation in
+C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:43
+
+  465   throw new ConflictException('This time slot is not available');
+  466 }
+  467 
+ 468 const newBooking = await tx.booking.create({
+        data: {
+          listingId: "9fc2048d-90e3-4937-8196-cdaaff46ee30",
+          renterId: "c73a373c-654d-4869-9f42-a4189f95dcab",
+          hostId: "0e92af66-efeb-449f-acad-8eeb4f6d9ecd",
+          startDate: new Date("2026-05-25T00:00:00.000Z"),
+          endDate: new Date("2026-05-25T00:00:00.000Z"),
+          startTime: "10:00",
+                     ~~~~~~~
+          endTime: "12:00",
+          totalPrice: 60,
+          commission: 6,
+          status: "pending",
+          paid: false
+        }
+      })
+
+Invalid value for argument `startTime`: input contains invalid characters. Expected ISO-8601 DateTime.[39m
+PrismaClientValidationError: 
+Invalid `tx.booking.create()` invocation in
+C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:43
+
+  465   throw new ConflictException('This time slot is not available');
+  466 }
+  467 
+ 468 const newBooking = await tx.booking.create({
+        data: {
+          listingId: "9fc2048d-90e3-4937-8196-cdaaff46ee30",
+          renterId: "c73a373c-654d-4869-9f42-a4189f95dcab",
+          hostId: "0e92af66-efeb-449f-acad-8eeb4f6d9ecd",
+          startDate: new Date("2026-05-25T00:00:00.000Z"),
+          endDate: new Date("2026-05-25T00:00:00.000Z"),
+          startTime: "10:00",
+                     ~~~~~~~
+          endTime: "12:00",
+          totalPrice: 60,
+          commission: 6,
+          status: "pending",
+          paid: false
+        }
+      })
+
+Invalid value for argument `startTime`: input contains invalid characters. Expected ISO-8601 DateTime.
+    at wn (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:29:1363)
+    at $n.handleRequestError (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6958)
+    at $n.handleAndLogRequestError (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6623)
+    at $n.request (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6307)
+    at l (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:130:9633)
+    at C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:26
+    at Proxy._transactionWithCallback (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:130:8000)
+    at BookingsService.createSlotBooking (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:456:21)
+  console.log
+    Renter A book response: { statusCode: 500, message: 'Internal server error' }
+
+      at Object.<anonymous> (slot-booking-conflict.e2e-spec.ts:285:21)
+
+  console.log
+    --- BookingsService.create CALLED --- CreateBookingDto {
+      listingId: '9fc2048d-90e3-4937-8196-cdaaff46ee30',
+      startDate: '2026-05-25',
+      endDate: '2026-05-25',
+      startTime: '11:00',
+      endTime: '13:00'
+    }
+
+      at BookingsService.create (../src/modules/bookings/bookings.service.ts:43:13)
+
+  console.log
+    --- BookingsService.create GOT LISTING --- {
+      id: '9fc2048d-90e3-4937-8196-cdaaff46ee30',
+      hostId: '0e92af66-efeb-449f-acad-8eeb4f6d9ecd',
+      title: 'Slot Court slot-conflict-1771628025291',
+      description: 'SLOT listing for conflict prevention test',
+      categoryId: 'a7769d00-988c-40f8-929e-a86734471af3',
+      images: [],
+      pricePerDay: 0,
+      address: 'Test Arena',
+      rules: null,
+      availability: null,
+      isActive: true,
+      bookingType: 'SLOT',
+      deletedAt: null,
+      createdAt: 2026-02-20T22:53:46.468Z,
+      updatedAt: 2026-02-20T22:53:46.468Z,
+      category: {
+        id: 'a7769d00-988c-40f8-929e-a86734471af3',
+        name: 'Sports slot-conflict-1771628025291',
+        slug: 'sports-slot-conflict-1771628025291',
+        icon: '',
+        allowedForPrivate: true,
+        createdAt: 2026-02-20T22:53:46.407Z
+      },
+      host: {
+        id: '0e92af66-efeb-449f-acad-8eeb4f6d9ecd',
+        name: 'Host slot-conflict-1771628025291',
+        email: 'host-slot-conflict-1771628025291@example.com',
+        avatarUrl: null,
+        isHost: true,
+        ratingAvg: 0,
+        ratingCount: 0
+      },
+      bookings: [],
+      reviews: []
+    }
+
+      at BookingsService.create (../src/modules/bookings/bookings.service.ts:47:13)
+
+[31m[Nest] 10772  - [39m20/02/2026 23:53:46 [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39m[31m
+Invalid `tx.booking.create()` invocation in
+C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:43
+
+  465   throw new ConflictException('This time slot is not available');
+  466 }
+  467 
+ 468 const newBooking = await tx.booking.create({
+        data: {
+          listingId: "9fc2048d-90e3-4937-8196-cdaaff46ee30",
+          renterId: "ce0b385b-7ad3-4da7-8f95-1f5f19baad55",
+          hostId: "0e92af66-efeb-449f-acad-8eeb4f6d9ecd",
+          startDate: new Date("2026-05-25T00:00:00.000Z"),
+          endDate: new Date("2026-05-25T00:00:00.000Z"),
+          startTime: "11:00",
+                     ~~~~~~~
+          endTime: "13:00",
+          totalPrice: 60,
+          commission: 6,
+          status: "pending",
+          paid: false
+        }
+      })
+
+Invalid value for argument `startTime`: input contains invalid characters. Expected ISO-8601 DateTime.[39m
+PrismaClientValidationError: 
+Invalid `tx.booking.create()` invocation in
+C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:43
+
+  465   throw new ConflictException('This time slot is not available');
+  466 }
+  467 
+ 468 const newBooking = await tx.booking.create({
+        data: {
+          listingId: "9fc2048d-90e3-4937-8196-cdaaff46ee30",
+          renterId: "ce0b385b-7ad3-4da7-8f95-1f5f19baad55",
+          hostId: "0e92af66-efeb-449f-acad-8eeb4f6d9ecd",
+          startDate: new Date("2026-05-25T00:00:00.000Z"),
+          endDate: new Date("2026-05-25T00:00:00.000Z"),
+          startTime: "11:00",
+                     ~~~~~~~
+          endTime: "13:00",
+          totalPrice: 60,
+          commission: 6,
+          status: "pending",
+          paid: false
+        }
+      })
+
+Invalid value for argument `startTime`: input contains invalid characters. Expected ISO-8601 DateTime.
+    at wn (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:29:1363)
+    at $n.handleRequestError (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6958)
+    at $n.handleAndLogRequestError (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6623)
+    at $n.request (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6307)
+    at l (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:130:9633)
+    at C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:26
+    at Proxy._transactionWithCallback (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:130:8000)
+    at BookingsService.createSlotBooking (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:456:21)
+  console.log
+    --- BookingsService.create CALLED --- CreateBookingDto {
+      listingId: '9fc2048d-90e3-4937-8196-cdaaff46ee30',
+      startDate: '2026-05-25',
+      endDate: '2026-05-25',
+      startTime: '10:00',
+      endTime: '12:00'
+    }
+
+      at BookingsService.create (../src/modules/bookings/bookings.service.ts:43:13)
+
+  console.log
+    --- BookingsService.create GOT LISTING --- {
+      id: '9fc2048d-90e3-4937-8196-cdaaff46ee30',
+      hostId: '0e92af66-efeb-449f-acad-8eeb4f6d9ecd',
+      title: 'Slot Court slot-conflict-1771628025291',
+      description: 'SLOT listing for conflict prevention test',
+      categoryId: 'a7769d00-988c-40f8-929e-a86734471af3',
+      images: [],
+      pricePerDay: 0,
+      address: 'Test Arena',
+      rules: null,
+      availability: null,
+      isActive: true,
+      bookingType: 'SLOT',
+      deletedAt: null,
+      createdAt: 2026-02-20T22:53:46.468Z,
+      updatedAt: 2026-02-20T22:53:46.468Z,
+      category: {
+        id: 'a7769d00-988c-40f8-929e-a86734471af3',
+        name: 'Sports slot-conflict-1771628025291',
+        slug: 'sports-slot-conflict-1771628025291',
+        icon: '',
+        allowedForPrivate: true,
+        createdAt: 2026-02-20T22:53:46.407Z
+      },
+      host: {
+        id: '0e92af66-efeb-449f-acad-8eeb4f6d9ecd',
+        name: 'Host slot-conflict-1771628025291',
+        email: 'host-slot-conflict-1771628025291@example.com',
+        avatarUrl: null,
+        isHost: true,
+        ratingAvg: 0,
+        ratingCount: 0
+      },
+      bookings: [],
+      reviews: []
+    }
+
+      at BookingsService.create (../src/modules/bookings/bookings.service.ts:47:13)
+
+[31m[Nest] 10772  - [39m20/02/2026 23:53:47 [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39m[31m
+Invalid `tx.booking.create()` invocation in
+C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:43
+
+  465   throw new ConflictException('This time slot is not available');
+  466 }
+  467 
+ 468 const newBooking = await tx.booking.create({
+        data: {
+          listingId: "9fc2048d-90e3-4937-8196-cdaaff46ee30",
+          renterId: "ce0b385b-7ad3-4da7-8f95-1f5f19baad55",
+          hostId: "0e92af66-efeb-449f-acad-8eeb4f6d9ecd",
+          startDate: new Date("2026-05-25T00:00:00.000Z"),
+          endDate: new Date("2026-05-25T00:00:00.000Z"),
+          startTime: "10:00",
+                     ~~~~~~~
+          endTime: "12:00",
+          totalPrice: 60,
+          commission: 6,
+          status: "pending",
+          paid: false
+        }
+      })
+
+Invalid value for argument `startTime`: input contains invalid characters. Expected ISO-8601 DateTime.[39m
+PrismaClientValidationError: 
+Invalid `tx.booking.create()` invocation in
+C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:43
+
+  465   throw new ConflictException('This time slot is not available');
+  466 }
+  467 
+ 468 const newBooking = await tx.booking.create({
+        data: {
+          listingId: "9fc2048d-90e3-4937-8196-cdaaff46ee30",
+          renterId: "ce0b385b-7ad3-4da7-8f95-1f5f19baad55",
+          hostId: "0e92af66-efeb-449f-acad-8eeb4f6d9ecd",
+          startDate: new Date("2026-05-25T00:00:00.000Z"),
+          endDate: new Date("2026-05-25T00:00:00.000Z"),
+          startTime: "10:00",
+                     ~~~~~~~
+          endTime: "12:00",
+          totalPrice: 60,
+          commission: 6,
+          status: "pending",
+          paid: false
+        }
+      })
+
+Invalid value for argument `startTime`: input contains invalid characters. Expected ISO-8601 DateTime.
+    at wn (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:29:1363)
+    at $n.handleRequestError (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6958)
+    at $n.handleAndLogRequestError (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6623)
+    at $n.request (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6307)
+    at l (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:130:9633)
+    at C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:26
+    at Proxy._transactionWithCallback (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:130:8000)
+    at BookingsService.createSlotBooking (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:456:21)
+  console.log
+    --- BookingsService.create CALLED --- CreateBookingDto {
+      listingId: '9fc2048d-90e3-4937-8196-cdaaff46ee30',
+      startDate: '2026-05-25',
+      endDate: '2026-05-25',
+      startTime: '11:00',
+      endTime: '13:00'
+    }
+
+      at BookingsService.create (../src/modules/bookings/bookings.service.ts:43:13)
+
+  console.log
+    --- BookingsService.create GOT LISTING --- {
+      id: '9fc2048d-90e3-4937-8196-cdaaff46ee30',
+      hostId: '0e92af66-efeb-449f-acad-8eeb4f6d9ecd',
+      title: 'Slot Court slot-conflict-1771628025291',
+      description: 'SLOT listing for conflict prevention test',
+      categoryId: 'a7769d00-988c-40f8-929e-a86734471af3',
+      images: [],
+      pricePerDay: 0,
+      address: 'Test Arena',
+      rules: null,
+      availability: null,
+      isActive: true,
+      bookingType: 'SLOT',
+      deletedAt: null,
+      createdAt: 2026-02-20T22:53:46.468Z,
+      updatedAt: 2026-02-20T22:53:46.468Z,
+      category: {
+        id: 'a7769d00-988c-40f8-929e-a86734471af3',
+        name: 'Sports slot-conflict-1771628025291',
+        slug: 'sports-slot-conflict-1771628025291',
+        icon: '',
+        allowedForPrivate: true,
+        createdAt: 2026-02-20T22:53:46.407Z
+      },
+      host: {
+        id: '0e92af66-efeb-449f-acad-8eeb4f6d9ecd',
+        name: 'Host slot-conflict-1771628025291',
+        email: 'host-slot-conflict-1771628025291@example.com',
+        avatarUrl: null,
+        isHost: true,
+        ratingAvg: 0,
+        ratingCount: 0
+      },
+      bookings: [],
+      reviews: []
+    }
+
+      at BookingsService.create (../src/modules/bookings/bookings.service.ts:47:13)
+
+[31m[Nest] 10772  - [39m20/02/2026 23:53:47 [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39m[31m
+Invalid `tx.booking.create()` invocation in
+C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:43
+
+  465   throw new ConflictException('This time slot is not available');
+  466 }
+  467 
+ 468 const newBooking = await tx.booking.create({
+        data: {
+          listingId: "9fc2048d-90e3-4937-8196-cdaaff46ee30",
+          renterId: "ce0b385b-7ad3-4da7-8f95-1f5f19baad55",
+          hostId: "0e92af66-efeb-449f-acad-8eeb4f6d9ecd",
+          startDate: new Date("2026-05-25T00:00:00.000Z"),
+          endDate: new Date("2026-05-25T00:00:00.000Z"),
+          startTime: "11:00",
+                     ~~~~~~~
+          endTime: "13:00",
+          totalPrice: 60,
+          commission: 6,
+          status: "pending",
+          paid: false
+        }
+      })
+
+Invalid value for argument `startTime`: input contains invalid characters. Expected ISO-8601 DateTime.[39m
+PrismaClientValidationError: 
+Invalid `tx.booking.create()` invocation in
+C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:43
+
+  465   throw new ConflictException('This time slot is not available');
+  466 }
+  467 
+ 468 const newBooking = await tx.booking.create({
+        data: {
+          listingId: "9fc2048d-90e3-4937-8196-cdaaff46ee30",
+          renterId: "ce0b385b-7ad3-4da7-8f95-1f5f19baad55",
+          hostId: "0e92af66-efeb-449f-acad-8eeb4f6d9ecd",
+          startDate: new Date("2026-05-25T00:00:00.000Z"),
+          endDate: new Date("2026-05-25T00:00:00.000Z"),
+          startTime: "11:00",
+                     ~~~~~~~
+          endTime: "13:00",
+          totalPrice: 60,
+          commission: 6,
+          status: "pending",
+          paid: false
+        }
+      })
+
+Invalid value for argument `startTime`: input contains invalid characters. Expected ISO-8601 DateTime.
+    at wn (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:29:1363)
+    at $n.handleRequestError (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6958)
+    at $n.handleAndLogRequestError (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6623)
+    at $n.request (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6307)
+    at l (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:130:9633)
+    at C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:26
+    at Proxy._transactionWithCallback (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:130:8000)
+    at BookingsService.createSlotBooking (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:456:21)
+  console.log
+    --- BookingsService.create CALLED --- CreateBookingDto {
+      listingId: '9fc2048d-90e3-4937-8196-cdaaff46ee30',
+      startDate: '2026-05-25',
+      endDate: '2026-05-25',
+      startTime: '14:00',
+      endTime: '16:00'
+    }
+
+      at BookingsService.create (../src/modules/bookings/bookings.service.ts:43:13)
+
+  console.log
+    --- BookingsService.create GOT LISTING --- {
+      id: '9fc2048d-90e3-4937-8196-cdaaff46ee30',
+      hostId: '0e92af66-efeb-449f-acad-8eeb4f6d9ecd',
+      title: 'Slot Court slot-conflict-1771628025291',
+      description: 'SLOT listing for conflict prevention test',
+      categoryId: 'a7769d00-988c-40f8-929e-a86734471af3',
+      images: [],
+      pricePerDay: 0,
+      address: 'Test Arena',
+      rules: null,
+      availability: null,
+      isActive: true,
+      bookingType: 'SLOT',
+      deletedAt: null,
+      createdAt: 2026-02-20T22:53:46.468Z,
+      updatedAt: 2026-02-20T22:53:46.468Z,
+      category: {
+        id: 'a7769d00-988c-40f8-929e-a86734471af3',
+        name: 'Sports slot-conflict-1771628025291',
+        slug: 'sports-slot-conflict-1771628025291',
+        icon: '',
+        allowedForPrivate: true,
+        createdAt: 2026-02-20T22:53:46.407Z
+      },
+      host: {
+        id: '0e92af66-efeb-449f-acad-8eeb4f6d9ecd',
+        name: 'Host slot-conflict-1771628025291',
+        email: 'host-slot-conflict-1771628025291@example.com',
+        avatarUrl: null,
+        isHost: true,
+        ratingAvg: 0,
+        ratingCount: 0
+      },
+      bookings: [],
+      reviews: []
+    }
+
+      at BookingsService.create (../src/modules/bookings/bookings.service.ts:47:13)
+
+[31m[Nest] 10772  - [39m20/02/2026 23:53:47 [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39m[31m
+Invalid `tx.booking.create()` invocation in
+C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:43
+
+  465   throw new ConflictException('This time slot is not available');
+  466 }
+  467 
+ 468 const newBooking = await tx.booking.create({
+        data: {
+          listingId: "9fc2048d-90e3-4937-8196-cdaaff46ee30",
+          renterId: "ce0b385b-7ad3-4da7-8f95-1f5f19baad55",
+          hostId: "0e92af66-efeb-449f-acad-8eeb4f6d9ecd",
+          startDate: new Date("2026-05-25T00:00:00.000Z"),
+          endDate: new Date("2026-05-25T00:00:00.000Z"),
+          startTime: "14:00",
+                     ~~~~~~~
+          endTime: "16:00",
+          totalPrice: 60,
+          commission: 6,
+          status: "pending",
+          paid: false
+        }
+      })
+
+Invalid value for argument `startTime`: input contains invalid characters. Expected ISO-8601 DateTime.[39m
+PrismaClientValidationError: 
+Invalid `tx.booking.create()` invocation in
+C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:43
+
+  465   throw new ConflictException('This time slot is not available');
+  466 }
+  467 
+ 468 const newBooking = await tx.booking.create({
+        data: {
+          listingId: "9fc2048d-90e3-4937-8196-cdaaff46ee30",
+          renterId: "ce0b385b-7ad3-4da7-8f95-1f5f19baad55",
+          hostId: "0e92af66-efeb-449f-acad-8eeb4f6d9ecd",
+          startDate: new Date("2026-05-25T00:00:00.000Z"),
+          endDate: new Date("2026-05-25T00:00:00.000Z"),
+          startTime: "14:00",
+                     ~~~~~~~
+          endTime: "16:00",
+          totalPrice: 60,
+          commission: 6,
+          status: "pending",
+          paid: false
+        }
+      })
+
+Invalid value for argument `startTime`: input contains invalid characters. Expected ISO-8601 DateTime.
+    at wn (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:29:1363)
+    at $n.handleRequestError (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6958)
+    at $n.handleAndLogRequestError (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6623)
+    at $n.request (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:121:6307)
+    at l (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:130:9633)
+    at C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:468:26
+    at Proxy._transactionWithCallback (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\node_modules\@prisma\client\runtime\library.js:130:8000)
+    at BookingsService.createSlotBooking (C:\Users\fadi\Desktop\lock in\PFE_Project\PFE\the real RentAI\all-the-project-\src\modules\bookings\bookings.service.ts:456:21)
+FAIL test/slot-booking-conflict.e2e-spec.ts (16.739 s)
+  SLOT Booking  Conflict Prevention (e2e)
+    Step 1  Fixtures are ready
+       all tokens and listingId are populated (4 ms)
+       GET /api/listings/:id/available-slots  returns time slots for the date (79 ms)
+       GET /api/listings/:id/available-slots  slot 10:00-11:00 is initially available (40 ms)
+    Step 2  Renter A books slot 10:0012:00
+       POST /api/bookings  RenterA books a 2-hour slot (201, pending) (129 ms)
+    Step 3  Pending slot does not block: RenterB can create overlapping pending
+       POST /api/bookings  RenterB overlapping slot allowed while A is still pending (201) (74 ms)
+    Step 4  Host confirms Renter A booking (locks the slot)
+       PATCH /api/bookings/:id/confirm  host confirms Renter A slot (200, confirmed) (1 ms)
+    Step 5  Available-slots reflects confirmed booking
+       GET /api/listings/:id/available-slots  slot 10:00-11:00 is now unavailable (26 ms)
+    Step 6  Conflict gate: new overlapping booking is rejected
+       POST /api/bookings  exact same slot (10:0012:00) is rejected with 409 (114 ms)
+       POST /api/bookings  partially overlapping slot (11:0013:00) is rejected with 409 (43 ms)
+       POST /api/bookings  non-overlapping slot (14:0016:00) is accepted (201) (76 ms)
+    Step 7  Confirming an overlapping pending booking is rejected
+       PATCH /api/bookings/:id/confirm  confirming Renter B overlapping booking is rejected (409) (1 ms)
+
+   SLOT Booking  Conflict Prevention (e2e)  Step 2  Renter A books slot 10:0012:00  POST /api/bookings  RenterA books a 2-hour slot (201, pending)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 500
+
+    [0m [90m 284 |[39m                 })[33m;[39m
+     [90m 285 |[39m             console[33m.[39mlog([32m'Renter A book response:'[39m[33m,[39m res[33m.[39mbody)[33m;[39m
+    [31m[1m>[22m[39m[90m 286 |[39m             expect(res[33m.[39mstatus)[33m.[39mtoBe([35m201[39m)[33m;[39m
+     [90m     |[39m                                [31m[1m^[22m[39m
+     [90m 287 |[39m
+     [90m 288 |[39m             [36mconst[39m booking [33m=[39m res[33m.[39mbody[33m.[39mdata [33m?[39m[33m?[39m res[33m.[39mbody[33m;[39m
+     [90m 289 |[39m             expect(booking)[33m.[39mtoHaveProperty([32m'id'[39m)[33m;[39m[0m
+
+      at Object.<anonymous> (slot-booking-conflict.e2e-spec.ts:286:32)
+
+   SLOT Booking  Conflict Prevention (e2e)  Step 3  Pending slot does not block: RenterB can create overlapping pending  POST /api/bookings  RenterB overlapping slot allowed while A is still pending (201)
+
+    expected 201 "Created", got 500 "Internal Server Error"
+
+    [0m [90m 310 |[39m                     endTime[33m:[39m [33mSLOT_B_END[39m[33m,[39m
+     [90m 311 |[39m                 })
+    [31m[1m>[22m[39m[90m 312 |[39m                 [33m.[39mexpect([35m201[39m)[33m;[39m
+     [90m     |[39m                  [31m[1m^[22m[39m
+     [90m 313 |[39m
+     [90m 314 |[39m             [36mconst[39m booking [33m=[39m res[33m.[39mbody[33m.[39mdata [33m?[39m[33m?[39m res[33m.[39mbody[33m;[39m
+     [90m 315 |[39m             expect(booking[33m.[39mstatus)[33m.[39mtoBe([32m'pending'[39m)[33m;[39m[0m
+
+      at Object.<anonymous> (slot-booking-conflict.e2e-spec.ts:312:18)
+      ----
+      at Test._assertStatus (../node_modules/supertest/lib/test.js:252:14)
+      at ../node_modules/supertest/lib/test.js:308:13
+      at Test._assertFunction (../node_modules/supertest/lib/test.js:285:13)
+      at Test.assert (../node_modules/supertest/lib/test.js:164:23)
+      at Server.localAssert (../node_modules/supertest/lib/test.js:120:14)
+
+   SLOT Booking  Conflict Prevention (e2e)  Step 4  Host confirms Renter A booking (locks the slot)  PATCH /api/bookings/:id/confirm  host confirms Renter A slot (200, confirmed)
+
+    expect(received).toBeTruthy()
+
+    Received: undefined
+
+    [0m [90m 323 |[39m     describe([32m'Step 4  Host confirms Renter A booking (locks the slot)'[39m[33m,[39m () [33m=>[39m {
+     [90m 324 |[39m         it([32m'PATCH /api/bookings/:id/confirm  host confirms Renter A slot (200, confirmed)'[39m[33m,[39m [36masync[39m () [33m=>[39m {
+    [31m[1m>[22m[39m[90m 325 |[39m             expect(bookingAId)[33m.[39mtoBeTruthy()[33m;[39m
+     [90m     |[39m                                [31m[1m^[22m[39m
+     [90m 326 |[39m
+     [90m 327 |[39m             [36mconst[39m res [33m=[39m [36mawait[39m request(app[33m.[39mgetHttpServer())
+     [90m 328 |[39m                 [33m.[39mpatch([32m`/api/bookings/${bookingAId}/confirm`[39m)[0m
+
+      at Object.<anonymous> (slot-booking-conflict.e2e-spec.ts:325:32)
+
+   SLOT Booking  Conflict Prevention (e2e)  Step 5  Available-slots reflects confirmed booking  GET /api/listings/:id/available-slots  slot 10:00-11:00 is now unavailable
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+    [0m [90m 352 |[39m             [36mif[39m (tenOClock [33m!==[39m undefined) {
+     [90m 353 |[39m                 [90m// If the slot is still returned, it must be marked unavailable[39m
+    [31m[1m>[22m[39m[90m 354 |[39m                 expect(tenOClock[33m.[39mavailable)[33m.[39mtoBe([36mfalse[39m)[33m;[39m
+     [90m     |[39m                                             [31m[1m^[22m[39m
+     [90m 355 |[39m             }
+     [90m 356 |[39m             [90m// If the slot is omitted entirely from results, that is also valid[39m
+     [90m 357 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> (slot-booking-conflict.e2e-spec.ts:354:45)
+
+   SLOT Booking  Conflict Prevention (e2e)  Step 6  Conflict gate: new overlapping booking is rejected  POST /api/bookings  exact same slot (10:0012:00) is rejected with 409
+
+    expected 409 "Conflict", got 500 "Internal Server Error"
+
+    [0m [90m 373 |[39m                     endTime[33m:[39m [33mSLOT_A_END[39m[33m,[39m
+     [90m 374 |[39m                 })
+    [31m[1m>[22m[39m[90m 375 |[39m                 [33m.[39mexpect([35m409[39m)[33m;[39m
+     [90m     |[39m                  [31m[1m^[22m[39m
+     [90m 376 |[39m         })[33m;[39m
+     [90m 377 |[39m
+     [90m 378 |[39m         it([32m'POST /api/bookings  partially overlapping slot (11:0013:00) is rejected with 409'[39m[33m,[39m [36masync[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> (slot-booking-conflict.e2e-spec.ts:375:18)
+      ----
+      at Test._assertStatus (../node_modules/supertest/lib/test.js:252:14)
+      at ../node_modules/supertest/lib/test.js:308:13
+      at Test._assertFunction (../node_modules/supertest/lib/test.js:285:13)
+      at Test.assert (../node_modules/supertest/lib/test.js:164:23)
+      at Server.localAssert (../node_modules/supertest/lib/test.js:120:14)
+
+   SLOT Booking  Conflict Prevention (e2e)  Step 6  Conflict gate: new overlapping booking is rejected  POST /api/bookings  partially overlapping slot (11:0013:00) is rejected with 409
+
+    expected 409 "Conflict", got 500 "Internal Server Error"
+
+    [0m [90m 387 |[39m                     endTime[33m:[39m [33mSLOT_B_END[39m[33m,[39m
+     [90m 388 |[39m                 })
+    [31m[1m>[22m[39m[90m 389 |[39m                 [33m.[39mexpect([35m409[39m)[33m;[39m
+     [90m     |[39m                  [31m[1m^[22m[39m
+     [90m 390 |[39m         })[33m;[39m
+     [90m 391 |[39m
+     [90m 392 |[39m         it([32m'POST /api/bookings  non-overlapping slot (14:0016:00) is accepted (201)'[39m[33m,[39m [36masync[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> (slot-booking-conflict.e2e-spec.ts:389:18)
+      ----
+      at Test._assertStatus (../node_modules/supertest/lib/test.js:252:14)
+      at ../node_modules/supertest/lib/test.js:308:13
+      at Test._assertFunction (../node_modules/supertest/lib/test.js:285:13)
+      at Test.assert (../node_modules/supertest/lib/test.js:164:23)
+      at Server.localAssert (../node_modules/supertest/lib/test.js:120:14)
+
+   SLOT Booking  Conflict Prevention (e2e)  Step 6  Conflict gate: new overlapping booking is rejected  POST /api/bookings  non-overlapping slot (14:0016:00) is accepted (201)
+
+    expected 201 "Created", got 500 "Internal Server Error"
+
+    [0m [90m 401 |[39m                     endTime[33m:[39m [33mSLOT_C_END[39m[33m,[39m
+     [90m 402 |[39m                 })
+    [31m[1m>[22m[39m[90m 403 |[39m                 [33m.[39mexpect([35m201[39m)[33m;[39m
+     [90m     |[39m                  [31m[1m^[22m[39m
+     [90m 404 |[39m
+     [90m 405 |[39m             [36mconst[39m booking [33m=[39m res[33m.[39mbody[33m.[39mdata [33m?[39m[33m?[39m res[33m.[39mbody[33m;[39m
+     [90m 406 |[39m             expect(booking[33m.[39mstatus)[33m.[39mtoBe([32m'pending'[39m)[33m;[39m[0m
+
+      at Object.<anonymous> (slot-booking-conflict.e2e-spec.ts:403:18)
+      ----
+      at Test._assertStatus (../node_modules/supertest/lib/test.js:252:14)
+      at ../node_modules/supertest/lib/test.js:308:13
+      at Test._assertFunction (../node_modules/supertest/lib/test.js:285:13)
+      at Test.assert (../node_modules/supertest/lib/test.js:164:23)
+      at Server.localAssert (../node_modules/supertest/lib/test.js:120:14)
+
+   SLOT Booking  Conflict Prevention (e2e)  Step 7  Confirming an overlapping pending booking is rejected  PATCH /api/bookings/:id/confirm  confirming Renter B overlapping booking is rejected (409)
+
+    expect(received).toBeTruthy()
+
+    Received: undefined
+
+    [0m [90m 415 |[39m     describe([32m'Step 7  Confirming an overlapping pending booking is rejected'[39m[33m,[39m () [33m=>[39m {
+     [90m 416 |[39m         it([32m'PATCH /api/bookings/:id/confirm  confirming Renter B overlapping booking is rejected (409)'[39m[33m,[39m [36masync[39m () [33m=>[39m {
+    [31m[1m>[22m[39m[90m 417 |[39m             expect(bookingBId)[33m.[39mtoBeTruthy()[33m;[39m
+     [90m     |[39m                                [31m[1m^[22m[39m
+     [90m 418 |[39m
+     [90m 419 |[39m             [36mawait[39m request(app[33m.[39mgetHttpServer())
+     [90m 420 |[39m                 [33m.[39mpatch([32m`/api/bookings/${bookingBId}/confirm`[39m)[0m
+
+      at Object.<anonymous> (slot-booking-conflict.e2e-spec.ts:417:32)
+
+Test Suites: 1 failed, 1 total
+Tests:       8 failed, 3 passed, 11 total
+Snapshots:   0 total
+Time:        17.301 s
+Ran all test suites matching /slot-booking-conflict/i.

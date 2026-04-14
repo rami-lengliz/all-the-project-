@@ -1,0 +1,71 @@
+import {
+  IsString,
+  IsNumber,
+  IsNotEmpty,
+  Min,
+  IsUUID,
+  IsLatitude,
+  IsLongitude,
+  IsOptional,
+  IsArray,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class CreateListingDto {
+  @ApiProperty({ example: 'Mountain Bike for Rent' })
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+
+  @ApiProperty({ example: 'High-quality mountain bike...' })
+  @IsString()
+  @IsNotEmpty()
+  description: string;
+
+  @ApiProperty()
+  @IsUUID()
+  categoryId: string;
+
+  @ApiProperty({ example: 25.0, description: 'Price per day in TND' })
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  pricePerDay: number;
+
+  @ApiProperty({ example: 36.8475 })
+  @IsLatitude()
+  @Type(() => Number)
+  latitude: number;
+
+  @ApiProperty({ example: 11.0939 })
+  @IsLongitude()
+  @Type(() => Number)
+  longitude: number;
+
+  @ApiProperty({ example: '123 Main St, Kelibia, Tunisia' })
+  @IsString()
+  @IsNotEmpty()
+  address: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  rules?: string;
+
+  @ApiProperty({
+    required: false,
+    enum: ['DAILY', 'SLOT'],
+    default: 'DAILY',
+    description:
+      'Booking type: DAILY for day-based rentals, SLOT for hourly/time-slot bookings',
+  })
+  @IsOptional()
+  @IsString()
+  bookingType?: 'DAILY' | 'SLOT';
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  availability?: Array<{ startDate: string; endDate: string }>;
+}

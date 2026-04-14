@@ -1,0 +1,5 @@
+{
+  "message": "You can only configure your own listings",
+  "error": "Forbidden",
+  "statusCode": 403
+}

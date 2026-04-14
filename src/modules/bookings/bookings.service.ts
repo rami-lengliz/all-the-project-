@@ -1,0 +1,843 @@
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  ConflictException,
+  Inject,
+  forwardRef,
+  Logger,
+} from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+import { Booking } from '@prisma/client';
+import { CreateBookingDto } from './dto/create-booking.dto';
+import { PayBookingDto } from './dto/pay-booking.dto';
+import { ListingsService } from '../listings/listings.service';
+import { ConfigService } from '@nestjs/config';
+import { AvailabilityService } from '../../common/utils/availability.service';
+import { BookingStateMachine } from '../../common/utils/booking-state-machine';
+import { PaymentsService } from '../payments/payments.service';
+import { CancellationPolicyService } from '../../common/policies/cancellation-policy.service';
+import { ChatService } from '../../chat/chat.service';
+
+/**
+ * Maps internal DB booking statuses to stable MVP-facing vocabulary.
+ *
+ * Internal  → displayStatus
+ * ---------   -------------
+ * pending   → pending
+ * confirmed → accepted
+ * paid      → accepted   (payment is an internal milestone, renter sees "accepted")
+ * completed → completed
+ * cancelled → canceled   (American English used in MVP spec)
+ * rejected  → rejected
+ */
+export type DisplayStatus =
+  | 'pending'
+  | 'accepted'
+  | 'completed'
+  | 'canceled'
+  | 'rejected';
+
+export function toDisplayStatus(internal: string): DisplayStatus {
+  switch (internal) {
+    case 'confirmed':
+    case 'paid':
+      return 'accepted';
+    case 'cancelled':
+      return 'canceled';
+    case 'rejected':
+      return 'rejected';
+    case 'completed':
+      return 'completed';
+    default:
+      return 'pending';
+  }
+}
+
+/** Attaches displayStatus to any booking object. */
+export function withDisplay<T extends { status: string }>(
+  booking: T,
+): T & { displayStatus: DisplayStatus } {
+  return { ...booking, displayStatus: toDisplayStatus(booking.status) };
+}
+
+@Injectable()
+export class BookingsService {
+  private readonly commissionPercentage: number;
+  private readonly logger = new Logger(BookingsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private listingsService: ListingsService,
+    private configService: ConfigService,
+    private availabilityService: AvailabilityService,
+    @Inject(forwardRef(() => PaymentsService))
+    private paymentsService: PaymentsService,
+    private cancellationPolicyService: CancellationPolicyService,
+    private chatService: ChatService,
+  ) {
+    this.commissionPercentage =
+      this.configService.get<number>('commission.percentage') || 0.1;
+  }
+
+  async create(
+    createBookingDto: CreateBookingDto,
+    renterId: string,
+  ): Promise<any> {
+    const listing = await this.listingsService.findOne(
+      createBookingDto.listingId,
+    );
+
+    if (listing.hostId === renterId) {
+      throw new BadRequestException('You cannot book your own listing');
+    }
+
+    if (!listing.isActive) {
+      throw new BadRequestException('This listing is not active');
+    }
+
+    const startDate = new Date(createBookingDto.startDate);
+    const endDate = new Date(createBookingDto.endDate);
+
+    // Handle SLOT-based bookings BEFORE date-range validation:
+    // SLOT bookings legally use the same day for startDate and endDate
+    // (the time window is expressed via startTime/endTime, not date span).
+    if (listing.bookingType === 'SLOT') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (startDate < today) {
+        throw new BadRequestException('Start date cannot be in the past');
+      }
+      return this.createSlotBooking(
+        createBookingDto,
+        renterId,
+        listing,
+        startDate,
+      );
+    }
+
+    // DAILY bookings: end date must be strictly after start date
+    if (startDate >= endDate) {
+      throw new BadRequestException('End date must be after start date');
+    }
+
+    if (startDate < new Date()) {
+      throw new BadRequestException('Start date cannot be in the past');
+    }
+
+    // Handle DAILY bookings (existing logic)
+    // Calculate total price and commission
+    const days = Math.ceil(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    const pricePerDay =
+      typeof listing.pricePerDay === 'number'
+        ? listing.pricePerDay
+        : Number(listing.pricePerDay);
+    const totalPrice = pricePerDay * days;
+    const commission = totalPrice * this.commissionPercentage;
+
+    // Use transaction with row-level locking to prevent double booking
+    const booking = await this.prisma.$transaction(async (tx) => {
+      // Check availability using centralized service with lock
+      // Only CONFIRMED and PAID bookings block availability (PENDING does not)
+      const isAvailable =
+        await this.availabilityService.isListingAvailableWithLock(
+          tx,
+          createBookingDto.listingId,
+          startDate,
+          endDate,
+        );
+
+      if (!isAvailable) {
+        throw new ConflictException(
+          'This listing is not available for the selected dates',
+        );
+      }
+
+      // Create booking — explicit field mapping to ensure correct types
+      return tx.booking.create({
+        data: {
+          listingId: createBookingDto.listingId,
+          renterId,
+          hostId: listing.hostId,
+          startDate,
+          endDate,
+          totalPrice,
+          commission,
+          status: 'pending',
+          paid: false,
+          // Immutable snapshot — never updated after creation
+          snapshotTitle: listing.title,
+          snapshotPricePerDay: pricePerDay,
+          snapshotCommissionRate: this.commissionPercentage,
+          snapshotCurrency: 'TND',
+        },
+      });
+    });
+
+    // Create payment intent AFTER transaction commits so the row is visible
+    try {
+      await this.paymentsService.createForBooking(booking.id);
+    } catch (_e) {
+      // Non-fatal — payment intent can be created lazily
+    }
+
+    // Auto-create chat conversation for this booking (idempotent via unique constraint)
+    let conversationId: string | null = null;
+    try {
+      const conversation = await this.chatService.getOrCreateConversation(
+        renterId,
+        listing.hostId,
+        booking.id,
+        listing.id,
+      );
+      conversationId = conversation.id;
+
+      // Always send an auto-generated booking summary (Airbnb-style rich card)
+      const autoMsg = this.buildBookingAutoMessage({
+        listingId: listing.id,
+        listingTitle: listing.title,
+        listingImage: (listing.images ?? [])[0] ?? null,
+        categoryName: (listing as any).category?.name ?? null,
+        bookingId: booking.id,
+        startDate,
+        endDate,
+        totalPrice: Number(booking.totalPrice),
+        isSlot: false,
+      });
+      await this.chatService.sendMessage(conversation.id, renterId, autoMsg);
+
+      // Then the renter's optional personal note
+      if (createBookingDto.message) {
+        await this.chatService.sendMessage(
+          conversation.id,
+          renterId,
+          createBookingDto.message,
+        );
+      }
+    } catch (_e: any) {
+      this.logger.error('[CHAT-AUTO] Failed to create conversation/messages after booking', _e?.message, _e?.stack);
+      // Non-fatal — conversation can be created on demand from the UI
+    }
+
+    return { ...withDisplay(booking), conversationId };
+  }
+
+  async findAll(userId: string) {
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        OR: [{ renterId: userId }, { hostId: userId }],
+      },
+      include: {
+        listing: {
+          include: {
+            category: true,
+          },
+        },
+        renter: true,
+        host: true,
+        Conversation: {
+          select: { id: true },
+          take: 1,
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    return bookings.map((b) => ({
+      ...withDisplay(b),
+      conversationId: b.Conversation?.[0]?.id ?? null,
+    }));
+  }
+
+  async findOne(id: string) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id },
+      include: {
+        listing: {
+          include: {
+            category: true,
+          },
+        },
+        renter: true,
+        host: true,
+        Conversation: {
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+    if (!booking) {
+      throw new NotFoundException(`Booking with ID ${id} not found`);
+    }
+    return {
+      ...withDisplay(booking),
+      conversationId: booking.Conversation?.[0]?.id ?? null,
+    };
+  }
+
+  async confirm(id: string, userId: string): Promise<Booking> {
+    // Use transaction with locking to prevent race conditions
+    return await this.prisma.$transaction(async (tx) => {
+      // Reload booking with lock to get latest state
+      const bookings = await tx.$queryRaw<Booking[]>`
+        SELECT * FROM bookings
+        WHERE id::text = ${id}
+        FOR UPDATE
+      `;
+
+      if (!bookings || bookings.length === 0) {
+        throw new NotFoundException(`Booking with ID ${id} not found`);
+      }
+
+      const booking = bookings[0];
+
+      // Authorization check
+      if (booking.hostId !== userId) {
+        throw new ForbiddenException(
+          'Only the listing host can confirm bookings',
+        );
+      }
+
+      // Idempotent check: if already confirmed, return as-is
+      if (booking.status === 'confirmed') {
+        return booking;
+      }
+
+      // State machine validation
+      BookingStateMachine.validateTransition(
+        booking.status as any,
+        'confirmed' as any,
+        'confirm booking',
+      );
+
+      // Lock the listing to serialize concurrent confirms for the same listing
+      await tx.$queryRaw`
+        SELECT id FROM listings
+        WHERE id::text = ${booking.listingId}
+        FOR UPDATE
+      `;
+
+      // Check availability — SLOT bookings use time-based check,
+      // DAILY bookings use date-range lock. Both execute WITHIN the transaction context (tx).
+      let isAvailable: boolean;
+      if (booking.startTime && booking.endTime) {
+        // SLOT booking
+        isAvailable = await this.availabilityService.checkSlotAvailabilityWithLock(
+          tx,
+          booking.listingId,
+          booking.startDate,
+          // startTime returned from raw SQL may be a Date; extract HH:mm
+          booking.startTime instanceof Date
+            ? `${(booking.startTime as Date).getUTCHours().toString().padStart(2, '0')}:${(booking.startTime as Date).getUTCMinutes().toString().padStart(2, '0')}`
+            : String(booking.startTime).substring(0, 5),
+          booking.endTime instanceof Date
+            ? `${(booking.endTime as Date).getUTCHours().toString().padStart(2, '0')}:${(booking.endTime as Date).getUTCMinutes().toString().padStart(2, '0')}`
+            : String(booking.endTime).substring(0, 5),
+          id,
+        );
+      } else {
+        // DAILY booking
+        isAvailable = await this.availabilityService.isListingAvailableWithLock(
+          tx,
+          booking.listingId,
+          booking.startDate,
+          booking.endDate,
+          id,
+        );
+      }
+
+      if (!isAvailable) {
+        throw new ConflictException(
+          'Cannot confirm: Another booking overlaps with this slot',
+        );
+      }
+
+      // Update status
+      const updated = await tx.booking.update({
+        where: { id },
+        data: { status: 'confirmed' },
+      });
+      return withDisplay(updated);
+    });
+  }
+
+  /** Host rejects a pending booking (sets status = rejected). */
+  async reject(
+    id: string,
+    userId: string,
+  ): Promise<Booking & { displayStatus: DisplayStatus }> {
+    return this.prisma.$transaction(async (tx) => {
+      const bookings = await tx.$queryRaw<Booking[]>`
+        SELECT * FROM bookings
+        WHERE id::text = ${id}
+        FOR UPDATE
+      `;
+
+      if (!bookings || bookings.length === 0) {
+        throw new NotFoundException(`Booking with ID ${id} not found`);
+      }
+
+      const booking = bookings[0];
+
+      if (booking.hostId !== userId) {
+        throw new ForbiddenException(
+          'Only the listing host can reject bookings',
+        );
+      }
+
+      if (booking.status === 'rejected') {
+        return withDisplay(booking); // idempotent
+      }
+
+      // Only pending bookings can be rejected
+      if (booking.status !== 'pending') {
+        throw new BadRequestException(
+          `Cannot reject a booking with status "${booking.status}". Only pending bookings can be rejected.`,
+        );
+      }
+
+      const updated = await tx.booking.update({
+        where: { id },
+        data: { status: 'rejected' as any },
+      });
+
+      return withDisplay(updated);
+    });
+  }
+
+  async pay(
+    id: string,
+    payBookingDto: PayBookingDto,
+    userId: string,
+  ): Promise<Booking> {
+
+    // First, do authorization sanity checks outside transaction to fail fast
+    const bookingCheck = await this.prisma.booking.findUnique({ where: { id } });
+    if (!bookingCheck) throw new NotFoundException(`Booking with ID ${id} not found`);
+    if (bookingCheck.renterId !== userId) {
+      throw new ForbiddenException('Only the renter can pay for this booking');
+    }
+
+    // Capture payment OUTSIDE the booking transaction to prevent deadlock
+    // since paymentsService.capture opens its own transaction that reads the booking
+    let paymentIntent = await this.paymentsService.findByBooking(id);
+    if (!paymentIntent) {
+      throw new BadRequestException('Payment intent not found. Please authorize payment first.');
+    }
+    if (paymentIntent.status === 'created') {
+      throw new BadRequestException('Payment must be authorized before booking can be paid.');
+    }
+    if (paymentIntent.status === 'cancelled') {
+      throw new BadRequestException('Cannot pay booking: Payment intent has been cancelled.');
+    }
+
+    if (paymentIntent.status === 'authorized') {
+      await this.paymentsService.capture(id);
+      paymentIntent = await this.paymentsService.findByBooking(id);
+    }
+
+    if (paymentIntent?.status !== 'captured') {
+      throw new ConflictException('Payment must be captured before booking can be marked as paid.');
+    }
+
+    // Now safely update the booking inside its own transaction
+    return await this.prisma.$transaction(async (tx) => {
+      // Reload booking with lock to get latest state
+      const bookings = await tx.$queryRaw<Booking[]>`
+        SELECT * FROM bookings
+        WHERE id::text = ${id}
+        FOR UPDATE
+      `;
+
+      if (!bookings || bookings.length === 0) {
+        throw new NotFoundException(`Booking with ID ${id} not found`);
+      }
+
+      const booking = bookings[0];
+
+      // Idempotent check: if already paid, return as-is
+      if (booking.status === 'paid' && booking.paid) {
+        return booking;
+      }
+
+      // State machine validation
+      if (!BookingStateMachine.canPay(booking.status as any, booking.paid)) {
+        throw new BadRequestException(
+          `Cannot pay booking: Current status is ${booking.status}. ` +
+            `Booking must be CONFIRMED to be paid.`,
+        );
+      }
+
+      // Update to PAID status and set paid flag
+      const updated = await tx.booking.update({
+        where: { id },
+        data: {
+          status: 'paid',
+          paid: true,
+          paymentInfo: {
+            paymentIntentId: paymentIntent.id,
+            paymentToken: payBookingDto.paymentToken,
+            receipt: payBookingDto.receipt,
+            paidAt: new Date().toISOString(),
+            method: 'simulated', // In production, use actual payment method
+          } as any,
+        },
+      });
+      return withDisplay(updated);
+    });
+  }
+
+  async cancel(id: string, userId: string): Promise<Booking> {
+    // Use transaction with locking to prevent race conditions
+    return await this.prisma.$transaction(async (tx) => {
+      // Reload booking with lock to get latest state
+      const bookings = await tx.$queryRaw<Booking[]>`
+        SELECT * FROM bookings
+        WHERE id::text = ${id}
+        FOR UPDATE
+      `;
+
+      if (!bookings || bookings.length === 0) {
+        throw new NotFoundException(`Booking with ID ${id} not found`);
+      }
+
+      const booking = bookings[0];
+
+      // Authorization check
+      if (booking.renterId !== userId && booking.hostId !== userId) {
+        throw new ForbiddenException(
+          'Only the renter or host can cancel this booking',
+        );
+      }
+
+      // Determine actor
+      const actor = booking.renterId === userId ? 'RENTER' : 'HOST';
+
+      // Get payment intent to check payment status
+      const paymentIntent = await this.paymentsService.findByBooking(id);
+
+      // Evaluate cancellation policy
+      const decision = this.cancellationPolicyService.evaluateCancellation({
+        actor,
+        bookingStatus: booking.status as any,
+        paymentStatus: (paymentIntent?.status || 'created') as any,
+        startDate: new Date(booking.startDate),
+        endDate: new Date(booking.endDate),
+        totalPrice: Number(booking.totalPrice),
+        now: new Date(),
+      });
+
+      // Idempotent check: if already cancelled, return as-is
+      if (booking.status === 'cancelled') {
+        return booking;
+      }
+
+      // Policy validation - check if cancellation is allowed
+      if (!decision.allowCancel) {
+        throw new BadRequestException(decision.reason);
+      }
+
+      // State machine validation
+      BookingStateMachine.validateTransition(
+        booking.status as any,
+        'cancelled' as any,
+        'cancel booking',
+      );
+
+      // Process refund if required by policy
+      if (
+        decision.refundType !== 'NONE' &&
+        decision.refundAmount > 0 &&
+        paymentIntent &&
+        paymentIntent.status === 'captured'
+      ) {
+        // Refund will be processed by PaymentsService
+        // This ensures payment state machine is respected
+        await this.paymentsService.refund(id);
+      }
+
+      // Update booking status
+      const updated = await tx.booking.update({
+        where: { id },
+        data: { status: 'cancelled' },
+      });
+      return withDisplay(updated);
+    });
+  }
+
+  async complete(id: string, userId: string): Promise<Booking> {
+    return await this.prisma.$transaction(async (tx) => {
+      const bookings = await tx.$queryRaw<Booking[]>`
+        SELECT * FROM bookings
+        WHERE id::text = ${id}
+        FOR UPDATE
+      `;
+
+      if (!bookings || bookings.length === 0) {
+        throw new NotFoundException(`Booking with ID ${id} not found`);
+      }
+
+      const booking = bookings[0];
+
+      // Allow either host or renter to complete
+      if (booking.renterId !== userId && booking.hostId !== userId) {
+        throw new ForbiddenException('Not authorized to complete this booking');
+      }
+
+      if (booking.status === 'completed') {
+        return withDisplay(booking);
+      }
+
+      if (booking.status !== 'paid') {
+        throw new BadRequestException('Booking must be paid before it can be completed');
+      }
+
+      // Transition to completed
+      const updated = await tx.booking.update({
+        where: { id },
+        data: { status: 'completed' },
+      });
+
+      return withDisplay(updated);
+    });
+  }
+
+  private async createSlotBooking(
+    createBookingDto: CreateBookingDto,
+    renterId: string,
+    listing: any,
+    startDate: Date,
+  ): Promise<any> {
+    if (!createBookingDto.startTime || !createBookingDto.endTime) {
+      throw new BadRequestException(
+        'Start time and end time are required for slot bookings',
+      );
+    }
+
+    const slotConfig = await this.prisma.slotConfiguration.findUnique({
+      where: { listingId: listing.id },
+    });
+
+    if (!slotConfig) {
+      throw new BadRequestException(
+        'Slot configuration not found for this listing',
+      );
+    }
+
+    const dayOfWeek = startDate
+      .toLocaleDateString('en-US', { weekday: 'long' })
+      .toLowerCase();
+    const operatingHours = slotConfig.operatingHours[dayOfWeek];
+
+    if (!operatingHours) {
+      throw new BadRequestException(`Facility is closed on ${dayOfWeek}s`);
+    }
+
+    if (
+      createBookingDto.startTime < operatingHours.start ||
+      createBookingDto.endTime > operatingHours.end
+    ) {
+      throw new BadRequestException(
+        `Booking time must be within operating hours (${operatingHours.start} - ${operatingHours.end})`,
+      );
+    }
+
+    const totalPrice = this.calculateSlotPrice(
+      slotConfig,
+      createBookingDto.startTime,
+      createBookingDto.endTime,
+    );
+    const commission = totalPrice * this.commissionPercentage;
+
+    // Check availability BEFORE opening the transaction
+    // (checkSlotAvailability uses this.prisma which would deadlock inside $transaction)
+    const isAvailable = await this.availabilityService.checkSlotAvailability(
+      listing.id,
+      startDate,
+      createBookingDto.startTime,
+      createBookingDto.endTime,
+    );
+
+    if (!isAvailable) {
+      throw new ConflictException('This time slot is not available');
+    }
+
+    // Prisma @db.Time fields require Date objects (not HH:mm strings)
+    const toTimeDate = (t: string): Date => {
+      const [h, m] = t.split(':').map(Number);
+      const d = new Date(0); // epoch date
+      d.setUTCHours(h, m, 0, 0);
+      return d;
+    };
+    const startTimeDate = toTimeDate(createBookingDto.startTime);
+    const endTimeDate = toTimeDate(createBookingDto.endTime);
+
+    const booking = await this.prisma.$transaction(async (tx) => {
+      const newBooking = await tx.booking.create({
+        data: {
+          listingId: createBookingDto.listingId,
+          renterId,
+          hostId: listing.hostId,
+          startDate,
+          endDate: startDate,
+          startTime: startTimeDate,
+          endTime: endTimeDate,
+          totalPrice,
+          commission,
+          status: 'pending',
+          paid: false,
+          // Immutable snapshot — never updated after creation
+          snapshotTitle: listing.title,
+          snapshotPricePerDay: Number(listing.pricePerDay),
+          snapshotCommissionRate: this.commissionPercentage,
+          snapshotCurrency: 'TND',
+        },
+      });
+
+      return newBooking;
+    });
+
+    // Create payment intent AFTER transaction commits so the booking row is visible
+    try {
+      await this.paymentsService.createForBooking(booking.id);
+    } catch (_e) {
+      // Non-fatal — payment intent can be created lazily
+    }
+
+    // Auto-create chat conversation for this slot booking
+    let conversationId: string | null = null;
+    try {
+      const conversation = await this.chatService.getOrCreateConversation(
+        renterId,
+        listing.hostId,
+        booking.id,
+        listing.id,
+      );
+      conversationId = conversation.id;
+
+      // Always send an auto-generated booking summary (Airbnb-style rich card)
+      const autoMsg = this.buildBookingAutoMessage({
+        listingId: listing.id,
+        listingTitle: listing.title,
+        listingImage: (listing.images ?? [])[0] ?? null,
+        categoryName: (listing as any).category?.name ?? null,
+        bookingId: booking.id,
+        startDate,
+        endDate: startDate,
+        totalPrice: Number(booking.totalPrice),
+        isSlot: true,
+        startTime: createBookingDto.startTime,
+        endTime: createBookingDto.endTime,
+      });
+      await this.chatService.sendMessage(conversation.id, renterId, autoMsg);
+
+      // Then the renter's optional personal note
+      if (createBookingDto.message) {
+        await this.chatService.sendMessage(
+          conversation.id,
+          renterId,
+          createBookingDto.message,
+        );
+      }
+    } catch (_e) {
+      // Non-fatal
+    }
+
+    return { ...withDisplay(booking), conversationId };
+  }
+
+  private calculateSlotPrice(
+    slotConfig: any,
+    startTime: string,
+    endTime: string,
+  ): number {
+    const startMinutes = this.timeStringToMinutes(startTime);
+    const endMinutes = this.timeStringToMinutes(endTime);
+    const durationMinutes = endMinutes - startMinutes;
+
+    if (durationMinutes <= 0) {
+      throw new BadRequestException('End time must be after start time');
+    }
+
+    const slots = Math.ceil(durationMinutes / slotConfig.slotDurationMinutes);
+
+    if (slots < slotConfig.minBookingSlots) {
+      throw new BadRequestException(
+        `Minimum booking duration is ${slotConfig.minBookingSlots} slot(s)`,
+      );
+    }
+
+    if (slotConfig.maxBookingSlots && slots > slotConfig.maxBookingSlots) {
+      throw new BadRequestException(
+        `Maximum booking duration is ${slotConfig.maxBookingSlots} slot(s)`,
+      );
+    }
+
+    return slots * Number(slotConfig.pricePerSlot);
+  }
+
+  private timeStringToMinutes(timeStr: string): number {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+
+
+  private buildBookingAutoMessage(params: {
+    listingId: string;
+    listingTitle: string;
+    listingImage: string | null;
+    categoryName: string | null;
+    bookingId: string;
+    startDate: Date;
+    endDate: Date;
+    totalPrice: number;
+    isSlot: boolean;
+    startTime?: string;
+    endTime?: string;
+  }): string {
+    const fmt = (d: Date) =>
+      d.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+
+    if (params.isSlot) {
+      return JSON.stringify({
+        type: 'BOOKING_CARD',
+        listingId: params.listingId,
+        listingTitle: params.listingTitle,
+        listingImage: params.listingImage,
+        categoryName: params.categoryName,
+        bookingId: params.bookingId,
+        dateLabel: `${fmt(params.startDate)} · ${params.startTime ?? ''} — ${params.endTime ?? ''}`,
+        nightsLabel: null,
+        totalPrice: params.totalPrice,
+        currency: 'TND',
+      });
+    }
+
+    const nights = Math.round(
+      (params.endDate.getTime() - params.startDate.getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+
+    return JSON.stringify({
+      type: 'BOOKING_CARD',
+      listingId: params.listingId,
+      listingTitle: params.listingTitle,
+      listingImage: params.listingImage,
+      categoryName: params.categoryName,
+      bookingId: params.bookingId,
+      dateLabel: `${fmt(params.startDate)} → ${fmt(params.endDate)}`,
+      nightsLabel: `${nights} night${nights !== 1 ? 's' : ''}`,
+      totalPrice: params.totalPrice,
+      currency: 'TND',
+    });
+  }
+}

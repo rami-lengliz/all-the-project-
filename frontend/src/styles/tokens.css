@@ -1,0 +1,27 @@
+:root {
+  /* Brand */
+  --re-color-primary: #0ea5a4; /* sea teal */
+  --re-color-primary-600: #0b8c8b;
+  --re-color-accent: #d97706; /* sand / terracotta */
+
+  /* Neutral */
+  --re-color-bg: #f8fafc;
+  --re-color-surface: #ffffff;
+  --re-color-fg: #0f172a;
+  --re-color-muted: #475569;
+  --re-color-border: #e2e8f0;
+}
+
+/* Tailwind v4 theme tokens */
+@theme inline {
+  --color-primary: var(--re-color-primary);
+  --color-primary-600: var(--re-color-primary-600);
+  --color-accent: var(--re-color-accent);
+
+  --color-bg: var(--re-color-bg);
+  --color-surface: var(--re-color-surface);
+  --color-fg: var(--re-color-fg);
+  --color-muted: var(--re-color-muted);
+  --color-border: var(--re-color-border);
+}
+
