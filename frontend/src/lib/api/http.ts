@@ -61,13 +61,16 @@ api.interceptors.response.use(
 
     /* ---- Non-401 errors: show toast and reject ---- */
     if (status !== 401 || typeof window === 'undefined') {
+      const raw =
+        error?.response?.data?.message ??
+        error?.response?.data?.error;
       const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        error?.message ||
-        'Request failed';
+        Array.isArray(raw)       ? raw.join(', ')     :
+        typeof raw === 'string'  ? raw                :
+        typeof raw === 'object' && raw !== null ? JSON.stringify(raw) :
+        error?.message           || 'Request failed';
       if (message !== 'canceled') {
-        toast({ title: 'Request error', message: String(message), variant: 'error' });
+        toast({ title: 'Request error', message, variant: 'error' });
       }
       return Promise.reject(error);
     }
