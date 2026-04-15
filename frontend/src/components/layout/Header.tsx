@@ -25,7 +25,7 @@ export function Header() {
     try {
       // If already a host, skip the API call
       if (!isHostUser(user)) {
-        await api.post('/users/me/become-host');
+        await api.post('/users/me/become-host', { acceptTerms: true });
         await refreshUser(); // update cached user object with isHost: true
       }
       router.push('/host/create');

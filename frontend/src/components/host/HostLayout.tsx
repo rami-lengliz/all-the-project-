@@ -42,7 +42,7 @@ export function HostLayout({
     const handleBecomeHost = async () => {
       setPromoting(true);
       try {
-        await api.post('/users/me/become-host');
+        await api.post('/users/me/become-host', { acceptTerms: true });
         await refreshUser();
         // page re-renders now that user.isHost === true
       } catch {
