@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useState } from 'react';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { isHostUser } from '@/lib/auth/roleUtils';
+import { api } from '@/lib/api/http';
 
 type HostTab = 'dashboard' | 'listings' | 'bookings';
 
@@ -17,13 +19,63 @@ export function HostLayout({
   subtitle?: string;
 }) {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, authReady, hasHydrated, refreshUser } = useAuth();
+  const [promoting, setPromoting] = useState(false);
 
-  // Access rule (design requirement): host/admin only, else redirect to /profile
-  if (typeof window !== 'undefined' && user && !isHostUser(user)) {
-    router.replace('/profile');
+  // ── 1. Wait for auth to hydrate from localStorage ──────────────────────────
+  if (!hasHydrated || !authReady) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <span className="w-8 h-8 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
+      </div>
+    );
+  }
+
+  // ── 2. User must be logged in ───────────────────────────────────────────────
+  if (!user) {
+    if (typeof window !== 'undefined') router.replace('/auth/login');
     return null;
   }
+
+  // ── 3. User must be a host — show a friendly gate, not a silent redirect ────
+  if (!isHostUser(user)) {
+    const handleBecomeHost = async () => {
+      setPromoting(true);
+      try {
+        await api.post('/users/me/become-host', { acceptTerms: true });
+        await refreshUser();
+        // page re-renders now that user.isHost === true
+      } catch {
+        router.push('/profile');
+      } finally {
+        setPromoting(false);
+      }
+    };
+
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-6 bg-gray-50 px-6 text-center">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-100">
+          <i className="fa-solid fa-house-chimney text-blue-500 text-3xl" />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900">Become a host first</h1>
+        <p className="max-w-sm text-gray-500">
+          You need a host account to create and manage listings. Click below — it only takes a second.
+        </p>
+        <button
+          onClick={handleBecomeHost}
+          disabled={promoting}
+          className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white font-semibold px-8 py-3 rounded-xl transition"
+        >
+          {promoting && <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
+          {promoting ? 'Setting up your host account…' : '✨ Become a host'}
+        </button>
+        <Link href="/" className="text-sm text-gray-400 hover:text-gray-600">
+          Go back home
+        </Link>
+      </div>
+    );
+  }
+
 
   return (
     <div className="bg-gray-50 font-sans">
