@@ -18,15 +18,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  private normalizeRole(
-    role: unknown,
-    user: { roles?: string[]; isHost?: boolean },
+  private getRoleFromDb(
+    dbUser: { isHost?: boolean | null; roles?: string[] },
+    jwtRole: unknown,
   ): Role {
-    const r = typeof role === 'string' ? role.toUpperCase() : '';
-    if (r === 'ADMIN' || r === 'HOST' || r === 'USER') return r;
-    const roles = (user.roles ?? []).map((x) => String(x).toUpperCase());
-    if (roles.includes('ADMIN')) return 'ADMIN';
-    if (user.isHost) return 'HOST';
+    // ADMIN can only be set server-side — trust the JWT for that
+    const r = typeof jwtRole === 'string' ? jwtRole.toUpperCase() : '';
+    const roles = (dbUser.roles ?? []).map((x) => String(x).toUpperCase());
+    if (r === 'ADMIN' || roles.includes('ADMIN')) return 'ADMIN';
+
+    // For HOST: always read from DB so that become-host takes effect immediately
+    // without requiring a new login / token refresh.
+    if (dbUser.isHost === true || roles.includes('HOST')) return 'HOST';
+
     return 'USER';
   }
 
@@ -36,11 +40,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User not found');
     }
 
-    // Keep req.user strongly typed and stable for guards/controllers.
+    // Always derive role from the live DB record so that role changes
+    // (e.g. become-host) take effect on the very next request.
     return {
       sub: user.id,
       email: payload.email || user.email || user.phone || '',
-      role: this.normalizeRole(payload.role, user),
+      role: this.getRoleFromDb(user, payload.role),
     };
   }
 }
