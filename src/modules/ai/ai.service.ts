@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { AiProvider, OpenAiProvider } from './providers';
+
+// ─── Shared types (re-exported so existing consumers keep working) ────────────
 
 export interface CompletionOptions {
   maxTokens?: number;
@@ -14,13 +17,29 @@ export interface ModerationResult {
   scores: Record<string, number>;
 }
 
+// ─── Service ──────────────────────────────────────────────────────────────────
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
+
+  /**
+   * Raw OpenAI client — kept only for embeddings & moderation until those
+   * are also extracted into dedicated providers.
+   */
   private openai: OpenAI | null = null;
   private readonly isEnabled: boolean;
 
-  constructor(private configService: ConfigService) {
+  /**
+   * The active provider selected at startup via the AI_PROVIDER env var.
+   * Currently only 'openai' is supported; unknown values fall back silently.
+   */
+  private readonly activeProvider: AiProvider;
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly openAiProvider: OpenAiProvider,
+  ) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
 
     if (!apiKey || apiKey.trim() === '') {
@@ -33,62 +52,59 @@ export class AiService {
       this.isEnabled = true;
       this.logger.log('OpenAI client initialized successfully');
     }
+
+    // ── Provider selection ────────────────────────────────────────────────────
+    const providerName = (
+      this.configService.get<string>('AI_PROVIDER') ?? 'openai'
+    ).toLowerCase().trim();
+
+    switch (providerName) {
+      case 'openai':
+        this.activeProvider = this.openAiProvider;
+        this.logger.log(`AI provider selected: openai`);
+        break;
+
+      default:
+        this.logger.warn(
+          `Unknown AI_PROVIDER "${providerName}". Falling back to openai.`,
+        );
+        this.activeProvider = this.openAiProvider;
+    }
   }
 
+  // ── Availability ────────────────────────────────────────────────────────────
+
   /**
-   * Check if AI features are enabled
+   * Check if AI features are enabled.
    */
   isAiEnabled(): boolean {
     return this.isEnabled;
   }
 
+  // ── Completion (delegated) ──────────────────────────────────────────────────
+
   /**
-   * Generate a completion using OpenAI
+   * Generate a completion.
+   * All OpenAI Chat Completions logic now lives in OpenAiProvider —
+   * this method is a thin facade that delegates the call.
    */
   async generateCompletion(
     prompt: string,
     options: CompletionOptions = {},
   ): Promise<string> {
-    if (!this.isEnabled || !this.openai) {
+    if (!this.isEnabled) {
       throw new Error(
         'AI features are not enabled. Please configure OPENAI_API_KEY.',
       );
     }
 
-    const {
-      maxTokens = 500,
-      temperature = 0.7,
-      systemPrompt = 'You are a helpful assistant for a rental platform.',
-    } = options;
-
-    try {
-      const model = this.configService.get<string>('AI_MODEL', 'gpt-4o-mini');
-
-      const response = await this.openai.chat.completions.create({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt },
-        ],
-        max_tokens: maxTokens,
-        temperature,
-      });
-
-      const content = response.choices[0]?.message?.content;
-
-      if (!content) {
-        throw new Error('No content in OpenAI response');
-      }
-
-      return content.trim();
-    } catch (error) {
-      this.logger.error('Error generating completion:', error);
-      throw new Error('Failed to generate AI completion');
-    }
+    return this.activeProvider.generateCompletion(prompt, options);
   }
 
+  // ── Embeddings ──────────────────────────────────────────────────────────────
+
   /**
-   * Generate embeddings for semantic search (optional advanced feature)
+   * Generate embeddings for semantic search (optional advanced feature).
    */
   async generateEmbedding(text: string): Promise<number[]> {
     if (!this.isEnabled || !this.openai) {
@@ -108,23 +124,19 @@ export class AiService {
     }
   }
 
+  // ── Moderation ──────────────────────────────────────────────────────────────
+
   /**
-   * Moderate content for inappropriate material
+   * Moderate content for inappropriate material.
    */
   async moderateContent(text: string): Promise<ModerationResult> {
     if (!this.isEnabled || !this.openai) {
       // Return safe result if AI is disabled
-      return {
-        flagged: false,
-        categories: [],
-        scores: {},
-      };
+      return { flagged: false, categories: [], scores: {} };
     }
 
     try {
-      const response = await this.openai.moderations.create({
-        input: text,
-      });
+      const response = await this.openai.moderations.create({ input: text });
 
       const result = response.results[0];
       const flaggedCategories = Object.entries(result.categories)
@@ -139,16 +151,14 @@ export class AiService {
     } catch (error) {
       this.logger.error('Error moderating content:', error);
       // Return safe result on error (fail open)
-      return {
-        flagged: false,
-        categories: [],
-        scores: {},
-      };
+      return { flagged: false, categories: [], scores: {} };
     }
   }
 
+  // ── Utilities ───────────────────────────────────────────────────────────────
+
   /**
-   * Count tokens in a text (approximate)
+   * Count tokens in a text (approximate).
    */
   estimateTokens(text: string): number {
     // Rough estimation: ~4 characters per token
