@@ -14,4 +14,5 @@ export {
 } from './ai-provider.interface';
 
 export { OpenAiProvider } from './openai.provider';
+export { GeminiProvider } from './gemini.provider';
 

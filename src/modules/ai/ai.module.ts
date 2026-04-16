@@ -4,7 +4,7 @@ import { ListingAssistantService } from './listing-assistant.service';
 import { AiSearchService } from './ai-search.service';
 import { PriceSuggestionService } from './price-suggestion.service';
 import { AiController } from './ai.controller';
-import { OpenAiProvider } from './providers';
+import { OpenAiProvider, GeminiProvider } from './providers';
 import { ListingsModule } from '../listings/listings.module';
 import { CategoriesModule } from '../categories/categories.module';
 
@@ -12,7 +12,8 @@ import { CategoriesModule } from '../categories/categories.module';
   imports: [ListingsModule, CategoriesModule],
   controllers: [AiController],
   providers: [
-    OpenAiProvider,   // ← concrete provider (injected into AiService)
+    OpenAiProvider,   // ← OpenAI concrete provider
+    GeminiProvider,   // ← Gemini concrete provider
     AiService,
     ListingAssistantService,
     AiSearchService,

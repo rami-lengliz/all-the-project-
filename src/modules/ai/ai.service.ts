@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { AiProvider, OpenAiProvider } from './providers';
+import { AiProvider, OpenAiProvider, GeminiProvider } from './providers';
 
 // ─── Shared types (re-exported so existing consumers keep working) ────────────
 
@@ -28,29 +28,29 @@ export class AiService {
    * are also extracted into dedicated providers.
    */
   private openai: OpenAI | null = null;
-  private readonly isEnabled: boolean;
+
+  /**
+   * True when the selected provider has a valid API key and is ready.
+   * Derived from activeProvider.info.isAvailable after selection.
+   */
+  private isEnabled: boolean = false;
 
   /**
    * The active provider selected at startup via the AI_PROVIDER env var.
-   * Currently only 'openai' is supported; unknown values fall back silently.
+   * Supports: 'openai' (default), 'gemini'. Unknown values fall back to openai.
    */
   private readonly activeProvider: AiProvider;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly openAiProvider: OpenAiProvider,
+    private readonly geminiProvider: GeminiProvider,
   ) {
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-
-    if (!apiKey || apiKey.trim() === '') {
-      this.logger.warn(
-        'OpenAI API key not configured. AI features will be disabled.',
-      );
-      this.isEnabled = false;
-    } else {
-      this.openai = new OpenAI({ apiKey });
-      this.isEnabled = true;
-      this.logger.log('OpenAI client initialized successfully');
+    // Keep the raw OpenAI client alive for embeddings + moderation (not yet extracted)
+    const openAiKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (openAiKey && openAiKey.trim() !== '') {
+      this.openai = new OpenAI({ apiKey: openAiKey });
+      this.logger.log('OpenAI SDK client initialised (embeddings/moderation)');
     }
 
     // ── Provider selection ────────────────────────────────────────────────────
@@ -61,7 +61,14 @@ export class AiService {
     switch (providerName) {
       case 'openai':
         this.activeProvider = this.openAiProvider;
-        this.logger.log(`AI provider selected: openai`);
+        this.logger.log('AI provider selected: openai');
+        break;
+
+      case 'gemini':
+        this.activeProvider = this.geminiProvider;
+        this.logger.log(
+          `AI provider selected: gemini (model: ${this.geminiProvider.info.model})`,
+        );
         break;
 
       default:
@@ -69,6 +76,15 @@ export class AiService {
           `Unknown AI_PROVIDER "${providerName}". Falling back to openai.`,
         );
         this.activeProvider = this.openAiProvider;
+    }
+
+    // isEnabled reflects the SELECTED provider, not always OpenAI
+    this.isEnabled = this.activeProvider.info.isAvailable;
+    if (!this.isEnabled) {
+      this.logger.warn(
+        `Selected AI provider "${this.activeProvider.info.name}" is unavailable ` +
+        `(missing API key). AI completions will be disabled.`,
+      );
     }
   }
 
