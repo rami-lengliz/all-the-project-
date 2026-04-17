@@ -75,13 +75,20 @@ export class ListingsService {
       await this.prisma.$executeRaw`
         INSERT INTO listings (
           id, "hostId", title, description, "categoryId", images, "pricePerDay",
-          location, address, rules, availability, "isActive", status, "bookingType", "createdAt", "updatedAt"
+          location, address, rules, availability, "isActive", status, "bookingType",
+          property_type, guests_capacity, bedrooms, near_beach,
+          "createdAt", "updatedAt"
         ) VALUES (
           ${listingId}::uuid, ${hostId}, ${createListingDto.title}, ${createListingDto.description},
           ${createListingDto.categoryId}, ARRAY[]::text[], ${createListingDto.pricePerDay},
           ST_SetSRID(ST_GeomFromText(${locationWKT}), 4326), ${createListingDto.address},
           ${createListingDto.rules || null}, ${createListingDto.availability ? JSON.stringify(createListingDto.availability) : null}::jsonb,
-          true, 'ACTIVE'::"ListingStatus", ${bookingType}::"BookingType", NOW(), NOW()
+          true, 'ACTIVE'::"ListingStatus", ${bookingType}::"BookingType",
+          ${createListingDto.propertyType ?? null}::"PropertyType",
+          ${createListingDto.guestsCapacity ?? null},
+          ${createListingDto.bedrooms ?? null},
+          ${createListingDto.nearBeach ?? false},
+          NOW(), NOW()
         )
         RETURNING *
       `;
@@ -263,6 +270,8 @@ export class ListingsService {
         SELECT 
           l.id, l.title, l.description, l."pricePerDay",
           ST_AsGeoJSON(l.location)::text as location, l.address, l.images, l."createdAt", l."bookingType",
+          l.property_type as "propertyType", l.guests_capacity as "guestsCapacity",
+          l.bedrooms, l.near_beach as "nearBeach",
           c.id as "category_id", c.name as "category_name", c.icon as "category_icon", c.slug as "category_slug",
           h.id as "host_id", h.name as "host_name", h."ratingAvg" as "host_ratingAvg"
           ${distanceSelect}
@@ -289,6 +298,10 @@ export class ListingsService {
         images: row.images,
         createdAt: row.createdAt,
         bookingType: row.bookingType,
+        propertyType: row.propertyType ?? null,
+        guestsCapacity: row.guestsCapacity ?? null,
+        bedrooms: row.bedrooms ?? null,
+        nearBeach: row.nearBeach ?? false,
         category: {
           id: row.category_id,
           name: row.category_name,
@@ -348,6 +361,10 @@ export class ListingsService {
             images: true,
             createdAt: true,
             bookingType: true,
+            propertyType: true,
+            guestsCapacity: true,
+            bedrooms: true,
+            nearBeach: true,
             category: {
               select: {
                 id: true,
@@ -647,6 +664,10 @@ export class ListingsService {
         bookingType: true,
         isActive: true,
         status: true,
+        propertyType: true,
+        guestsCapacity: true,
+        bedrooms: true,
+        nearBeach: true,
         category: {
           select: { id: true, name: true, icon: true, slug: true },
         },

@@ -76,6 +76,13 @@ enum BookingType {
   SLOT
 }
 
+// Used by stays/accommodation listings for pricing context
+enum PropertyType {
+  villa
+  house
+  apartment
+}
+
 enum ListingStatus {
   DRAFT
   PENDING_REVIEW
@@ -97,10 +104,16 @@ model Listing {
   availability Json?                                @db.JsonB
   isActive     Boolean                              @default(true)
   status       ListingStatus                        @default(PENDING_REVIEW)
-  bookingType  BookingType                          @default(DAILY)
-  deletedAt    DateTime?
-  createdAt    DateTime                             @default(now())
-  updatedAt    DateTime                             @updatedAt
+  bookingType     BookingType                          @default(DAILY)
+  deletedAt       DateTime?
+  createdAt       DateTime                             @default(now())
+  updatedAt       DateTime                             @updatedAt
+
+  // ── Stay / accommodation pricing fields (optional, null for non-stay categories) ──
+  propertyType    PropertyType?                        @map("property_type")
+  guestsCapacity  Int?                                 @map("guests_capacity")
+  bedrooms        Int?                                 @map("bedrooms")
+  nearBeach       Boolean                              @default(false) @map("near_beach")
 
   // Relations
   host              User               @relation(fields: [hostId], references: [id])
