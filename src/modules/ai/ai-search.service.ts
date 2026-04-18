@@ -13,6 +13,24 @@ import {
   FollowUpDto,
 } from './dto/ai-search.dto';
 
+/**
+ * Canonical category slugs for the RentAI MVP.
+ *
+ * Exported so tests can import the same list to assert against —
+ * there is a single source of truth.
+ *
+ * Rules:
+ *   - AI may only emit slugs from this list.
+ *   - If geo context provides a narrower subset, the intersection is used.
+ *   - Any slug not in this list is silently discarded (no hallucination).
+ */
+export const ALLOWED_CATEGORY_SLUGS: ReadonlyArray<string> = [
+  'stays',
+  'sports-facilities',
+  'mobility',
+  'beach-gear',
+];
+
 @Injectable()
 export class AiSearchService {
   private readonly logger = new Logger(AiSearchService.name);
@@ -373,21 +391,27 @@ Remember: Output JSON only!`;
       normalized.q = filters.q.trim();
     }
 
-    // Category - validate against available slugs
+    // Category — always validate against the platform whitelist,
+    // then optionally narrow to the geo-derived subset.
     if (filters.categorySlug) {
-      if (availableSlugs.length > 0) {
-        // If we have a restricted list, validate against it
-        if (availableSlugs.includes(filters.categorySlug)) {
-          normalized.categorySlug = filters.categorySlug;
-        } else {
-          this.logger.warn(
-            `AI suggested category "${filters.categorySlug}" not in available slugs [${availableSlugs.join(', ')}], discarding`,
-          );
-          // Discard invalid category (do not hallucinate)
-        }
+      const slug = filters.categorySlug as string;
+
+      // Guard 1: must be a known platform category (anti-hallucination)
+      const isKnownSlug = ALLOWED_CATEGORY_SLUGS.includes(slug);
+
+      // Guard 2: if geo resolved a narrower list, slug must be in that list too
+      const isInGeoSubset =
+        availableSlugs.length === 0 || availableSlugs.includes(slug);
+
+      if (isKnownSlug && isInGeoSubset) {
+        normalized.categorySlug = slug;
       } else {
-        // No restriction, accept any valid slug
-        normalized.categorySlug = filters.categorySlug;
+        this.logger.warn(
+          isKnownSlug
+            ? `Category "${slug}" not available in this area [${availableSlugs.join(', ')}], discarding`
+            : `AI hallucinated unknown category "${slug}" — discarding (whitelist: ${ALLOWED_CATEGORY_SLUGS.join(', ')})`,
+        );
+        // categorySlug intentionally omitted — no hallucination passes through
       }
     }
 

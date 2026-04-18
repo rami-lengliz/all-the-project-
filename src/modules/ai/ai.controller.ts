@@ -39,12 +39,18 @@ export class AiController {
   @Post('search')
   @Public()
   @ApiOperation({
-    summary: 'AI-powered search with natural language',
+    summary: 'AI-powered natural language search',
     description:
-      'Converts natural language queries into structured filters. ' +
-      'Supports max 1 follow-up question for clarification. ' +
-      'Returns either FOLLOW_UP mode (if clarification needed) or RESULT mode with listings. ' +
-      'All responses have stable keys: mode, filters, chips, followUp, results.',
+      'Converts a natural-language query (Arabic, French, English, mixed dialect) into ' +
+      'structured listing filters.\n\n' +
+      '**Two-turn flow:**\n' +
+      '1. First call — AI may return `FOLLOW_UP` if critical info is missing (max 1 question total)\n' +
+      '2. Second call — send `followUpUsed: true` + `followUpAnswer`; guardrail forces `RESULT`\n\n' +
+      '**Category whitelist** — `categorySlug` in the response is ALWAYS one of:\n' +
+      '`stays`, `sports-facilities`, `mobility`, `beach-gear`\n' +
+      'Hallucinated categories (restaurants, healthcare, etc.) are silently discarded.\n\n' +
+      '**Stable response contract:** every response has `mode`, `filters` (object), `chips` (array), ' +
+      '`followUp` (null in RESULT), `results` (empty in FOLLOW_UP).',
   })
   @ApiOkResponse({
     description: 'Search results or follow-up question',
@@ -127,23 +133,20 @@ export class AiController {
           example: {
             mode: 'FOLLOW_UP',
             followUp: {
-              question: 'Which dates do you need?',
+              question: 'Pour quelles dates exactement avez-vous besoin du terrain ?',
               field: 'dates',
-              options: ['Today', 'Tomorrow', 'This weekend'],
+              options: ['Ce vendredi soir', 'Ce samedi', 'Ce dimanche'],
             },
+            // Partial filters already resolved before asking the question:
             filters: {
-              q: 'villa',
-              categorySlug: 'stays',
-              maxPrice: 250,
+              categorySlug: 'sports-facilities', // already resolved from "terrain de foot"
               sortBy: 'distance',
-              radiusKm: 10,
+              radiusKm: 25,
             },
             chips: [
-              { key: 'q', label: 'villa' },
-              { key: 'category', label: 'stays' },
-              { key: 'price', label: 'Up to 250 TND' },
+              { key: 'category', label: 'Sport' },
             ],
-            results: [],
+            results: [], // always empty in FOLLOW_UP
           },
         },
         {
@@ -212,27 +215,45 @@ export class AiController {
             mode: 'RESULT',
             filters: {
               q: 'villa',
+              // categorySlug is always from: stays | sports-facilities | mobility | beach-gear
               categorySlug: 'stays',
-              maxPrice: 250,
-              bookingType: 'DAILY',
-              availableFrom: '2026-02-17',
-              availableTo: '2026-02-19',
+              maxPrice: 300,
               sortBy: 'distance',
-              radiusKm: 10,
+              radiusKm: 25,
             },
             chips: [
-              { key: 'q', label: 'villa' },
-              { key: 'category', label: 'stays' },
-              { key: 'price', label: 'Up to 250 TND' },
-              { key: 'dates', label: '2026-02-17 to 2026-02-19' },
+              { key: 'q',        label: 'villa' },
+              { key: 'category', label: 'Stays' },
+              { key: 'price',    label: 'Up to 300 TND' },
             ],
-            followUp: null,
+            followUp: null, // always null in RESULT
+            // results is an array of matched listings (empty when no listings match):
             results: [
               {
-                id: '123e4567-e89b-12d3-a456-426614174000',
-                title: 'Luxury Beach Villa',
-                pricePerDay: 200,
-                category: 'stays',
+                id:             'c3f2a1b4-e89b-12d3-a456-000000000001',
+                title:          'Villa Yasmine — vue mer à Kélibia',
+                pricePerDay:    290,
+                categorySlug:   'stays',
+                propertyType:   'villa',
+                nearBeach:      true,
+                guestsCapacity: 8,
+                bedrooms:       4,
+                city:           'Kelibia',
+                address:        'Cité Ain Karma, Kelibia 8090',
+                thumbnail:      'https://res.cloudinary.com/example/villa_yasmine.jpg',
+              },
+              {
+                id:             'c3f2a1b4-e89b-12d3-a456-000000000002',
+                title:          'Villa Nour — grande piscine plein air',
+                pricePerDay:    260,
+                categorySlug:   'stays',
+                propertyType:   'villa',
+                nearBeach:      false,
+                guestsCapacity: 6,
+                bedrooms:       3,
+                city:           'Kelibia',
+                address:        'Zone touristique, Kelibia 8090',
+                thumbnail:      'https://res.cloudinary.com/example/villa_nour.jpg',
               },
             ],
           },
@@ -383,23 +404,23 @@ export class AiController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'AI Price Suggestion for new listing',
+    summary: 'AI Price Suggestion — comparables-first engine',
     description: [
-      'Returns a recommended price (TND), a safe range, a confidence band, and 3 explanation bullets.',
+      'Returns a recommended price (TND), a similarity-weighted range, a confidence band, and 2–3 explanation bullets.',
       '',
-      '**Algorithm:**',
-      '1. Fetches comparable listings within `radiusKm` using PostGIS (or city-string fallback)',
-      '2. Scores each comp by location / type / size / amenity similarity',
-      '3. Computes a city-first weighted median; blends with national comps when local data is sparse',
-      '4. Applies accommodation-specific multipliers (sea-proximity tier, property type, capacity)',
-      '5. Applies seasonal multiplier (peak ×1.35, shoulder ×1.10, off-peak ×1.00)',
-      '6. Tightens range using IQR percentiles; clamps output with hard caps per category',
+      '**Algorithm (no AI involved in numbers):**',
+      '1. Fetches real comparable listings via PostGIS 3-tier fallback (city 25 km → region 75 km → national)',
+      '2. Scores each comp by similarity: propertyType (35%), nearBeach (25%), guestsCapacity (25%), bedrooms (15%)',
+      '3. Computes the **similarity-weighted median** as the base recommended price',
+      '4. Applies IQR ±20% for the range; clamps with hard caps per category',
+      '5. Applies accommodation multipliers: sea-proximity tier, property type, capacity, season',
       '',
-      '**Fallback guarantee:** Always returns a valid 200 — even for unknown cities with zero comps.',
-      'In that case `confidence: "low"` and the baseline table is used.',
+      '**Numeric range is always comp-driven.** AI (when available) is only used to generate the explanation bullets.',
+      'Removing or misconfiguring the AI key has zero effect on `recommended`, `range.min`, `range.max`.',
       '',
-      'The host may override the price on the final listing-review step.',
-      'Pass `logId` back to `PATCH /price-suggestion/log/:id` once the listing is published.',
+      '**Fallback:** If `compsUsed=0` (unknown city), `confidence: "low"` and the national baseline is used.',
+      '',
+      'After the host publishes, call `PATCH /price-suggestion/log/:logId` to record the final price.',
     ].join('\n'),
   })
   @ApiBody({
@@ -459,23 +480,50 @@ export class AiController {
   @ApiResponse({
     status: 200,
     description:
-      'Price suggestion returned. `confidence` is always present. ' +
-      'If zero comps found, `confidence: "low"` and baseline range is used.',
+      'Price suggestion returned.\n\n' +
+      '- `recommended` — similarity-weighted median of comparable listings, rounded to nearest 0.5 TND\n' +
+      '- `range` — IQR ±20% bounds; always `min < recommended < max`\n' +
+      '- `confidence` — `"high"` (≥10 city comps), `"medium"` (5–9), `"low"` (<5 or national-only)\n' +
+      '- `compsUsed` — number of comparable listings that drove the price (0 = cold start fallback)\n' +
+      '- `explanation` — 2–3 human-readable bullets (AI-generated or heuristic fallback)\n' +
+      '- `logId` — pass this back to `PATCH /price-suggestion/log/:logId` after listing is published',
     schema: {
-      example: {
-        recommended:  284.5,
-        range:       { min: 218.0, max: 335.0 },
-        currency:    'TND',
-        unit:        'per_night',
-        confidence:  'high',
-        compsUsed:    12,
-        explanation: [
-          'Price fully based on 12 comparable listings in Kelibia — strong local signal.',
-          'Villa type and Beachfront location (< 300 m) — sea proximity is a key price driver.',
-          'High confidence: market data is consistent. Typical range 218–335 TND/night.',
-        ],
-        logId: 'a1b2c3d4-0000-0000-0000-000000000000',
-      },
+      oneOf: [
+        {
+          title: 'High confidence — Kelibia beachfront villa (14 comps)',
+          example: {
+            recommended:  421.5,
+            range:       { min: 317, max: 492 },
+            currency:    'TND',
+            unit:        'per_night',
+            confidence:  'high',
+            compsUsed:    14,
+            explanation: [
+              'Based on 14 comparable beachfront villas in Kelibia, the similarity-weighted market rate is 421 TND/night.',
+              'Sea proximity premium applied (beachfront ≤ 300 m) — the #1 price driver in the Kelibia coastal market.',
+              'Villa type (+30%) and 8-guest capacity are consistent with the top comparable listings. Typical range: 317–492 TND/night.',
+            ],
+            logId: 'a1b2c3d4-0000-0000-0000-000000000001',
+          },
+        },
+        {
+          title: 'Low confidence — unknown city (0 comps, national baseline fallback)',
+          example: {
+            recommended:  150,
+            range:       { min: 120, max: 180 },
+            currency:    'TND',
+            unit:        'per_night',
+            confidence:  'low',
+            compsUsed:    0,
+            explanation: [
+              'No comparable listings found for BirMcherga yet.',
+              'Using national baseline of 150 TND as a starting point.',
+              'Low confidence: adjust the price based on your local knowledge.',
+            ],
+            logId: 'a1b2c3d4-0000-0000-0000-000000000002',
+          },
+        },
+      ],
     },
   })
   @ApiResponse({
