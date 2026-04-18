@@ -31,7 +31,8 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed": "ts-node src/database/seeds/run-seed.ts",
-    "seed:demo": "ts-node src/database/seeds/run-seed-demo.ts"
+    "seed:demo": "ts-node src/database/seeds/run-seed-demo.ts",
+    "reset:demo": "npx prisma migrate reset --force && npx prisma generate && npm run seed"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",
