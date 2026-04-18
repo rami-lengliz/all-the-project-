@@ -221,3 +221,200 @@ function round2(n: number) { return Math.round(n * 100) / 100; }
 //   prices = []
 //   baseFinal = 150 TND
 //   → { rangeMin: 120, rangeMax: 180 }   (DEFAULT_HALF_SPREAD = 30)
+
+
+// =============================================================================
+// calcCompsRange  — similarity-weighted range from ScoredComparableListing[]
+// =============================================================================
+//
+// Algorithm
+// ─────────
+//   1. Extract prices, weighted by similarityScore.
+//   2. Compute similarity-weighted median  → base (recommended price).
+//   3. Compute weighted p25/p75 → IQR.
+//   4. range = [ p25 − 20%×IQR ,  p75 + 20%×IQR ]   clamped to [FLOOR, CEIL].
+//   5. Guarantee MIN_SPREAD.
+//
+// Why weighted median, not mean?
+//   • Median is robust to outliers (a 500 TND villa in the pool won't pull a
+//     studio's range up).
+//   • Similarity weighting makes a villa-vs-villa comp contribute more than a
+//     villa-vs-apartment comp when pricing a villa draft.
+//
+// Graceful degradation
+//   n=0  →  baseFallback ± DEFAULT_HALF_SPREAD
+//   n=1  →  that price   ± DEFAULT_HALF_SPREAD
+//   n≥2  →  full weighted-IQR algorithm
+// =============================================================================
+
+/** Minimal shape required — compatible with ScoredComparableListing */
+export interface CompWithScore {
+  price:           number;
+  similarityScore: number;
+}
+
+export interface CompsRange {
+  /** Similarity-weighted median — the recommended price to show the host. */
+  base:       number;
+  rangeMin:   number;
+  rangeMax:   number;
+  /** Weighted p25 before IQR buffer (informational). */
+  p25:        number;
+  /** Weighted p75 before IQR buffer (informational). */
+  p75:        number;
+  iqr:        number;
+  compsUsed:  number;
+}
+
+/**
+ * Compute a recommended price range from top comparable listings.
+ *
+ * @param comps        Top-N comps, each with `price` and `similarityScore`.
+ *                     Typically the output of selectSimilarComps / getComparableListings.
+ * @param baseFallback Fallback centre when comps is empty
+ *                     (use the category baseline from getBaseline()).
+ *
+ * @example
+ * // 6 Kelibia beachfront villas (from seeded data)
+ * calcCompsRange([
+ *   { price: 421, similarityScore: 1.00 },  // villa, beachfront, 8 guests, 4 beds
+ *   { price: 512, similarityScore: 0.98 },  // villa, beachfront, 12 guests, 6 beds
+ *   { price: 390, similarityScore: 0.87 },  // villa, beachfront, 8 guests, 4 beds (different host)
+ *   { price: 318, similarityScore: 0.62 },  // house beachfront — lower type score
+ *   { price: 262, similarityScore: 0.48 },  // villa inland     — nearBeach mismatch
+ *   { price: 291, similarityScore: 0.45 },  // house inland     — two signal mismatches
+ * ], 290);
+ * // weightedMedian ≈ 421  (top 3 comps dominate weights)
+ * // weighted p25  ≈ 342,  p75 ≈ 467,  IQR ≈ 125,  buf ≈ 25
+ * // → { base: 421, rangeMin: 317, rangeMax: 492, p25: 342, p75: 467, iqr: 125, compsUsed: 6 }
+ */
+export function calcCompsRange(
+  comps:        CompWithScore[],
+  baseFallback: number,
+): CompsRange {
+  // ── n=0 ───────────────────────────────────────────────────────────────────
+  if (comps.length === 0) {
+    const base = round2(baseFallback);
+    return {
+      base,
+      rangeMin:  round2(Math.max(FLOOR_TND, base - DEFAULT_HALF_SPREAD)),
+      rangeMax:  round2(Math.min(CEIL_TND,  base + DEFAULT_HALF_SPREAD)),
+      p25: base, p75: base, iqr: 0, compsUsed: 0,
+    };
+  }
+
+  // ── n=1 ───────────────────────────────────────────────────────────────────
+  if (comps.length === 1) {
+    const base = round2(comps[0].price);
+    return {
+      base,
+      rangeMin:  round2(Math.max(FLOOR_TND, base - DEFAULT_HALF_SPREAD)),
+      rangeMax:  round2(Math.min(CEIL_TND,  base + DEFAULT_HALF_SPREAD)),
+      p25: base, p75: base, iqr: 0, compsUsed: 1,
+    };
+  }
+
+  // ── n≥2: full weighted-IQR path ───────────────────────────────────────────
+
+  // Step 1: weighted median → recommended base price
+  const base = weightedMedian(comps);
+
+  // Step 2: weighted p25/p75 for the IQR
+  const prices  = comps.map((c) => c.price);
+  const weights = comps.map((c) => c.similarityScore);
+  const p25  = weightedPercentile(prices, weights, 25);
+  const p75  = weightedPercentile(prices, weights, 75);
+  const iqr  = p75 - p25;
+  const buf  = IQR_BUFFER_FACTOR * iqr; // 20% of IQR on each side
+
+  // Step 3: clamp + enforce MIN_SPREAD
+  let rangeMin = Math.max(FLOOR_TND, round2(p25 - buf));
+  let rangeMax = Math.min(CEIL_TND,  round2(p75 + buf));
+
+  if (rangeMax - rangeMin < MIN_SPREAD) {
+    const centre = (rangeMin + rangeMax) / 2;
+    rangeMin = Math.max(FLOOR_TND, round2(centre - MIN_SPREAD / 2));
+    rangeMax = Math.min(CEIL_TND,  round2(centre + MIN_SPREAD / 2));
+  }
+
+  return {
+    base:     round2(base),
+    rangeMin,
+    rangeMax,
+    p25:      round2(p25),
+    p75:      round2(p75),
+    iqr:      round2(iqr),
+    compsUsed: comps.length,
+  };
+}
+
+// ── Weighted median ───────────────────────────────────────────────────────────
+//
+// Algorithm:
+//   1. Sort items by price ascending.
+//   2. Accumulate weights until cumulative weight ≥ totalWeight / 2.
+//   3. The price at that crossover is the weighted median.
+//
+// With equal weights this degenerates to the standard median.
+//
+function weightedMedian(comps: CompWithScore[]): number {
+  const sorted   = [...comps].sort((a, b) => a.price - b.price);
+  const totalW   = sorted.reduce((s, c) => s + Math.max(c.similarityScore, 0), 0);
+
+  // All weights zero → plain median
+  if (totalW === 0) {
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0
+      ? (sorted[mid - 1].price + sorted[mid].price) / 2
+      : sorted[mid].price;
+  }
+
+  const half = totalW / 2;
+  let cumulative = 0;
+  for (const c of sorted) {
+    cumulative += Math.max(c.similarityScore, 0);
+    if (cumulative >= half) return c.price;
+  }
+  return sorted[sorted.length - 1].price; // unreachable guard
+}
+
+// ── Weighted percentile ───────────────────────────────────────────────────────
+//
+// Computes the p-th weighted percentile (p ∈ 0..100).
+// Uses linear interpolation at the crossover point for smoothness.
+//
+function weightedPercentile(
+  prices:  number[],
+  weights: number[],
+  p:       number,
+): number {
+  if (prices.length === 0) return 0;
+  if (prices.length === 1) return prices[0];
+
+  // Pair prices with their weights and sort by price ascending
+  const pairs = prices
+    .map((price, i) => ({ price, weight: Math.max(weights[i] ?? 0, 0) }))
+    .sort((a, b) => a.price - b.price);
+
+  const totalW = pairs.reduce((s, x) => s + x.weight, 0);
+  // All weights zero → plain (unweighted) percentile
+  if (totalW === 0) return percentile([...prices].sort((a, b) => a - b), p);
+
+  const target = (p / 100) * totalW;
+  let cumulative = 0;
+
+  for (let i = 0; i < pairs.length; i++) {
+    cumulative += pairs[i].weight;
+    if (cumulative >= target) {
+      // Linear interpolation between current and previous price
+      if (i > 0 && pairs[i].weight > 0) {
+        const over = cumulative - target;
+        const frac = over / pairs[i].weight;
+        return pairs[i].price * (1 - frac) + pairs[i - 1].price * frac;
+      }
+      return pairs[i].price;
+    }
+  }
+
+  return pairs[pairs.length - 1].price; // guard
+}
