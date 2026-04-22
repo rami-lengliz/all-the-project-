@@ -35,11 +35,7 @@ async function bootstrap() {
     app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
 
     // CORS
-    const allowedOrigins = (
-      configService.get<string>('CORS_ORIGINS') ?? 'http://localhost:3001'
-    )
-      .split(',')
-      .map((o) => o.trim());
+    const allowedOrigins = configService.get<string[]>('allowedOrigins') || ['http://localhost:3001'];
 
     app.enableCors({
       origin: allowedOrigins,
@@ -98,7 +94,7 @@ async function bootstrap() {
 
     const port = configService.get<number>('port') || 3000;
     auditEnv();
-    await app.listen(port);
+    await app.listen(port, '0.0.0.0');
     console.log(`Application running → ${appUrl}`);
     console.log(`Swagger UI          → ${appUrl}/api/docs`);
     console.log(`Allowed CORS origins→ ${allowedOrigins.join(', ')}`);
