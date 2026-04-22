@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Query,
+  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,6 +21,8 @@ import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { NearbyCategoriesDto } from './dto/nearby-categories.dto';
+import { CreateCategoryRequestDto } from './dto/create-category-request.dto';
+import { ReviewCategoryRequestDto } from './dto/review-category-request.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -41,9 +44,18 @@ export class CategoriesController {
 
   @Get()
   @Public()
-  @ApiOperation({ summary: 'List all categories' })
+  @ApiOperation({ summary: 'List active categories' })
   findAll() {
-    return this.categoriesService.findAll();
+    return this.categoriesService.findAll(false);
+  }
+
+  @Get('admin/all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List all categories including inactive (admin only)' })
+  findAllAdmin() {
+    return this.categoriesService.findAll(true);
   }
 
   @Get('nearby')
@@ -192,5 +204,45 @@ export class CategoriesController {
   @ApiOperation({ summary: 'Delete category (admin only)' })
   remove(@Param('id') id: string) {
     return this.categoriesService.remove(id);
+  }
+
+  // ===========================
+  // Category Requests
+  // ===========================
+
+  @Post('requests')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Submit a request for a new category (Hosts)' })
+  createRequest(@Request() req, @Body() createCategoryRequestDto: CreateCategoryRequestDto) {
+    return this.categoriesService.createRequest(req.user.sub, createCategoryRequestDto);
+  }
+
+  @Get('admin/requests')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List all category requests (Admin only)' })
+  @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'APPROVED', 'REJECTED', 'MERGED'] })
+  findAllRequests(@Query('status') status?: string) {
+    return this.categoriesService.findAllRequests(status);
+  }
+
+  @Get('admin/requests/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get details of a category request (Admin only)' })
+  getRequestById(@Param('id') id: string) {
+    return this.categoriesService.getRequestById(id);
+  }
+
+  @Patch('admin/requests/:id/review')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Review and action a category request (Admin only)' })
+  reviewRequest(@Param('id') id: string, @Request() req, @Body() reviewCategoryRequestDto: ReviewCategoryRequestDto) {
+    return this.categoriesService.reviewRequest(id, req.user.sub, reviewCategoryRequestDto);
   }
 }

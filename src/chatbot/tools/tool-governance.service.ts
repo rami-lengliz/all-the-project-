@@ -15,6 +15,10 @@ import {
   SearchListingsToolSchema,
   SearchListingsToolArgs,
 } from './schemas/search-listings.schema';
+import {
+  CompareListingsSchema,
+  CompareListingsArgs,
+} from './schemas/compare-listings.schema';
 import { GetListingDetailsToolSchema, GetListingDetailsToolArgs } from './schemas/get-listing-details.schema';
 import { GetMyBookingsToolSchema, GetMyBookingsToolArgs } from './schemas/get-my-bookings.schema';
 import { GetBookingDetailsToolSchema, GetBookingDetailsToolArgs } from './schemas/get-booking-details.schema';
@@ -63,6 +67,7 @@ export class ToolGovernanceService {
     this.registerSearchListingsTool();
     this.registerGetListingDetailsTool();
     this.registerGetHostListingsTool();
+    this.registerCompareListingsTool();
 
     // Register Booking Tools
     this.registerGetMyBookingsTool();
@@ -232,6 +237,60 @@ export class ToolGovernanceService {
   }
 
   // ============== TOOL IMPLEMENTATIONS ================
+  private registerCompareListingsTool() {
+    this.registryService.registerTool({
+      name: 'compare_listings',
+      description: 'Fetch and compare 2-3 specific rental listings based on requested UUIDs',
+      schema: CompareListingsSchema,
+      jsonSchema: {
+        type: 'object',
+        properties: {
+          listingIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of 2 to 3 listing UUIDs to compare',
+            minItems: 2,
+            maxItems: 3,
+          },
+        },
+        required: ['listingIds'],
+      },
+      handler: async (args: CompareListingsArgs) => {
+        const { listings, insights } = await this.listingsService.compareListings(args.listingIds);
+        
+        if (listings.length < 2) {
+          return { error: 'Not enough valid listings found for comparison.' };
+        }
+
+        const formatted = listings.map((l: any) => ({
+          id: l.id,
+          title: l.title,
+          pricePerDay: Number(l.pricePerDay),
+          category: l.category?.name,
+          host: {
+            name: l.host?.name,
+            ratingAvg: Number(l.host?.ratingAvg || 0),
+            ratingCount: l.host?.ratingCount || 0,
+            verifiedEmail: l.host?.verifiedEmail || false,
+            verifiedPhone: l.host?.verifiedPhone || false,
+          },
+          bookingType: l.bookingType,
+          address: l.address,
+          tradeoffSummary: insights?.summaries[l.id] || "Standard alternative.",
+        }));
+
+        return {
+          listings: formatted,
+          decisionSupport: {
+             bestValueId: insights?.bestValueId,
+             bestRatedId: insights?.bestRatedId,
+             mostExperiencedHostId: insights?.mostExperiencedHostId,
+          }
+        };
+      },
+    });
+  }
+
   private registerSearchListingsTool() {
     this.registryService.registerTool({
       name: 'search_listings',

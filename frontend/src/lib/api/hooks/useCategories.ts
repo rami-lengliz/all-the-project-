@@ -7,7 +7,8 @@ export function useCategories() {
     queryKey: ['categories'],
     queryFn: async () => {
       const res: any = await CategoriesService.categoriesControllerFindAll();
-      return (res.data?.data ?? res.data ?? []) as Category[];
+      if (Array.isArray(res)) return res as Category[];
+      return (res?.data?.data ?? res?.data ?? []) as Category[];
     },
   });
 }

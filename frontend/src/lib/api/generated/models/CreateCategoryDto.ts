@@ -6,6 +6,7 @@ export type CreateCategoryDto = {
     name: string;
     slug?: string;
     icon?: string;
-    allowed_for_private: boolean;
+    allowedForPrivate: boolean;
+    isActive: boolean;
 };
 

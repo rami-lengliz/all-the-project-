@@ -28,6 +28,9 @@ model User {
   ratingCount   Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  suspendedAt   DateTime? @map("suspended_at")
+  trustReviewedAt DateTime? @map("trust_reviewed_at")
+  manualTrustTier String? @map("manual_trust_tier") @db.VarChar(50)
 
   // Relations
   listings               Listing[]
@@ -47,10 +50,38 @@ model User {
   chatbotActionConfirmations ChatbotActionConfirmation[] @relation("UserActionConfirmations")
   chatbotSecurityEvents ChatbotSecurityEvent[] @relation("UserChatbotSecurityEvents")
   payoutsAsHost       Payout[]       @relation("HostPayouts")
+  categoryRequests    CategoryRequest[] @relation("RequesterCategoryRequests")
 
   @@index([email])
   @@index([phone])
   @@map("users")
+}
+
+// ===========================
+// Category Request Model
+// ===========================
+enum CategoryRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  MERGED
+}
+
+model CategoryRequest {
+  id              String   @id @default(uuid())
+  requesterId     String   @map("requester_id")
+  proposedName    String   @map("proposed_name") @db.VarChar(255)
+  reason          String?  @db.Text
+  status          CategoryRequestStatus @default(PENDING)
+  adminNotes      String?  @map("admin_notes") @db.Text
+  resolvedCategoryId String? @map("resolved_category_id")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  requester       User     @relation("RequesterCategoryRequests", fields: [requesterId], references: [id])
+  resolvedCategory Category? @relation("ResolvedCategory", fields: [resolvedCategoryId], references: [id])
+
+  @@map("category_requests")
 }
 
 // ===========================
@@ -62,12 +93,15 @@ model Category {
   slug              String   @unique @db.VarChar(255)
   icon              String?  @db.VarChar(100)
   allowedForPrivate Boolean  @default(true) @map("allowed_for_private")
+  isActive          Boolean  @default(true) @map("is_active")
   createdAt         DateTime @default(now())
 
   // Relations
   listings Listing[]
+  categoryRequests CategoryRequest[] @relation("ResolvedCategory")
 
   @@index([slug], name: "idx_category_slug")
+  @@index([isActive])
   @@map("categories")
 }
 

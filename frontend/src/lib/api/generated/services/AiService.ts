@@ -13,7 +13,7 @@ export class AiService {
     /**
      * AI-powered search with natural language
      * Converts natural language queries into structured filters. Supports max 1 follow-up question for clarification. Returns either FOLLOW_UP mode (if clarification needed) or RESULT mode with listings. All responses have stable keys: mode, filters, chips, followUp, results.
-     * @param requestBody
+     * @param requestBody Natural language search request. Tip: use followUpUsed=true to always get a direct RESULT without a clarification question.
      * @returns any Search results or follow-up question
      * @throws ApiError
      */

@@ -15,6 +15,21 @@ export class ChatbotTrustScoreService {
       suggestedRestrictions: []
     };
 
+    // 0. Check for manual admin overrides
+    const user = await this.prisma.user.findUnique({ 
+      where: { id: userId },
+      select: { manualTrustTier: true, createdAt: true }
+    });
+
+    if (user?.manualTrustTier) {
+      status.tier = user.manualTrustTier as ChatbotTrustTier;
+      status.reasons.push('Manual trust tier set by administrator.');
+      if (status.tier === 'RESTRICTED') status.suggestedRestrictions.push('block_all_mutations', 'long_cooldown');
+      if (status.tier === 'SUSPICIOUS') status.suggestedRestrictions.push('block_sensitive_mutations', 'reduce_rate_limits');
+      if (status.tier === 'LIMITED') status.suggestedRestrictions.push('reduce_rate_limits');
+      return status;
+    }
+
     // Gather user state from DB
     const recentEvents = await this.prisma.chatbotSecurityEvent.findMany({
       where: {

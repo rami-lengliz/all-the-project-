@@ -17,7 +17,8 @@ export class ChatbotToolPermissionService {
     'help_center_search',
     'contact_host_about_booking',
     'request_booking_help',
-    'cancel_my_booking_if_allowed'
+    'cancel_my_booking_if_allowed',
+    'compare_listings'
   ];
 
   constructor(private resolver: ChatbotToolResourceResolverService) {}
@@ -52,6 +53,7 @@ export class ChatbotToolPermissionService {
     switch (toolName) {
       case 'search_listings':
       case 'help_center_search':
+      case 'compare_listings':
         // Safe global reads natively bounded
         return { allowed: true };
 

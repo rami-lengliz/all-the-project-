@@ -16,7 +16,7 @@ export class ChatService {
     public static chatControllerGetConversations(): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/chat/conversations',
+            url: '/api/chat/conversations',
         });
     }
     /**
@@ -30,7 +30,7 @@ export class ChatService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/chat/conversations',
+            url: '/api/chat/conversations',
             body: requestBody,
             mediaType: 'application/json',
         });
@@ -50,7 +50,7 @@ export class ChatService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/chat/conversations/{id}/messages',
+            url: '/api/chat/conversations/{id}/messages',
             path: {
                 'id': id,
             },
@@ -71,7 +71,7 @@ export class ChatService {
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'PATCH',
-            url: '/chat/messages/read',
+            url: '/api/chat/messages/read',
             body: requestBody,
             mediaType: 'application/json',
         });
@@ -84,7 +84,7 @@ export class ChatService {
     public static chatControllerGetUnreadCount(): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/chat/unread-count',
+            url: '/api/chat/unread-count',
         });
     }
 }

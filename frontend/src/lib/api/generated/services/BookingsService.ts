@@ -136,4 +136,21 @@ export class BookingsService {
             },
         });
     }
+    /**
+     * Mark booking as completed
+     * @param id
+     * @returns any
+     * @throws ApiError
+     */
+    public static bookingsControllerComplete(
+        id: string,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'PATCH',
+            url: '/api/bookings/{id}/complete',
+            path: {
+                'id': id,
+            },
+        });
+    }
 }

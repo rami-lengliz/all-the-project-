@@ -431,3 +431,49 @@ fetch('https://<API_BASE>/api/ai/search', {
 | Swagger UI can't execute requests | Swagger is same-host (no cross-origin) | This is normal — Swagger never has CORS issues |
 | `credentials: true` + wildcard error | Cannot use `*` with `credentials:true` | Already handled — we use explicit origin list |
 | Localhost works, production blocked | `ALLOWED_ORIGINS` not set in prod env | Set the env var in hosting dashboard |
+ 
+ ---
++
++## 🛡️ Chatbot Trust & Safety Guardrails
++
++The AI Assistant in production is protected by multiple deterministic safety layers to prevent abuse and ensure financial integrity.
++
++### 1. Multi-Layer Rate Limiting
++| Limit Type | Action Key | Default Limit | Purpose |
++|------------|------------|---------------|---------|
++| **Messages** | `chatbot_message_requests` | 10 per min | Prevents LLM cost spikes / spam |
++| **Proposals**| `chatbot_mutation_proposals`| 3 per min | Limits tool usage requiring confirmation |
++| **Confirmations**| `chatbot_action_confirmations`| 3 per min | Prevents brute-forcing action tokens |
++| **Failures** | `chatbot_failed_confirmations` | 5 per 30m | Triggers cooldown on token abuse |
++
++### 2. Incident Logging (Abuse Detection)
++Every blocked action or rate-limit breach is recorded in the `AbuseIncident` system (visible to admins).
++- **High Severity**: Token replay attempts, cross-user confirmation attempts.
++- **Medium Severity**: Policy breaches (attempting restricted tools).
++- **Low Severity**: Rate limit triggers.
++
++### 3. Tool Governance (Confirmation Tokens)
++All mutations (Booking cancellation, Help requests) use a **Two-Phase Commit** pattern:
++1. **Propose**: Assistant calls tool → Backend generates `confirmationToken` (stored in cache/DB).
++2. **Confirm**: UI sends `POST /api/chatbot/confirm` with token → Backend validats token + user + context.
++
++---
++
++## ✅ Chatbot Health Verification
++
++### 1. Chatbot Health
++```bash
++curl https://<API_BASE>/api/chatbot/health | python -m json.tool
++```
++**Expected:** `orchestrator: ok`, `llm: online`, `governance: ok`.
++
++### 2. Rate Limit Verification
++Rapidly send 11 messages to a conversation.
++**Expected:** HTTP 429 after 10th message. Body: `{ "status": "RATE_LIMITED", ... }`.
++
++### 3. Confirmation Token Expiry
++Wait 30 minutes after an assistant proposes a cancellation. Try to confirm.
++**Expected:** HTTP 400. Body: `{ "message": "Confirmation failed: TOKEN_EXPIRED" }`.
++
++*Last Updated: 2026-04-19 by Assistant v2*
++

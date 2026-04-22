@@ -3,7 +3,9 @@
 /* tslint:disable */
 /* eslint-disable */
 export type RegisterDto = {
-    name: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
     email?: string;
     phone?: string;
     password: string;

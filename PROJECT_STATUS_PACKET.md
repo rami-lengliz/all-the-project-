@@ -9,6 +9,7 @@
 - **Product**: RentEverything — an all-in-one, location-aware rental marketplace (stays, vehicles, sports facilities, beach gear, etc.) targeting Tunisia (Kelibia, Tunis, Nabeul).
 - **Stack**: NestJS + PostgreSQL/PostGIS backend, Next.js 16 frontend, FastAPI ML microservice, Socket.IO realtime chat.
 - **Production-ready**: Auth (JWT access+refresh), bookings lifecycle with listing-mutex conflict prevention, PostGIS geo search, AI search (OpenAI + fallback), payments with commissions, Wallet Ledger (audit trails), Host Payouts (FIFO allocation), Refund Guardrails, admin moderation, chat.
+- **Chatbot v2 (Guided Assistant)**: Branching guided flows, flow-outcome terminal states, mode-aware persona (Discovery/Booking/Host), conversation continuity (resume), comparison/decision support model, and advanced trust/abuse protection (rate limits, incident logging).
 - **Demo-only**: Payments are simulated (no real payment gateway), email/phone verification is stubbed (`verify` endpoint auto-approves), ML service uses rule-based heuristics (no real ML model), Cloudinary not wired (local uploads only).
 - **Current blockers**: No real payment provider integration. Verification flow is a placeholder. No CI/CD pipeline.
 
@@ -131,6 +132,7 @@ docker compose up -d          # Starts postgres, backend, ml-service, adminer
 | **ml** | `src/modules/ml/` | Proxy to FastAPI ML microservice (category + price suggestions). |
 | **cloudinary**| `src/modules/cloudinary/`| Cloudinary service integration for uploading images. |
 | **chat** | `src/chat/` | Socket.IO WebSocket gateway for realtime messaging. |
+| **chatbot** | `src/chatbot/` | Specialized AI Assistant with orchestrator, tool governance, and trust/policy layers. |
 
 ### DB Schema Overview (Prisma — 14 models)
 
@@ -204,6 +206,13 @@ LedgerEntry ── PayoutItem ── Payout
 | **Client pages** | ✅ | Dashboard, bookings, reviews | `frontend/src/pages/client/` |
 | **Chat (realtime)** | ✅ | Socket.IO on `/chat` namespace. JWT auth. Send/read/typing/join. | `src/chat/` |
 | **AI Search** | ✅ | OpenAI-powered with Zod validation, fallback, max 1 follow-up | `src/modules/ai/` (see Section 6) |
+| **AI Assistant (Chatbot)** | ✅ | Orchestrated, multi-tool assistant with structured tool result rendering. | `src/chatbot/` |
+| **Assistant Modes** | ✅ | Discovery, Booking, Host, and General modes with deterministic pivoting. | `frontend/src/features/chatbot/utils/chatbot-assistant-modes.ts` |
+| **Branching Flows** | ✅ | State-aware guided branching (Search → Detail → Booking help/contact). | `frontend/src/features/chatbot/utils/chatbot-flow-branches.ts` |
+| **Flow Outcomes** | ✅ | Outcome detection (completed, interrupted, expired) with terminal UI cards. | `frontend/src/features/chatbot/utils/chatbot-flow-outcomes.ts` |
+| **Continuity/Resume** | ✅ | Session resume detecting pending confirmations or interrupted flows. | `frontend/src/features/chatbot/utils/chatbot-resume-utils.ts` |
+| **Comparison Layer** | ⚠️ | Comparison model and types defined; decision support logic pending UI. | `frontend/src/features/chatbot/types/chatbot-comparison.types.ts` |
+| **Chatbot Trust** | ✅ | Rate limiting, abuse incident recording, and tool governance (proposed vs confirmed). | `src/chatbot/trust/` |
 | **AI Listing Assistant** | ✅ | Generate/enhance descriptions, generate titles | `src/modules/ai/listing-assistant.service.ts` |
 | **ML Suggestions** | ⚠️ | Rule-based heuristics, not real ML. Category by keywords, price by location. | `ml-service/main.py` |
 | **Email/phone verification** | ❌ | Stubbed — `verify` endpoint auto-approves without actual code check | `src/modules/auth/auth.service.ts` (L137–159) |
@@ -544,5 +553,26 @@ curl http://localhost:8000/health
 > **No automated tests found** for the ML service.
 
 ---
+11) Chatbot Intelligence Architecture
+---
 
-*Generated: 2026-02-24. This document should be updated whenever major features or bugs are resolved.*
+The RentEverything Assistant uses a hierarchical, deterministic detection engine to provide specialized guidance without faking intelligence.
+
+### Signal Priority (High to Low)
+1. **Flow Completion/Outcome**: Terminal states (success/interruption) override active flows.
+2. **Active Flow State**: In-progress branching tasks (e.g., mid-booking-help).
+3. **Conversation Resume**: Priority detection for pending confirmations or blocked recoveries.
+4. **Conversation History (Recent)**: Recent tool calls pivot the Assistant Mode (e.g., just used Host tools → Host mode).
+5. **Page Context**: Fallback signal from the current URL (Listing page → Discovery mode).
+
+### Key Files (Logic Registry)
+- `detectFlowState()`: Classifies sequence of messages into known branching flows.
+- `detectFlowOutcome()`: Determines if a flow reached a terminal or meta-status state.
+- `detectAssistantMode()`: Sets the persona/entry-suggestions based on history + context.
+- `detectResumeState()`: Identifies continuity entry-points for returning users.
+
+### Security Model
+The Chatbot **never** assumes permissions.
+- **Proposed state**: Tool outputs that require mutation return a `confirmationToken`.
+- **Confirmed state**: Mutation only occurs after the user explicitly triggers `POST /api/chatbot/confirm` with the token.
+- **Rate Limits**: Independent limits for messages, propose-actions, and confirm-actions.

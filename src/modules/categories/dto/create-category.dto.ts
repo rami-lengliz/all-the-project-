@@ -19,5 +19,10 @@ export class CreateCategoryDto {
   @ApiProperty({ default: true })
   @IsOptional()
   @IsBoolean()
-  allowed_for_private?: boolean;
+  allowedForPrivate?: boolean;
+
+  @ApiProperty({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

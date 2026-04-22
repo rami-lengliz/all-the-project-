@@ -20,5 +20,10 @@ export class UpdateCategoryDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsBoolean()
-  allowed_for_private?: boolean;
+  allowedForPrivate?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

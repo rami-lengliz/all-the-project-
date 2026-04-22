@@ -5,6 +5,12 @@
 import type { CreatePayoutDto } from '../models/CreatePayoutDto';
 import type { FlagListingDto } from '../models/FlagListingDto';
 import type { MarkPaidDto } from '../models/MarkPaidDto';
+import type { MarkTrustReviewedDto } from '../models/MarkTrustReviewedDto';
+import type { ModerateListingDto } from '../models/ModerateListingDto';
+import type { SuspendListingDto } from '../models/SuspendListingDto';
+import type { SuspendUserDto } from '../models/SuspendUserDto';
+import type { UnsuspendUserDto } from '../models/UnsuspendUserDto';
+import type { UpdateTrustTierDto } from '../models/UpdateTrustTierDto';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
@@ -21,14 +27,130 @@ export class AdminService {
         });
     }
     /**
-     * Get all listings (admin only)
+     * Get single user details for admin review
+     * @param id
      * @returns any
      * @throws ApiError
      */
-    public static adminControllerGetAllListings(): CancelablePromise<any> {
+    public static adminControllerGetUserDetails(
+        id: string,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/admin/users/{id}',
+            path: {
+                'id': id,
+            },
+        });
+    }
+    /**
+     * Get audit logs for a specific user
+     * @param id
+     * @returns any
+     * @throws ApiError
+     */
+    public static adminControllerGetUserLogs(
+        id: string,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/admin/users/{id}/logs',
+            path: {
+                'id': id,
+            },
+        });
+    }
+    /**
+     * Suspend a user account (admin only)
+     * @param id
+     * @param requestBody
+     * @returns any
+     * @throws ApiError
+     */
+    public static adminControllerSuspendUser(
+        id: string,
+        requestBody: SuspendUserDto,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'PATCH',
+            url: '/api/admin/users/{id}/suspend',
+            path: {
+                'id': id,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
+        });
+    }
+    /**
+     * Unsuspend a user account (admin only)
+     * @param id
+     * @param requestBody
+     * @returns any
+     * @throws ApiError
+     */
+    public static adminControllerUnsuspendUser(
+        id: string,
+        requestBody: UnsuspendUserDto,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'PATCH',
+            url: '/api/admin/users/{id}/unsuspend',
+            path: {
+                'id': id,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
+        });
+    }
+    /**
+     * Get all listings, filterable by status (admin only)
+     * @param status
+     * @returns any
+     * @throws ApiError
+     */
+    public static adminControllerGetAllListings(
+        status: string,
+    ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/admin/listings',
+            query: {
+                'status': status,
+            },
+        });
+    }
+    /**
+     * Get single listing details for admin review
+     * @param id
+     * @returns any
+     * @throws ApiError
+     */
+    public static adminControllerGetListingDetails(
+        id: string,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/admin/listings/{id}',
+            path: {
+                'id': id,
+            },
+        });
+    }
+    /**
+     * Get audit logs for a specific listing
+     * @param id
+     * @returns any
+     * @throws ApiError
+     */
+    public static adminControllerGetListingLogs(
+        id: string,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/admin/listings/{id}/logs',
+            path: {
+                'id': id,
+            },
         });
     }
     /**
@@ -50,11 +172,13 @@ export class AdminService {
     /**
      * Approve a listing (set status ACTIVE)
      * @param id
+     * @param requestBody
      * @returns any
      * @throws ApiError
      */
     public static adminControllerApproveListing(
         id: string,
+        requestBody: ModerateListingDto,
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'PATCH',
@@ -62,16 +186,20 @@ export class AdminService {
             path: {
                 'id': id,
             },
+            body: requestBody,
+            mediaType: 'application/json',
         });
     }
     /**
      * Suspend a listing (set status SUSPENDED)
      * @param id
+     * @param requestBody
      * @returns any
      * @throws ApiError
      */
     public static adminControllerSuspendListing(
         id: string,
+        requestBody: SuspendListingDto,
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'PATCH',
@@ -79,6 +207,8 @@ export class AdminService {
             path: {
                 'id': id,
             },
+            body: requestBody,
+            mediaType: 'application/json',
         });
     }
     /**
@@ -176,6 +306,23 @@ export class AdminService {
         });
     }
     /**
+     * Get payout details (admin only)
+     * @param id
+     * @returns any
+     * @throws ApiError
+     */
+    public static adminControllerGetPayoutDetails(
+        id: string,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/admin/payouts/{id}',
+            path: {
+                'id': id,
+            },
+        });
+    }
+    /**
      * Create a payout for a host (admin only)
      * @param id
      * @param requestBody
@@ -249,6 +396,76 @@ export class AdminService {
             path: {
                 'id': id,
             },
+        });
+    }
+    /**
+     * Get a queue of suspicious users
+     * @returns any
+     * @throws ApiError
+     */
+    public static adminControllerGetSuspiciousUsers(): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/admin/trust/suspicious',
+        });
+    }
+    /**
+     * Get trust profile and security events for a user
+     * @param id
+     * @returns any
+     * @throws ApiError
+     */
+    public static adminControllerGetUserTrustProfile(
+        id: string,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/admin/users/{id}/trust',
+            path: {
+                'id': id,
+            },
+        });
+    }
+    /**
+     * Mark a user trust case as reviewed/cleared
+     * @param id
+     * @param requestBody
+     * @returns any
+     * @throws ApiError
+     */
+    public static adminControllerMarkTrustReviewed(
+        id: string,
+        requestBody: MarkTrustReviewedDto,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'PATCH',
+            url: '/api/admin/users/{id}/trust/review',
+            path: {
+                'id': id,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
+        });
+    }
+    /**
+     * Manually override a user trust tier
+     * @param id
+     * @param requestBody
+     * @returns any
+     * @throws ApiError
+     */
+    public static adminControllerUpdateTrustTier(
+        id: string,
+        requestBody: UpdateTrustTierDto,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'PATCH',
+            url: '/api/admin/users/{id}/trust/tier',
+            path: {
+                'id': id,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
         });
     }
 }

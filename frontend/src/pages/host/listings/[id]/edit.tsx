@@ -182,11 +182,7 @@ export default function HostEditListingPage() {
         submitData.append('images', img.file);
       });
 
-      await api.patch(`/listings/${id}`, submitData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      await api.patch(`/listings/${id}`, submitData);
 
       // Clean up preview URLs
       newImages.forEach((img) => URL.revokeObjectURL(img.preview));

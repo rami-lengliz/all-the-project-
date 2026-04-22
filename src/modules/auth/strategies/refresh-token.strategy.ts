@@ -43,6 +43,9 @@ export class RefreshTokenStrategy extends PassportStrategy(
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
+    if (user.suspendedAt) {
+      throw new UnauthorizedException('Your account has been suspended');
+    }
     return {
       sub: user.id,
       email: payload.email || user.email || user.phone || '',

@@ -5,6 +5,9 @@ import { api } from '@/lib/api/http';
 import { InlineError } from '@/components/ui/InlineError';
 import { toast } from '@/components/ui/Toaster';
 import { useCategories } from '@/lib/api/hooks/useCategories';
+import type { Category } from '@/lib/api/types';
+import { CategoriesService } from '@/lib/api/generated';
+import { useMutation } from '@tanstack/react-query';
 
 interface ImagePreview {
   file: File;
@@ -15,6 +18,13 @@ export default function HostCreatePage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const categoriesQuery = useCategories();
+  const categories = (categoriesQuery.data ?? []).filter(
+    (cat): cat is Category =>
+      typeof cat?.id === 'string' &&
+      cat.id.trim().length > 0 &&
+      typeof cat?.name === 'string' &&
+      cat.name.trim().length > 0,
+  );
   const [images, setImages] = useState<ImagePreview[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +37,26 @@ export default function HostCreatePage() {
     latitude: '',
     longitude: '',
     rules: '',
+  });
+
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [requestData, setRequestData] = useState({ proposedName: '', reason: '' });
+
+  const requestCategoryMutation = useMutation({
+    mutationFn: async () => {
+      return CategoriesService.categoriesControllerCreateRequest({
+        proposedName: requestData.proposedName,
+        reason: requestData.reason || undefined,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', message: 'Category requested successfully! Admins will review it.', variant: 'success' });
+      setIsRequestModalOpen(false);
+      setRequestData({ proposedName: '', reason: '' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Error', message: err?.body?.message || err?.message || 'Failed to request category.', variant: 'error' });
+    },
   });
 
   const handleImageSelect = useCallback(
@@ -100,6 +130,13 @@ export default function HostCreatePage() {
       setError('Category is required');
       return;
     }
+    const selectedCategory = categories.find(
+      (cat) => cat.id === formData.categoryId,
+    );
+    if (!selectedCategory) {
+      setError('Please select a valid category');
+      return;
+    }
     if (!formData.pricePerDay || parseFloat(formData.pricePerDay) <= 0) {
       setError('Valid price is required');
       return;
@@ -120,7 +157,7 @@ export default function HostCreatePage() {
       const submitData = new FormData();
       submitData.append('title', formData.title);
       submitData.append('description', formData.description);
-      submitData.append('categoryId', formData.categoryId);
+      submitData.append('categoryId', selectedCategory.id);
       submitData.append('pricePerDay', formData.pricePerDay);
       submitData.append('address', formData.address);
       submitData.append('latitude', formData.latitude);
@@ -134,11 +171,7 @@ export default function HostCreatePage() {
         submitData.append('images', img.file);
       });
 
-      const response = await api.post('/listings', submitData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await api.post('/listings', submitData);
 
       // Clean up preview URLs
       images.forEach((img) => URL.revokeObjectURL(img.preview));
@@ -342,9 +375,18 @@ export default function HostCreatePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Category *
-                  </label>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Category *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsRequestModalOpen(true)}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      Can't find it? Request a new one
+                    </button>
+                  </div>
                   <select
                     value={formData.categoryId}
                     onChange={(e) =>
@@ -355,7 +397,7 @@ export default function HostCreatePage() {
                     disabled={categoriesQuery.isLoading}
                   >
                     <option value="">Select a category</option>
-                    {categoriesQuery.data?.map((cat) => (
+                    {categories.map((cat) => (
                       <option key={cat.id} value={cat.id}>
                         {cat.name}
                       </option>
@@ -482,6 +524,61 @@ export default function HostCreatePage() {
           </form>
         </main>
       </div>
+
+      {/* Request Category Modal */}
+      {isRequestModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-gray-900">Request a New Category</h3>
+              <button onClick={() => setIsRequestModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <i className="fa-solid fa-times" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                If the category you need isn't available, please request it here. An admin will review your request.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Proposed Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={requestData.proposedName}
+                  onChange={(e) => setRequestData({ ...requestData, proposedName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  placeholder="e.g. Electric Scooters"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason (Optional)</label>
+                <textarea
+                  rows={3}
+                  value={requestData.reason}
+                  onChange={(e) => setRequestData({ ...requestData, reason: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  placeholder="Briefly explain why this category is needed..."
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                onClick={() => setIsRequestModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => requestCategoryMutation.mutate()}
+                disabled={requestCategoryMutation.isPending || !requestData.proposedName.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {requestCategoryMutation.isPending ? 'Submitting...' : 'Submit Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </HostLayout>
   );
 }

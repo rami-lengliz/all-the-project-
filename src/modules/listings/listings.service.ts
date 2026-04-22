@@ -409,6 +409,104 @@ export class ListingsService {
     return listing;
   }
 
+  async findManyByIds(ids: string[]): Promise<Listing[]> {
+    if (!ids || ids.length === 0) return [];
+    const listings = await this.prisma.listing.findMany({
+      where: {
+        id: { in: ids },
+        isActive: true,
+        deletedAt: null,
+      },
+      include: {
+        category: true,
+        host: {
+          select: {
+            id: true,
+            name: true,
+            ratingAvg: true,
+            ratingCount: true,
+            verifiedEmail: true,
+            verifiedPhone: true,
+          },
+        },
+      },
+    });
+
+    // Stable ordering: match the input ids array
+    return ids
+      .map((id) => listings.find((l) => l.id === id))
+      .filter((l): l is any => !!l);
+  }
+
+  async compareListings(ids: string[]) {
+    const listings = await this.findManyByIds(ids);
+    if (!listings.length) return { listings: [], insights: null };
+
+    let bestValueId = listings[0].id;
+    let lowestPrice = Number(listings[0].pricePerDay);
+    
+    let bestRatedId = listings[0].id;
+    let highestRating = Number((listings[0] as any).host?.ratingAvg || 0);
+
+    let mostExperiencedHostId = listings[0].id;
+    let highestCount = Number((listings[0] as any).host?.ratingCount || 0);
+
+    for (const l of listings) {
+      const price = Number(l.pricePerDay);
+      if (price < lowestPrice) {
+        lowestPrice = price;
+        bestValueId = l.id;
+      }
+
+      const rating = Number((l as any).host?.ratingAvg || 0);
+      if (rating > highestRating) {
+        highestRating = rating;
+        bestRatedId = l.id;
+      }
+
+      const count = Number((l as any).host?.ratingCount || 0);
+      if (count > highestCount) {
+        highestCount = count;
+        mostExperiencedHostId = l.id;
+      }
+    }
+
+    const summaries: Record<string, string> = {};
+    for (const l of listings) {
+      const isBestValue = l.id === bestValueId;
+      const isBestRated = l.id === bestRatedId;
+      const isExperienced = l.id === mostExperiencedHostId;
+      const isVerified = (l as any).host?.verifiedEmail && (l as any).host?.verifiedPhone;
+      const isSlot = l.bookingType === 'SLOT';
+
+      const tags = [];
+      if (isBestValue) tags.push("most affordable");
+      if (isBestRated) tags.push("highest rated");
+      if (isExperienced) tags.push("most reviewed host");
+      if (isVerified) tags.push("fully verified host");
+      if (isSlot) tags.push("flexible hourly booking");
+
+      if (tags.length === 0) {
+        summaries[l.id] = "Standard alternative. Consider evaluating specific rules or location.";
+      } else if (tags.length === 1) {
+        summaries[l.id] = `Standout feature: ${tags[0]}.`;
+      } else {
+        const lastTag = tags.pop();
+        summaries[l.id] = `Excellent choice: ${tags.join(", ")} and ${lastTag}.`;
+      }
+    }
+
+    return {
+      listings,
+      insights: {
+        bestValueId,
+        bestRatedId,
+        mostExperiencedHostId,
+        summaries,
+      },
+    };
+  }
+
   async update(
     id: string,
     updateListingDto: UpdateListingDto,
@@ -444,14 +542,21 @@ export class ListingsService {
       currentImages = currentImages.filter((url) => {
         const shouldRemove = imagesToRemove.includes(url);
         if (shouldRemove) {
-          // Delete file from filesystem
-          try {
-            const filePath = url.replace('/uploads/', path.join(baseDir, ''));
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
+          if (url.includes('cloudinary.com')) {
+            // Delete from Cloudinary
+            this.cloudinaryService.deleteFile(url).catch((e) => {
+              this.logger.warn(`Failed to delete image file from Cloudinary: ${url}`, e);
+            });
+          } else {
+            // Delete file from filesystem
+            try {
+              const filePath = url.replace('/uploads/', path.join(baseDir, ''));
+              if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+              }
+            } catch (e) {
+              this.logger.warn(`Failed to delete local image file: ${url}`, e);
             }
-          } catch (e) {
-            this.logger.warn(`Failed to delete image file: ${url}`, e);
           }
         }
         return !shouldRemove;
@@ -531,6 +636,27 @@ export class ListingsService {
     if (isAdmin) {
       // Hard delete for admin
       await this.prisma.listing.delete({ where: { id } });
+
+      // Clean up files safely
+      if (listing.images && listing.images.length > 0) {
+        const cloudinaryUrls = listing.images.filter((u) => u.includes('cloudinary.com'));
+        if (cloudinaryUrls.length > 0) {
+          this.cloudinaryService.deleteFiles(cloudinaryUrls).catch((e) => {
+            this.logger.warn(`Failed to delete Cloudinary images for listing ${id}`, e);
+          });
+        }
+        
+        // local disk cleanup fallback
+        const baseDir = this.configService.get<string>('upload.dir') || './uploads';
+        const listingDir = path.join(baseDir, 'listings', id);
+        if (fs.existsSync(listingDir)) {
+          try {
+             fs.rmSync(listingDir, { recursive: true, force: true });
+          } catch (e) {
+             this.logger.warn(`Failed to delete local image directory for listing ${id}`, e);
+          }
+        }
+      }
     } else {
       // Soft delete for hosts
       await this.prisma.listing.update({

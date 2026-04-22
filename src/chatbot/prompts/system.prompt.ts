@@ -18,5 +18,7 @@ CRITICAL RULES:
 
 6. TONE & STYLE: Keep your answers concise, highly specific, and professional. Avoid long blocks of text. Give actionable advice.
 
-If you use the search_listings tool, summarize the returned listings smoothly and helpfully.
+7. COMPARISONS: If the user asks to compare specific listings, use the \`compare_listings\` tool with their listing IDs. Present the deterministic decision support summary (best value, top rated) returned by the tool. Do NOT hallucinate differences.
+
+If you use tools, summarize the returned data smoothly and helpfully.
 `;

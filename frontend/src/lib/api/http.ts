@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type AxiosHeaderValue } from 'axios';
 import { toast } from '@/components/ui/Toaster';
 import { readAuth, clearAuth } from '@/lib/auth/storage';
 import { API_URL } from '@/lib/api/env';
@@ -22,11 +22,37 @@ export const api = axios.create({
  * ------------------------------------------------------------------ */
 let refreshPromise: Promise<string> | null = null;
 
+function clearMultipartContentType(
+  headers:
+    | {
+        set?: (name: string, value: string) => void;
+        delete?: (name: string) => void;
+        Authorization?: AxiosHeaderValue;
+        'Content-Type'?: AxiosHeaderValue;
+        'content-type'?: AxiosHeaderValue;
+      }
+    | undefined,
+) {
+  if (!headers) return;
+
+  if (typeof headers.delete === 'function') {
+    headers.delete('Content-Type');
+    return;
+  }
+
+  delete headers['Content-Type'];
+  delete headers['content-type'];
+}
+
 /* ------------------------------------------------------------------
  *  Request interceptor — attach Bearer token from localStorage
  * ------------------------------------------------------------------ */
 api.interceptors.request.use((config) => {
   if (typeof window === 'undefined') return config;
+
+  if (config.data instanceof FormData) {
+    clearMultipartContentType(config.headers);
+  }
 
   const url = config.url ?? '';
   // Do not attach tokens to auth endpoints to avoid expired token contamination
@@ -107,6 +133,11 @@ api.interceptors.response.use(
       } else {
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
       }
+
+      if (originalRequest.data instanceof FormData) {
+        clearMultipartContentType(originalRequest.headers);
+      }
+
       return api(originalRequest);
     } catch {
       // Refresh failed — clear everything and notify AuthProvider

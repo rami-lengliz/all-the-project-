@@ -57,6 +57,6 @@ import { BookingsModule } from '../modules/bookings/bookings.module';
       useClass: OpenAiChatAdapter,
     }
   ],
-  exports: [ChatbotService]
+  exports: [ChatbotService, ChatbotTrustScoreService, ChatbotAbuseDetectionService]
 })
 export class ChatbotModule {}

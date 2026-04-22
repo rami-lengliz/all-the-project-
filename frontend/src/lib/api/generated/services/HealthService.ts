@@ -17,8 +17,9 @@ export class HealthService {
         });
     }
     /**
-     * Health check endpoint
-     * @returns any
+     * Health check
+     * Returns database connectivity, PostGIS availability, uptime, and version. Public — no auth required.
+     * @returns any Health status
      * @throws ApiError
      */
     public static appControllerGetHealth(): CancelablePromise<any> {

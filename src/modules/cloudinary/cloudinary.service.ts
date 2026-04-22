@@ -59,14 +59,34 @@ export class CloudinaryService {
     });
   }
 
-  /**
-   * Upload multiple files and return their Cloudinary URLs.
-   * Falls back to null entries if Cloudinary is unavailable.
-   */
   async uploadFiles(
     files: Express.Multer.File[],
     folder = 'rentai/listings',
   ): Promise<(string | null)[]> {
     return Promise.all(files.map((f) => this.uploadFile(f, folder)));
+  }
+
+  /**
+   * Extract public ID from a Cloudinary URL and delete it.
+   */
+  async deleteFile(url: string): Promise<boolean> {
+    if (!this.isConfigured || !url.includes('cloudinary.com')) return false;
+    try {
+      // Extract public_id: usually everything after /upload/(v\d+/)? up to the extension
+      const matches = url.match(/\/upload\/(?:v\d+\/)?([^\.]+)/);
+      if (matches && matches[1]) {
+        const publicId = matches[1];
+        await cloudinary.uploader.destroy(publicId);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      this.logger.error(`Failed to delete Cloudinary file: ${url}`, error);
+      return false;
+    }
+  }
+
+  async deleteFiles(urls: string[]): Promise<boolean[]> {
+    return Promise.all(urls.map((url) => this.deleteFile(url)));
   }
 }

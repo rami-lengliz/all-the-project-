@@ -3,7 +3,8 @@
 /* tslint:disable */
 /* eslint-disable */
 export type LoginDto = {
-    emailOrPhone: string;
+    emailOrPhone?: string;
+    email?: string;
     password: string;
 };
 
