@@ -51,6 +51,10 @@ export interface TargetDraft {
   capacity?:     number | null;  // max guests / persons
   surfaceM2?:    number | null;  // floor area in m²
   amenities?:    string[] | null;
+  /** Derived from distanceToSeaKm ≤ 0.5. null → neutral (field not available). */
+  nearBeach?:    boolean | null;
+  /** Number of bedrooms. 0 = studio. null → neutral. */
+  bedrooms?:     number | null;
 }
 
 /** A comparable listing retrieved from DB (extends TargetDraft + price) */
@@ -67,9 +71,11 @@ export interface CompCandidate {
   surfaceM2?:    number | null;
   amenities?:    string[] | null;
   distanceM?:    number;          // pre-computed by PostGIS query (0 = unknown)
+  nearBeach?:    boolean | null;  // true = within 500 m of sea
+  bedrooms?:     number | null;   // 0 = studio
 }
 
-/** A comp with its computed similarity score */
+/** A comp scored by the generic 4-dimension formula */
 export interface ScoredComp extends CompCandidate {
   similarityScore:  number;  // 0..1
   /** Breakdown per dimension — useful for debugging / explanation */
@@ -78,6 +84,20 @@ export interface ScoredComp extends CompCandidate {
     type:      number;
     size:      number;
     amenities: number;
+  };
+}
+
+/**
+ * A comp scored by the accommodation-specific formula.
+ * Weights: propertyType 0.35 | nearBeach 0.25 | guestsCapacity 0.25 | bedrooms 0.15
+ */
+export interface ScoredStayComp extends CompCandidate {
+  similarityScore:  number;  // 0..1
+  scoreBreakdown: {
+    type:      number;  // propertyType match
+    nearBeach: number;  // beach proximity match
+    size:      number;  // guestsCapacity closeness
+    bedrooms:  number;  // bedroom count closeness
   };
 }
 
@@ -128,6 +148,92 @@ export function selectTopKComps(
 ): ScoredComp[] {
   return comps
     .map((c) => scoreComp(target, c))
+    .filter((c) => c.similarityScore >= minScore)
+    .sort((a, b) => b.similarityScore - a.similarityScore)
+    .slice(0, topK);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ACCOMMODATION SCORER  (used by getComparableListings)
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// Weight distribution (must sum to 1.00):
+//
+//   propertyType  0.35  ← highest — villa vs apartment is a completely
+//                               different market tier
+//   nearBeach     0.25  ← high   — sea proximity is the #1 price driver
+//                               in coastal Tunisia
+//   guestsCapacity 0.25  ← high   — a 2-person studio and an 8-person
+//                               villa are not comparable
+//   bedrooms      0.15  ← medium — adds precision beyond raw capacity
+//
+// Note: location is intentionally excluded here because getComparableListings
+// already enforces geographic proximity at the DB retrieval layer (3-tier
+// PostGIS + city-string filter). Scoring purely on listing attributes avoids
+// double-penalising national fallback comps that happen to be far away.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const W_STAY: Record<'type' | 'nearBeach' | 'size' | 'bedrooms', number> = {
+  type:      0.35,
+  nearBeach: 0.25,
+  size:      0.25,
+  bedrooms:  0.15,
+};
+// Guard: weights must sum to 1
+const _staySum = Object.values(W_STAY).reduce((a, b) => a + b, 0);
+if (Math.abs(_staySum - 1) > 0.001) throw new Error(`comp-scorer W_STAY must sum to 1, got ${_staySum}`);
+
+/**
+ * Score one comp against the draft using the accommodation-specific
+ * weight set (propertyType, nearBeach, guestsCapacity, bedrooms).
+ *
+ * Graceful degradation: a dimension returns 0.5 (neutral) when either
+ * side is missing the relevant field, so the formula remains stable
+ * even with incomplete data.
+ */
+export function scoreAccommodationComp(
+  target: TargetDraft,
+  comp:   CompCandidate,
+): ScoredStayComp {
+  const type       = typeScore(target, comp);      // reuse existing type dimension
+  const beach      = nearBeachScore(target, comp);
+  const size       = sizeScore(target, comp);      // reuse existing size (capacity)
+  const bedroomsS  = bedroomsScore(target, comp);
+
+  const similarityScore =
+    W_STAY.type      * type      +
+    W_STAY.nearBeach * beach     +
+    W_STAY.size      * size      +
+    W_STAY.bedrooms  * bedroomsS;
+
+  return {
+    ...comp,
+    similarityScore: round4(similarityScore),
+    scoreBreakdown: {
+      type:      round4(type),
+      nearBeach: round4(beach),
+      size:      round4(size),
+      bedrooms:  round4(bedroomsS),
+    },
+  };
+}
+
+/**
+ * Score all comps and return the top-N most similar, sorted descending.
+ *
+ * @param target   Draft listing we are pricing.
+ * @param comps    Pool of candidate comps (already geo-filtered).
+ * @param topK     Maximum comps to return (10–20 recommended).
+ * @param minScore Minimum similarity threshold (default 0 — include all).
+ */
+export function selectSimilarComps(
+  target:   TargetDraft,
+  comps:    CompCandidate[],
+  topK     = 20,
+  minScore = 0,
+): ScoredStayComp[] {
+  return comps
+    .map((c) => scoreAccommodationComp(target, c))
     .filter((c) => c.similarityScore >= minScore)
     .sort((a, b) => b.similarityScore - a.similarityScore)
     .slice(0, topK);
@@ -246,6 +352,46 @@ function amenityScore(t: TargetDraft, c: CompCandidate): number {
   const union        = new Set([...tSet, ...cSet]);
 
   return intersection.size / union.size; // Jaccard 0..1
+}
+
+// ── Dimension: NearBeach (0..1) ───────────────────────────────────────────────
+//
+// Binary match on the nearBeach boolean:
+//   both true  → 1.00  (both near beach)
+//   both false → 1.00  (both inland — equally good comp)
+//   mismatch   → 0.00  (one near beach, one inland — very different market)
+//   either null/undefined → 0.50 (neutral — data unavailable)
+//
+function nearBeachScore(t: TargetDraft, c: CompCandidate): number {
+  const tB = t.nearBeach;
+  const cB = c.nearBeach;
+  if (tB === null || tB === undefined) return 0.50; // target unknown → neutral
+  if (cB === null || cB === undefined) return 0.50; // comp unknown   → neutral
+  return tB === cB ? 1.00 : 0.00;                   // exact binary match
+}
+
+// ── Dimension: Bedrooms (0..1) ────────────────────────────────────────────────
+//
+// Step function on the absolute bedroom count difference:
+//   |diff| = 0  → 1.00
+//   |diff| = 1  → 0.75
+//   |diff| = 2  → 0.40
+//   |diff| ≥ 3  → 0.10
+//
+// Ratio is not used here because 1 vs 3 bedrooms (ratio = 0.33) should score
+// higher than 0.33 — a 2-bedroom difference is common in the same market tier.
+// Either side null/undefined → 0.50 (neutral).
+//
+function bedroomsScore(t: TargetDraft, c: CompCandidate): number {
+  const tB = t.bedrooms;
+  const cB = c.bedrooms;
+  if (tB === null || tB === undefined) return 0.50;
+  if (cB === null || cB === undefined) return 0.50;
+  const diff = Math.abs(tB - cB);
+  if (diff === 0) return 1.00;
+  if (diff === 1) return 0.75;
+  if (diff === 2) return 0.40;
+  return 0.10; // 3+ bedroom gap → weak comp
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────

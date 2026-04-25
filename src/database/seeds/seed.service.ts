@@ -122,7 +122,7 @@ export class SeedService {
           ${`${i + 1} Street, ${cityName}`},
           ${category.id}::uuid,
           ${host.id}::uuid,
-          ARRAY['/placeholder.png']::TEXT[],
+          ARRAY['/uploads/placeholder.svg']::TEXT[],
           true, 'ACTIVE'::"ListingStatus",
           NOW(), NOW()
         )
@@ -163,7 +163,7 @@ export class SeedService {
           ${'Sports Complex, Kelibia'},
           ${sportsCat.id}::uuid,
           ${host.id}::uuid,
-          ARRAY[${`/uploads/sports-facility-${i + 1}.jpg`}]::TEXT[],
+          ARRAY['/uploads/demo-court.svg']::TEXT[],
           true, 'ACTIVE'::"ListingStatus",
           'SLOT'::"BookingType",
           NOW(), NOW()
@@ -213,7 +213,7 @@ export class SeedService {
         ${'Pending Street, Kelibia'},
         ${savedCategories[0].id}::uuid,
         ${pendingHost.id}::uuid,
-        ARRAY['/placeholder.png']::TEXT[],
+        ARRAY['/uploads/placeholder.svg']::TEXT[],
         true, 'PENDING_REVIEW'::"ListingStatus",
         NOW(), NOW()
       )
@@ -358,11 +358,11 @@ export class SeedService {
     // Kelibia beach coordinates: 36.8497°N, 11.1047°E
     const clusters = [
       // Beachfront (<500m from sea)
-      { label: 'Beachfront',  latBase: 36.8497, lngBase: 11.1047, distKm: 0.2,  priceBase: 290 },
+      { label: 'Beachfront',  latBase: 36.8497, lngBase: 11.1047, distKm: 0.2,  priceBase: 290, nearBeach: true  },
       // Midrange (1–3 km)
-      { label: 'Midrange',   latBase: 36.8420, lngBase: 11.0950, distKm: 2.0,  priceBase: 180 },
+      { label: 'Midrange',   latBase: 36.8420, lngBase: 11.0950, distKm: 2.0,  priceBase: 180, nearBeach: false },
       // Inland (5–8 km)
-      { label: 'Inland',     latBase: 36.8301, lngBase: 11.0801, distKm: 6.0,  priceBase: 110 },
+      { label: 'Inland',     latBase: 36.8301, lngBase: 11.0801, distKm: 6.0,  priceBase: 110, nearBeach: false },
     ];
 
     // ── Type multipliers ───────────────────────────────────────────────────
@@ -400,11 +400,16 @@ export class SeedService {
           const id    = crypto.randomUUID();
           const amenities = amenityMap[propType.type] ?? ['wifi'];
 
+          // bedrooms: roughly capacity / 2, minimum 1
+          const bedrooms = Math.max(1, Math.floor(capacity / 2));
+
           await this.prisma.$executeRaw`
             INSERT INTO listings (
               id, title, description, "pricePerDay", location, address,
               "categoryId", "hostId", images, "isActive", status,
-              "bookingType", "createdAt", "updatedAt"
+              "bookingType",
+              property_type, guests_capacity, bedrooms, near_beach,
+              "createdAt", "updatedAt"
             ) VALUES (
               ${id}::uuid,
               ${`${cluster.label} ${propType.type} — ${capacity} guests`},
@@ -416,15 +421,20 @@ export class SeedService {
               ${`Kelibia, ${cluster.label} Zone`},
               ${staysCat.id}::uuid,
               ${host.id}::uuid,
-              ARRAY['/placeholder.png']::TEXT[],
+              ARRAY['/uploads/placeholder.svg']::TEXT[],
               true, 'ACTIVE'::"ListingStatus",
               'DAILY'::"BookingType",
+              ${propType.type}::"PropertyType",
+              ${capacity},
+              ${bedrooms},
+              ${cluster.nearBeach},
               NOW(), NOW()
             )
           `;
 
           console.log(
-            `  [${++count}/24] ${propType.type.padEnd(9)} ${cluster.label.padEnd(10)} cap=${capacity} price=${price} TND/night`,
+            `  [${++count}/24] ${propType.type.padEnd(9)} ${cluster.label.padEnd(10)}` +
+            ` cap=${capacity} bed=${bedrooms} nearBeach=${cluster.nearBeach} price=${price} TND/night`,
           );
         }
       }
@@ -471,7 +481,7 @@ export class SeedService {
         ${'Demo Street 1, Kelibia'},
         ${staysCat.id}::uuid,
         ${host.id}::uuid,
-        ARRAY['/uploads/demo-villa.jpg']::TEXT[],
+        ARRAY['/uploads/demo-villa.svg']::TEXT[],
         true, 'ACTIVE'::"ListingStatus",
         'DAILY'::"BookingType",
         NOW(), NOW()
@@ -533,7 +543,7 @@ export class SeedService {
         ${'Demo Street 2, Kelibia'},
         ${sportsCat.id}::uuid,
         ${host.id}::uuid,
-        ARRAY['/uploads/demo-court.jpg']::TEXT[],
+        ARRAY['/uploads/demo-court.svg']::TEXT[],
         true, 'ACTIVE'::"ListingStatus",
         'SLOT'::"BookingType",
         NOW(), NOW()

@@ -24,6 +24,7 @@ describe('AiSearchService - JSON Parsing and Validation', () => {
           provide: AiService,
           useValue: {
             generateCompletion: jest.fn(),
+            isAvailable: jest.fn().mockReturnValue(true),
           },
         },
         {
@@ -317,8 +318,8 @@ describe('AiSearchService - JSON Parsing and Validation', () => {
       });
 
       it('should return fallback RESULT when OPENAI_API_KEY is missing', async () => {
-        // Mock ConfigService to return empty API key
-        jest.spyOn(configService, 'get').mockReturnValue('');
+        // Mock provider availability as disabled
+        jest.spyOn(aiService, 'isAvailable').mockReturnValue(false);
 
         const result = await service.search({
           query: 'villa',
@@ -364,8 +365,8 @@ describe('AiSearchService - JSON Parsing and Validation', () => {
       });
 
       it('should include chips array in fallback RESULT mode', async () => {
-        // Mock ConfigService to trigger fallback
-        jest.spyOn(configService, 'get').mockReturnValue('');
+        // Mock provider availability as disabled
+        jest.spyOn(aiService, 'isAvailable').mockReturnValue(false);
 
         const result = await service.search({
           query: 'tennis court',
@@ -381,8 +382,8 @@ describe('AiSearchService - JSON Parsing and Validation', () => {
       });
 
       it('should include chips array even with empty query', async () => {
-        // Mock ConfigService to trigger fallback
-        jest.spyOn(configService, 'get').mockReturnValue('');
+        // Mock provider availability as disabled
+        jest.spyOn(aiService, 'isAvailable').mockReturnValue(false);
 
         const result = await service.search({
           query: '   ', // Empty query after trim
@@ -470,6 +471,49 @@ describe('AiSearchService - JSON Parsing and Validation', () => {
         expect(resultResult.followUp).toBeNull();
         expect(Array.isArray(resultResult.results)).toBe(true);
         expect(Array.isArray(resultResult.chips)).toBe(true);
+      });
+    });
+
+    describe('Regression: AI filters map correctly to listings query keys', () => {
+      it('should pass q/lat/lng/radiusKm (not legacy search/latitude/longitude/radius)', async () => {
+        const listingsService = module.get<ListingsService>(ListingsService);
+        const spy = jest.spyOn(listingsService, 'findAll');
+
+        jest.spyOn(aiService, 'generateCompletion').mockResolvedValue(
+          JSON.stringify({
+            mode: 'RESULT',
+            filters: {
+              q: 'villa',
+              categorySlug: 'stays',
+              maxPrice: 300,
+              bookingType: 'DAILY',
+              availableFrom: '2026-04-25',
+              availableTo: '2026-04-27',
+              sortBy: 'distance',
+              nearBeach: true,
+              city: 'Kelibia',
+            },
+            chips: [],
+          }),
+        );
+
+        await service.search({
+          query: 'villa near beach under 300 in Kelibia',
+          lat: 36.8578,
+          lng: 11.092,
+          radiusKm: 20,
+        });
+
+        expect(spy).toHaveBeenCalled();
+        const queryArg = spy.mock.calls[0][0] as Record<string, unknown>;
+        expect(queryArg.q).toBe('villa');
+        expect(queryArg.lat).toBe(36.8578);
+        expect(queryArg.lng).toBe(11.092);
+        expect(queryArg.radiusKm).toBe(20);
+        expect(queryArg.search).toBeUndefined();
+        expect(queryArg.latitude).toBeUndefined();
+        expect(queryArg.longitude).toBeUndefined();
+        expect(queryArg.radius).toBeUndefined();
       });
     });
   });

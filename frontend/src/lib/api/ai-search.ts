@@ -44,6 +44,8 @@ export type AiSearchRequest = {
     radiusKm?: number;
     followUpUsed?: boolean;
     followUpAnswer?: string;
+    /** Full conversation history for multi-turn context (up to 3 follow-ups). */
+    conversationHistory?: { role: 'user' | 'assistant'; content: string }[];
 };
 
 export type AiSearchResponse = {
@@ -56,8 +58,8 @@ export type AiSearchResponse = {
 
 // ── Client function ───────────────────────────────────────────────────────────
 
-/** Timeout in milliseconds before the fetch is aborted. */
-const AI_SEARCH_TIMEOUT_MS = 20_000;
+/** Timeout in milliseconds before the fetch is aborted. Covers multi-turn retries. */
+const AI_SEARCH_TIMEOUT_MS = 30_000;
 
 export async function fetchAiSearch(
     body: AiSearchRequest,

@@ -144,7 +144,7 @@ export function applyGuardrails(
   // If rangeMax / rangeMin exceeds the ratio threshold, anchor the range
   // around `recommended` using a ±40% spread instead.
   if (rangeMin > 0 && rangeMax / rangeMin > MAX_RANGE_RATIO) {
-    const spread = recommended * 0.40;
+    const spread = recommended * 0.20;   // ±20% — was ±40% (caused villa/house range overlap)
     rangeMin = Math.max(ABSOLUTE_FLOOR, recommended - spread);
     rangeMax = Math.min(cap,            recommended + spread);
     applied  = true;

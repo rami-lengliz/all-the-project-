@@ -75,13 +75,20 @@ export class ListingsService {
       await this.prisma.$executeRaw`
         INSERT INTO listings (
           id, "hostId", title, description, "categoryId", images, "pricePerDay",
-          location, address, rules, availability, "isActive", status, "bookingType", "createdAt", "updatedAt"
+          location, address, rules, availability, "isActive", status, "bookingType",
+          property_type, guests_capacity, bedrooms, near_beach,
+          "createdAt", "updatedAt"
         ) VALUES (
           ${listingId}::uuid, ${hostId}, ${createListingDto.title}, ${createListingDto.description},
           ${createListingDto.categoryId}, ARRAY[]::text[], ${createListingDto.pricePerDay},
           ST_SetSRID(ST_GeomFromText(${locationWKT}), 4326), ${createListingDto.address},
           ${createListingDto.rules || null}, ${createListingDto.availability ? JSON.stringify(createListingDto.availability) : null}::jsonb,
-          true, 'ACTIVE'::"ListingStatus", ${bookingType}::"BookingType", NOW(), NOW()
+          true, 'ACTIVE'::"ListingStatus", ${bookingType}::"BookingType",
+          ${createListingDto.propertyType ?? null}::"PropertyType",
+          ${createListingDto.guestsCapacity ?? null},
+          ${createListingDto.bedrooms ?? null},
+          ${createListingDto.nearBeach ?? false},
+          NOW(), NOW()
         )
         RETURNING *
       `;
@@ -175,11 +182,36 @@ export class ListingsService {
   }
 
   async findAll(filters: FilterListingsDto = {}): Promise<any[]> {
+    const q = filters.q?.trim() || undefined;
+    const categoryId = filters.category;
+    const categorySlug = filters.categorySlug?.trim() || undefined;
+    const minPrice = filters.minPrice;
+    const maxPrice = filters.maxPrice;
+    const bookingType =
+      filters.bookingType && filters.bookingType !== 'ANY'
+        ? filters.bookingType
+        : undefined;
+    const nearBeach =
+      typeof filters.nearBeach === 'boolean' ? filters.nearBeach : undefined;
+    const city = filters.city?.trim() || undefined;
+    const sortBy = filters.sortBy || 'date';
+    const lat = filters.lat;
+    const lng = filters.lng;
     const hasLatLng =
-      typeof filters.lat === 'number' &&
-      Number.isFinite(filters.lat) &&
-      typeof filters.lng === 'number' &&
-      Number.isFinite(filters.lng);
+      typeof lat === 'number' &&
+      Number.isFinite(lat) &&
+      typeof lng === 'number' &&
+      Number.isFinite(lng);
+    const radiusKm = Math.min(Math.max(filters.radiusKm ?? 10, 0), 50);
+
+    // If only one side is provided, treat it as a single-day availability search.
+    let availableFrom = filters.availableFrom;
+    let availableTo = filters.availableTo;
+    if (availableFrom && !availableTo) availableTo = availableFrom;
+    if (!availableFrom && availableTo) availableFrom = availableTo;
+    if (availableFrom && availableTo && availableFrom > availableTo) {
+      [availableFrom, availableTo] = [availableTo, availableFrom];
+    }
 
     try {
       // Build conditions
@@ -192,30 +224,76 @@ export class ListingsService {
       let paramIndex = 1;
 
       // Text search
-      if (filters.q) {
+      if (q) {
         conditions.push(
           `(l.title ILIKE $${paramIndex} OR l.description ILIKE $${paramIndex})`,
         );
-        params.push(`%${filters.q}%`);
+        params.push(`%${q}%`);
         paramIndex++;
       }
 
       // Filter by category
-      if (filters.category) {
+      if (categoryId) {
         conditions.push(`l."categoryId" = $${paramIndex}`);
-        params.push(filters.category);
+        params.push(categoryId);
+        paramIndex++;
+      }
+      if (categorySlug) {
+        conditions.push(`c.slug = $${paramIndex}`);
+        params.push(categorySlug);
         paramIndex++;
       }
 
       // Filter by price range
-      if (filters.minPrice) {
+      if (minPrice !== undefined) {
         conditions.push(`l."pricePerDay" >= $${paramIndex}`);
-        params.push(filters.minPrice);
+        params.push(minPrice);
         paramIndex++;
       }
-      if (filters.maxPrice) {
+      if (maxPrice !== undefined) {
         conditions.push(`l."pricePerDay" <= $${paramIndex}`);
-        params.push(filters.maxPrice);
+        params.push(maxPrice);
+        paramIndex++;
+      }
+
+      // Filter by booking type
+      if (bookingType) {
+        conditions.push(`l."bookingType" = $${paramIndex}::"BookingType"`);
+        params.push(bookingType);
+        paramIndex++;
+      }
+
+      // Filter by near-beach flag
+      if (nearBeach !== undefined) {
+        conditions.push(`l.near_beach = $${paramIndex}`);
+        params.push(nearBeach);
+        paramIndex++;
+      }
+
+      // City filter (best effort via address/title/description text match)
+      if (city) {
+        conditions.push(
+          `(l.address ILIKE $${paramIndex} OR l.title ILIKE $${paramIndex} OR l.description ILIKE $${paramIndex})`,
+        );
+        params.push(`%${city}%`);
+        paramIndex++;
+      }
+
+      // Availability overlap check for DAILY searches
+      if (availableFrom && availableTo) {
+        conditions.push(`
+          NOT EXISTS (
+            SELECT 1
+            FROM bookings b
+            WHERE b."listingId" = l.id
+              AND b.status = ANY($${paramIndex + 2}::"BookingStatus"[])
+              AND b."startDate" <= $${paramIndex}::date
+              AND b."endDate" >= $${paramIndex + 1}::date
+          )
+        `);
+        params.push(availableTo, availableFrom, [...BLOCKING_BOOKING_STATUSES]);
+        paramIndex++;
+        paramIndex++;
         paramIndex++;
       }
 
@@ -224,9 +302,8 @@ export class ListingsService {
       let orderByClause = 'l."createdAt" DESC';
 
       if (hasLatLng) {
-        const lat = filters.lat as number;
-        const lng = filters.lng as number;
-        const radiusKm = Math.min(filters.radiusKm || 10, 50);
+        const latValue = lat as number;
+        const lngValue = lng as number;
         const maxDistanceMeters = radiusKm * 1000;
 
         conditions.push(`
@@ -236,18 +313,26 @@ export class ListingsService {
             $${paramIndex + 2}
           )
         `);
-        params.push(lng, lat, maxDistanceMeters);
+        params.push(lngValue, latValue, maxDistanceMeters);
         paramIndex += 3;
 
-        if (filters.sortBy === 'distance') {
+        if (sortBy === 'distance') {
           distanceSelect = `, ST_Distance(
             l.location::geography,
             ST_SetSRID(ST_MakePoint($${paramIndex}, $${paramIndex + 1}), 4326)::geography
           ) as distance`;
-          params.push(lng, lat);
+          params.push(lngValue, latValue);
           paramIndex += 2;
           orderByClause = 'distance ASC';
         }
+      }
+
+      if (sortBy === 'price_asc') {
+        orderByClause = 'l."pricePerDay" ASC';
+      } else if (sortBy === 'price_desc') {
+        orderByClause = 'l."pricePerDay" DESC';
+      } else if (sortBy === 'date') {
+        orderByClause = 'l."createdAt" DESC';
       }
 
       // Pagination
@@ -263,6 +348,8 @@ export class ListingsService {
         SELECT 
           l.id, l.title, l.description, l."pricePerDay",
           ST_AsGeoJSON(l.location)::text as location, l.address, l.images, l."createdAt", l."bookingType",
+          l.property_type as "propertyType", l.guests_capacity as "guestsCapacity",
+          l.bedrooms, l.near_beach as "nearBeach",
           c.id as "category_id", c.name as "category_name", c.icon as "category_icon", c.slug as "category_slug",
           h.id as "host_id", h.name as "host_name", h."ratingAvg" as "host_ratingAvg"
           ${distanceSelect}
@@ -289,6 +376,10 @@ export class ListingsService {
         images: row.images,
         createdAt: row.createdAt,
         bookingType: row.bookingType,
+        propertyType: row.propertyType ?? null,
+        guestsCapacity: row.guestsCapacity ?? null,
+        bedrooms: row.bedrooms ?? null,
+        nearBeach: row.nearBeach ?? false,
         category: {
           id: row.category_id,
           name: row.category_name,
@@ -308,34 +399,78 @@ export class ListingsService {
 
       try {
         // Fallback to simple query without geo
-        const where: Prisma.ListingWhereInput = {
-          isActive: true,
-          deletedAt: null,
-        };
+        const andConditions: Prisma.ListingWhereInput[] = [
+          { isActive: true },
+          { deletedAt: null },
+          { status: 'ACTIVE' as any },
+        ];
 
-        if (filters.q) {
-          where.OR = [
-            { title: { contains: filters.q, mode: 'insensitive' } },
-            { description: { contains: filters.q, mode: 'insensitive' } },
-          ];
+        if (q) {
+          andConditions.push({
+            OR: [
+              { title: { contains: q, mode: 'insensitive' } },
+              { description: { contains: q, mode: 'insensitive' } },
+            ],
+          });
         }
-        if (filters.category) {
-          where.categoryId = filters.category;
+        if (categoryId) {
+          andConditions.push({ categoryId });
         }
-        // Only show ACTIVE listings in public fallback
-        (where as any).status = 'ACTIVE';
-        if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
-          where.pricePerDay = {};
-          if (filters.minPrice) {
-            where.pricePerDay.gte = filters.minPrice;
+        if (categorySlug) {
+          andConditions.push({
+            category: {
+              is: { slug: categorySlug },
+            },
+          });
+        }
+        if (minPrice !== undefined || maxPrice !== undefined) {
+          const priceFilter: Prisma.DecimalFilter = {};
+          if (minPrice !== undefined) {
+            priceFilter.gte = minPrice;
           }
-          if (filters.maxPrice) {
-            where.pricePerDay.lte = filters.maxPrice;
+          if (maxPrice !== undefined) {
+            priceFilter.lte = maxPrice;
           }
+          andConditions.push({ pricePerDay: priceFilter as any });
         }
+        if (bookingType) {
+          andConditions.push({ bookingType: bookingType as any });
+        }
+        if (nearBeach !== undefined) {
+          andConditions.push({ nearBeach });
+        }
+        if (city) {
+          andConditions.push({
+            address: {
+              contains: city,
+              mode: 'insensitive',
+            },
+          });
+        }
+        if (availableFrom && availableTo) {
+          const fromDate = new Date(`${availableFrom}T00:00:00.000Z`);
+          const toDate = new Date(`${availableTo}T00:00:00.000Z`);
+          andConditions.push({
+            bookings: {
+              none: {
+                status: { in: [...BLOCKING_BOOKING_STATUSES] as any },
+                startDate: { lte: toDate },
+                endDate: { gte: fromDate },
+              },
+            },
+          });
+        }
+
+        const where: Prisma.ListingWhereInput = { AND: andConditions };
 
         const page = filters.page || 1;
         const limit = Math.min(filters.limit || 20, 100);
+        const orderBy: Prisma.ListingOrderByWithRelationInput =
+          sortBy === 'price_asc'
+            ? { pricePerDay: 'asc' }
+            : sortBy === 'price_desc'
+              ? { pricePerDay: 'desc' }
+              : { createdAt: 'desc' };
 
         return await this.prisma.listing.findMany({
           where,
@@ -348,6 +483,10 @@ export class ListingsService {
             images: true,
             createdAt: true,
             bookingType: true,
+            propertyType: true,
+            guestsCapacity: true,
+            bedrooms: true,
+            nearBeach: true,
             category: {
               select: {
                 id: true,
@@ -364,7 +503,7 @@ export class ListingsService {
               },
             },
           },
-          orderBy: { createdAt: 'desc' },
+          orderBy,
           skip: (page - 1) * limit,
           take: limit,
         });
@@ -647,6 +786,10 @@ export class ListingsService {
         bookingType: true,
         isActive: true,
         status: true,
+        propertyType: true,
+        guestsCapacity: true,
+        bedrooms: true,
+        nearBeach: true,
         category: {
           select: { id: true, name: true, icon: true, slug: true },
         },
