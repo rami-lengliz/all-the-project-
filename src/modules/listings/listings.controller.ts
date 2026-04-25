@@ -25,6 +25,7 @@ import { ListingsService } from './listings.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { FilterListingsDto } from './dto/filter-listings.dto';
+import { CompareListingsDto } from './dto/compare-listings.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { HostGuard } from '../../common/guards/host.guard';
 import { Public } from '../../common/decorators/public.decorator';
@@ -107,6 +108,13 @@ export class ListingsController {
   @ApiOperation({ summary: 'Search listings with filters' })
   findAll(@Query() filters: FilterListingsDto) {
     return this.listingsService.findAll(filters);
+  }
+
+  @Get('compare')
+  @Public()
+  @ApiOperation({ summary: 'Compare multiple listings' })
+  compare(@Query() query: CompareListingsDto) {
+    return this.listingsService.compareListings(query.ids);
   }
 
   @Get(':id')

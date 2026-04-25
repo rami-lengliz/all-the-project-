@@ -13,6 +13,20 @@ export class SeedService {
     // Clear existing data (foreign-key-safe order)
     console.log('Clearing existing data...');
     await this.prisma.aiSearchLog.deleteMany({});
+    
+    // Chatbot & Security Models
+    await this.prisma.chatbotActionConfirmation.deleteMany({});
+    await this.prisma.chatbotSecurityEvent.deleteMany({});
+    await this.prisma.chatMessage.deleteMany({});
+    await this.prisma.chatConversationSummary.deleteMany({});
+    await this.prisma.chatConversation.deleteMany({});
+
+    // Finance & Ledger Models
+    await this.prisma.payoutItem.deleteMany({});
+    await this.prisma.payout.deleteMany({});
+    await this.prisma.ledgerEntry.deleteMany({});
+
+    // Standard Models
     await this.prisma.message.deleteMany({});
     await this.prisma.conversation.deleteMany({});
     await this.prisma.review.deleteMany({});
@@ -20,10 +34,13 @@ export class SeedService {
     await this.prisma.booking.deleteMany({});
     await this.prisma.adminLog.deleteMany({});
     await this.prisma.slotConfiguration.deleteMany({});
-    // clear AI price logs before listings (FK listingId)
-    try { await (this.prisma as any).priceSuggestionLog.deleteMany({}); } catch (_) {}
     await this.prisma.listing.deleteMany({});
+    
+    // Taxonomy & Governance
+    await this.prisma.categoryRequest.deleteMany({});
     await this.prisma.category.deleteMany({});
+    
+    // Base Entity
     await this.prisma.user.deleteMany({});
 
     // ── Categories ────────────────────────────────────────────
@@ -122,7 +139,7 @@ export class SeedService {
           ${`${i + 1} Street, ${cityName}`},
           ${category.id}::uuid,
           ${host.id}::uuid,
-          ARRAY['/uploads/placeholder.svg']::TEXT[],
+          ARRAY['/placeholder.png']::TEXT[],
           true, 'ACTIVE'::"ListingStatus",
           NOW(), NOW()
         )
@@ -163,7 +180,7 @@ export class SeedService {
           ${'Sports Complex, Kelibia'},
           ${sportsCat.id}::uuid,
           ${host.id}::uuid,
-          ARRAY['/uploads/demo-court.svg']::TEXT[],
+          ARRAY[${`/uploads/sports-facility-${i + 1}.jpg`}]::TEXT[],
           true, 'ACTIVE'::"ListingStatus",
           'SLOT'::"BookingType",
           NOW(), NOW()
@@ -213,7 +230,7 @@ export class SeedService {
         ${'Pending Street, Kelibia'},
         ${savedCategories[0].id}::uuid,
         ${pendingHost.id}::uuid,
-        ARRAY['/uploads/placeholder.svg']::TEXT[],
+        ARRAY['/placeholder.png']::TEXT[],
         true, 'PENDING_REVIEW'::"ListingStatus",
         NOW(), NOW()
       )
@@ -326,9 +343,6 @@ export class SeedService {
     }
     console.log('  ✓ 6 additional bookings');
 
-    // ── AI pricing comps (Kelibia accommodation cluster) ──────────────────
-    await this.seedKelibiaAccommodations(savedCategories, hosts);
-
     // ─────────────────────────────────────────────────────────
     // DEMO SCENARIOS (guaranteed conflict cases for PFE demo)
     // ─────────────────────────────────────────────────────────
@@ -337,114 +351,9 @@ export class SeedService {
     console.log('Seed completed successfully!');
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Kelibia Accommodation Comps — 24 listings for AI training signal
-  // ─────────────────────────────────────────────────────────────────────────
-  /**
-   * Creates 24 Kelibia stays listings with:
-   *  - 3 sea-proximity clusters (beachfront / midrange / inland)
-   *  - 3 property types (villa / house / apartment)
-   *  - 4 capacity sizes (2 / 4 / 6 / 8+)
-   *  - Realistic price ranges per cluster × type
-   *
-   * These become the comp pool for POST /api/ai/price-suggestion.
-   */
-  private async seedKelibiaAccommodations(categories: any[], hosts: any[]) {
-    console.log('Creating Kelibia accommodation comps (24 listings)...');
-
-    const staysCat = categories.find((c) => c.slug === 'stays')!;
-
-    // ── Geographic clusters (lat, lng, distKm label) ───────────────────────
-    // Kelibia beach coordinates: 36.8497°N, 11.1047°E
-    const clusters = [
-      // Beachfront (<500m from sea)
-      { label: 'Beachfront',  latBase: 36.8497, lngBase: 11.1047, distKm: 0.2,  priceBase: 290, nearBeach: true  },
-      // Midrange (1–3 km)
-      { label: 'Midrange',   latBase: 36.8420, lngBase: 11.0950, distKm: 2.0,  priceBase: 180, nearBeach: false },
-      // Inland (5–8 km)
-      { label: 'Inland',     latBase: 36.8301, lngBase: 11.0801, distKm: 6.0,  priceBase: 110, nearBeach: false },
-    ];
-
-    // ── Type multipliers ───────────────────────────────────────────────────
-    const types = [
-      { type: 'villa',     mult: 1.45, capacities: [8, 12] },
-      { type: 'house',     mult: 1.00, capacities: [4, 6]  },
-      { type: 'apartment', mult: 0.75, capacities: [2, 4]  },
-    ];
-
-    // ── Amenity sets per type ──────────────────────────────────────────────
-    const amenityMap: Record<string, string[]> = {
-      villa:     ['pool', 'sea_view', 'wifi', 'air_conditioning', 'parking', 'bbq'],
-      house:     ['wifi', 'air_conditioning', 'parking', 'garden'],
-      apartment: ['wifi', 'air_conditioning'],
-    };
-
-    let count = 0;
-    for (const cluster of clusters) {
-      for (const propType of types) {
-        for (const capacity of propType.capacities) {
-          // Jitter ±0.002° so PostGIS treats them as distinct points
-          const jitter = () => (Math.random() - 0.5) * 0.004;
-          const lat = cluster.latBase + jitter();
-          const lng = cluster.lngBase + jitter();
-
-          // Capacity multiplier: +8% per extra guest above 2
-          const capMult = 1 + (capacity - 2) * 0.08;
-          // Small random noise ±5 TND for market realism
-          const noise = (Math.random() - 0.5) * 10;
-          const price = Math.round(
-            cluster.priceBase * propType.mult * capMult + noise,
-          );
-
-          const host  = hosts[count % hosts.length];
-          const id    = crypto.randomUUID();
-          const amenities = amenityMap[propType.type] ?? ['wifi'];
-
-          // bedrooms: roughly capacity / 2, minimum 1
-          const bedrooms = Math.max(1, Math.floor(capacity / 2));
-
-          await this.prisma.$executeRaw`
-            INSERT INTO listings (
-              id, title, description, "pricePerDay", location, address,
-              "categoryId", "hostId", images, "isActive", status,
-              "bookingType",
-              property_type, guests_capacity, bedrooms, near_beach,
-              "createdAt", "updatedAt"
-            ) VALUES (
-              ${id}::uuid,
-              ${`${cluster.label} ${propType.type} — ${capacity} guests`},
-              ${`A ${propType.type} ${cluster.label.toLowerCase()} in Kelibia. ` +
-                `Capacity: ${capacity}. Amenities: ${amenities.join(', ')}. ` +
-                `Distance to sea: ~${cluster.distKm} km.`},
-              ${price},
-              ST_SetSRID(ST_GeomFromText(${'POINT(' + lng + ' ' + lat + ')'}), 4326),
-              ${`Kelibia, ${cluster.label} Zone`},
-              ${staysCat.id}::uuid,
-              ${host.id}::uuid,
-              ARRAY['/uploads/placeholder.svg']::TEXT[],
-              true, 'ACTIVE'::"ListingStatus",
-              'DAILY'::"BookingType",
-              ${propType.type}::"PropertyType",
-              ${capacity},
-              ${bedrooms},
-              ${cluster.nearBeach},
-              NOW(), NOW()
-            )
-          `;
-
-          console.log(
-            `  [${++count}/24] ${propType.type.padEnd(9)} ${cluster.label.padEnd(10)}` +
-            ` cap=${capacity} bed=${bedrooms} nearBeach=${cluster.nearBeach} price=${price} TND/night`,
-          );
-        }
-      }
-    }
-    console.log(`  ✓ ${count} Kelibia accommodation comps created`);
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   // Guaranteed Demo Scenarios
-  // ─────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   /**
    * Creates:
    * 1. DAILY listing — confirmed booking D+30..D+33 + overlapping pending
@@ -481,7 +390,7 @@ export class SeedService {
         ${'Demo Street 1, Kelibia'},
         ${staysCat.id}::uuid,
         ${host.id}::uuid,
-        ARRAY['/uploads/demo-villa.svg']::TEXT[],
+        ARRAY['/uploads/demo-villa.jpg']::TEXT[],
         true, 'ACTIVE'::"ListingStatus",
         'DAILY'::"BookingType",
         NOW(), NOW()
@@ -543,7 +452,7 @@ export class SeedService {
         ${'Demo Street 2, Kelibia'},
         ${sportsCat.id}::uuid,
         ${host.id}::uuid,
-        ARRAY['/uploads/demo-court.svg']::TEXT[],
+        ARRAY['/uploads/demo-court.jpg']::TEXT[],
         true, 'ACTIVE'::"ListingStatus",
         'SLOT'::"BookingType",
         NOW(), NOW()

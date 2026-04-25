@@ -39,6 +39,7 @@ describe('GET /api/categories/nearby (e2e)', () => {
 
   let catAId: string;
   let catBId: string;
+  let catEmptyId: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -77,8 +78,17 @@ describe('GET /api/categories/nearby (e2e)', () => {
         allowedForPrivate: true,
       },
     });
+    const catEmpty = await prisma.category.create({
+      data: {
+        name: `Empty ${SUFFIX}`,
+        slug: `empty-${SUFFIX}`,
+        icon: 'box',
+        allowedForPrivate: true,
+      },
+    });
     catAId = catA.id;
     catBId = catB.id;
+    catEmptyId = catEmpty.id;
 
     // ── Create a host user ───────────────────────────────────────────────────
     // User schema: roles (String[]), isHost (Boolean), verifiedEmail (Boolean)
@@ -263,14 +273,11 @@ describe('GET /api/categories/nearby (e2e)', () => {
       .expect(200);
 
     const data: any[] = res.body.data;
-    // We created 2 categories specifically for this test, but there might be others in the DB.
-    // At least our 2 categories should be present, plus any seed categories (which might have 0 count)
-    expect(data.length).toBeGreaterThanOrEqual(2);
+    expect(data.length).toBeGreaterThanOrEqual(3);
 
-    const hasZeroCount = data.some(item => item.count === 0);
-    // If there are other categories in the DB, they will have 0 count near Kelibia (the test location)
-    // since we only created 3 listings near Kelibia for our specific cats.
-    expect(hasZeroCount).toBe(true);
+    const emptyCategory = data.find((item: any) => item.id === catEmptyId);
+    expect(emptyCategory).toBeDefined();
+    expect(emptyCategory.count).toBe(0);
   });
 
   // ─── Test 8: sorting is count DESC then name ASC ──────────────────────────

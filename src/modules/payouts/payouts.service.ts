@@ -45,6 +45,36 @@ export class PayoutsService {
   }
 
   // ----------------------------------------------------------------
+  // getPayoutDetails
+  // ----------------------------------------------------------------
+  async getPayoutDetails(id: string) {
+    const payout = await this.prisma.payout.findUnique({
+      where: { id },
+      include: {
+        host: { select: { id: true, name: true, email: true } },
+        items: {
+          include: {
+            ledgerEntry: {
+              include: {
+                booking: {
+                  select: {
+                    id: true,
+                    status: true,
+                    startDate: true,
+                    endDate: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!payout) throw new NotFoundException(`Payout ${id} not found`);
+    return payout;
+  }
+
+  // ----------------------------------------------------------------
   // createPayout
   // Selects eligible HOST_PAYOUT_DUE entries FIFO (oldest first):
   //   - status = POSTED

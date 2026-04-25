@@ -56,8 +56,9 @@ export class CategoriesService implements OnModuleDestroy {
     });
   }
 
-  async findAll(): Promise<Category[]> {
-    return this.prisma.category.findMany({ orderBy: { name: 'asc' } });
+  async findAll(includeInactive: boolean = false): Promise<Category[]> {
+    const where = includeInactive ? undefined : { isActive: true };
+    return this.prisma.category.findMany({ where, orderBy: { name: 'asc' } });
   }
 
   async findOne(id: string): Promise<Category> {
@@ -139,6 +140,7 @@ export class CategoriesService implements OnModuleDestroy {
           ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography,
           ${radiusMeters}
         )
+      WHERE c.is_active = true
       GROUP BY c.id, c.name, c.slug, c.icon
     `;
 
@@ -170,5 +172,79 @@ export class CategoriesService implements OnModuleDestroy {
     // ─────────────────────────────────────────────────────────────────────────
 
     return result;
+  }
+
+  // ===========================
+  // Category Requests
+  // ===========================
+  async createRequest(requesterId: string, data: any) {
+    return this.prisma.categoryRequest.create({
+      data: {
+        requesterId,
+        proposedName: data.proposedName,
+        reason: data.reason,
+      },
+    });
+  }
+
+  async findAllRequests(status?: string) {
+    const whereClause = status ? { status: status as any } : {};
+    return this.prisma.categoryRequest.findMany({
+      where: whereClause,
+      include: {
+        requester: {
+          select: { id: true, name: true, email: true },
+        },
+        resolvedCategory: {
+          select: { id: true, name: true, slug: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getRequestById(id: string) {
+    const req = await this.prisma.categoryRequest.findUnique({
+      where: { id },
+      include: {
+        requester: {
+          select: { id: true, name: true, email: true },
+        },
+        resolvedCategory: true,
+      },
+    });
+    if (!req) {
+      throw new NotFoundException(`Category request with ID ${id} not found`);
+    }
+    return req;
+  }
+
+  async reviewRequest(id: string, adminId: string, dto: any) {
+    const req = await this.getRequestById(id);
+
+    // Audit log placeholder
+    await this.prisma.adminLog.create({
+      data: {
+        actorId: adminId,
+        action: `REVIEW_CATEGORY_REQUEST`,
+        details: { targetType: 'CATEGORY_REQUEST', targetId: id, action: dto.action, adminNotes: dto.adminNotes },
+      },
+    });
+
+    let resolvedCategoryId = dto.resolvedCategoryId || req.resolvedCategoryId;
+
+    // If APPROVED and no resolvedCategoryId is provided, maybe we create it?
+    // According to the rules, the admin probably creates the category separately or we create it here.
+    // For now, if APPROVED without ID, we can just mark it approved and the admin will create it, OR we auto-create.
+    // Let's assume the admin has to provide `resolvedCategoryId` or create it manually. We'll just update the request.
+
+    return this.prisma.categoryRequest.update({
+      where: { id },
+      data: {
+        status: dto.action,
+        adminNotes: dto.adminNotes,
+        resolvedCategoryId,
+      },
+    });
   }
 }

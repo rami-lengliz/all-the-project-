@@ -97,7 +97,6 @@ These never change after creation, even if the listing is later edited.
 | POST | `/api/reviews` | Bearer | Create review |
 | GET | `/api/reviews/listing/:id` | Public | Get listing reviews |
 | POST | `/api/ai/search` | Public | AI-powered search |
-| POST | `/api/ai/price-suggestion` | Bearer | City-first price recommendation (see `docs/ai-price-suggestion-v1.md`) |
 
 ---
 

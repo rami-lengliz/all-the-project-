@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type AxiosHeaderValue } from 'axios';
 import { toast } from '@/components/ui/Toaster';
 import { readAuth, clearAuth } from '@/lib/auth/storage';
 import { API_URL } from '@/lib/api/env';
@@ -22,11 +22,37 @@ export const api = axios.create({
  * ------------------------------------------------------------------ */
 let refreshPromise: Promise<string> | null = null;
 
+function clearMultipartContentType(
+  headers:
+    | {
+        set?: (name: string, value: string) => void;
+        delete?: (name: string) => void;
+        Authorization?: AxiosHeaderValue;
+        'Content-Type'?: AxiosHeaderValue;
+        'content-type'?: AxiosHeaderValue;
+      }
+    | undefined,
+) {
+  if (!headers) return;
+
+  if (typeof headers.delete === 'function') {
+    headers.delete('Content-Type');
+    return;
+  }
+
+  delete headers['Content-Type'];
+  delete headers['content-type'];
+}
+
 /* ------------------------------------------------------------------
  *  Request interceptor — attach Bearer token from localStorage
  * ------------------------------------------------------------------ */
 api.interceptors.request.use((config) => {
   if (typeof window === 'undefined') return config;
+
+  if (config.data instanceof FormData) {
+    clearMultipartContentType(config.headers);
+  }
 
   const url = config.url ?? '';
   // Do not attach tokens to auth endpoints to avoid expired token contamination
@@ -54,23 +80,26 @@ api.interceptors.request.use((config) => {
  *  Response interceptor — 401 → refresh → retry (once)
  * ------------------------------------------------------------------ */
 api.interceptors.response.use(
-  (r) => r,
+  (r) => {
+    // Automatically unwrap NestJS TransformInterceptor structure
+    if (r.data && r.data.success === true && 'data' in r.data) {
+      return { ...r, data: r.data.data };
+    }
+    return r;
+  },
   async (error) => {
     const status = error?.response?.status;
     const originalRequest = error?.config;
 
     /* ---- Non-401 errors: show toast and reject ---- */
     if (status !== 401 || typeof window === 'undefined') {
-      const raw =
-        error?.response?.data?.message ??
-        error?.response?.data?.error;
       const message =
-        Array.isArray(raw)       ? raw.join(', ')     :
-        typeof raw === 'string'  ? raw                :
-        typeof raw === 'object' && raw !== null ? JSON.stringify(raw) :
-        error?.message           || 'Request failed';
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        'Request failed';
       if (message !== 'canceled') {
-        toast({ title: 'Request error', message, variant: 'error' });
+        toast({ title: 'Request error', message: String(message), variant: 'error' });
       }
       return Promise.reject(error);
     }
@@ -110,6 +139,11 @@ api.interceptors.response.use(
       } else {
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
       }
+
+      if (originalRequest.data instanceof FormData) {
+        clearMultipartContentType(originalRequest.headers);
+      }
+
       return api(originalRequest);
     } catch {
       // Refresh failed — clear everything and notify AuthProvider

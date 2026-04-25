@@ -35,23 +35,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-
-    // Always derive role from the CURRENT DB state — never trust the JWT role
-    // claim, which can be stale (e.g. after become-host or role changes).
-    const roles = ((user as any).roles ?? []).map((r: unknown) =>
-      String(r).toUpperCase(),
-    );
-    let role: Role = 'USER';
-    if (roles.includes('ADMIN') || (user as any).role === 'ADMIN') {
-      role = 'ADMIN';
-    } else if ((user as any).isHost === true || roles.includes('HOST')) {
-      role = 'HOST';
+    if (user.suspendedAt) {
+      throw new UnauthorizedException('Your account has been suspended');
     }
 
+    // Keep req.user strongly typed and stable for guards/controllers.
     return {
       sub: user.id,
-      email: payload.email || (user as any).email || (user as any).phone || '',
-      role,
+      email: payload.email || user.email || user.phone || '',
+      role: this.normalizeRole(payload.role, user),
     };
   }
 }

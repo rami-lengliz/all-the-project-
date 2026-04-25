@@ -244,6 +244,9 @@ export const getResponseHeader = (response: AxiosResponse<any>, responseHeader?:
 
 export const getResponseBody = (response: AxiosResponse<any>): any => {
     if (response.status !== 204) {
+        if (response.data && response.data.success === true && 'data' in response.data) {
+            return response.data.data;
+        }
         return response.data;
     }
     return undefined;

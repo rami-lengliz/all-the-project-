@@ -9,6 +9,7 @@
 - **Product**: RentEverything — an all-in-one, location-aware rental marketplace (stays, vehicles, sports facilities, beach gear, etc.) targeting Tunisia (Kelibia, Tunis, Nabeul).
 - **Stack**: NestJS + PostgreSQL/PostGIS backend, Next.js 16 frontend, FastAPI ML microservice, Socket.IO realtime chat.
 - **Production-ready**: Auth (JWT access+refresh), bookings lifecycle with listing-mutex conflict prevention, PostGIS geo search, AI search (OpenAI + fallback), payments with commissions, Wallet Ledger (audit trails), Host Payouts (FIFO allocation), Refund Guardrails, admin moderation, chat.
+- **Chatbot v2 (Guided Assistant)**: Branching guided flows, flow-outcome terminal states, mode-aware persona (Discovery/Booking/Host), conversation continuity (resume), comparison/decision support model, and advanced trust/abuse protection (rate limits, incident logging).
 - **Demo-only**: Payments are simulated (no real payment gateway), email/phone verification is stubbed (`verify` endpoint auto-approves), ML service uses rule-based heuristics (no real ML model), Cloudinary not wired (local uploads only).
 - **Current blockers**: No real payment provider integration. Verification flow is a placeholder. No CI/CD pipeline.
 
@@ -67,9 +68,9 @@ docker compose up -d          # Starts postgres, backend, ml-service, adminer
 
 | Service | URL |
 |---------|-----|
-| **Backend API** | `http://localhost:3000` |
-| **Swagger Docs** | `http://localhost:3000/api/docs` |
-| **Frontend** | `http://localhost:3001` (if backend is on 3000) |
+| **Backend API** | `http://localhost:3001` |
+| **Swagger Docs** | `http://localhost:3001/api/docs` |
+| **Frontend** | `http://localhost:3000` (Next.js default) |
 | **Adminer (DB UI)** | `http://localhost:8080` |
 | **ML Service** | `http://localhost:8000` |
 
@@ -129,9 +130,11 @@ docker compose up -d          # Starts postgres, backend, ml-service, adminer
 | **ledger** | `src/modules/ledger/` | Wallet Ledger system (idempotent captures/refunds, audit trails). |
 | **payouts** | `src/modules/payouts/` | Host payout management, FIFO credit allocation, dispute freezing. |
 | **ml** | `src/modules/ml/` | Proxy to FastAPI ML microservice (category + price suggestions). |
+| **cloudinary**| `src/modules/cloudinary/`| Cloudinary service integration for uploading images. |
 | **chat** | `src/chat/` | Socket.IO WebSocket gateway for realtime messaging. |
+| **chatbot** | `src/chatbot/` | Specialized AI Assistant with orchestrator, tool governance, and trust/policy layers. |
 
-### DB Schema Overview (Prisma — 11 models)
+### DB Schema Overview (Prisma — 14 models)
 
 ```
 Category ── Listing
@@ -139,7 +142,7 @@ LedgerEntry ── PayoutItem ── Payout
 ```
 
 **Key relationships:**
-- `User` → `Listing` (host), `Booking` (renter/host), `Review` (author/target), `PaymentIntent`, `Conversation`, `Message`, `Payout`
+- `User` → `Listing` (host), `Booking` (renter/host), `Review` (author/target), `PaymentIntent`, `Conversation`, `Message`, `Payout`, `AdminLog`
 - `Listing` → `Category`, `Booking`, `Review`, `Conversation`, `SlotConfiguration`
 - `Booking` → one `Review`, one `PaymentIntent`, many `Conversation`, many `LedgerEntry`
 - `LedgerEntry` → `Booking`, `PaymentIntent`, `User` (actor), `PayoutItem`
@@ -155,19 +158,13 @@ LedgerEntry ── PayoutItem ── Payout
 | `/listings/[id]` | Listing detail |
 | `/profile` | User profile editor |
 | `/help` | Help / FAQ |
-| `/auth/login` | Login |
-| `/auth/register` | Register |
-| `/host/dashboard` | Host dashboard |
-| `/host/create` | Create listing (with image upload) |
-| `/host/listings` | Host's listings |
-| `/host/bookings` | Host's bookings |
-| `/client/dashboard` | Client dashboard |
-| `/client/bookings` | Client's bookings |
-| `/client/reviews` | Client's reviews |
-| `/admin/dashboard` | Admin dashboard |
-| `/admin/listings` | Admin listing moderation |
-| `/admin/users` | Admin user management |
-| `/admin/logs` | Admin audit logs |
+| `/auth/*` | Login / Register |
+| `/host/*` | Host dashboard, Create Listing, Listings, Bookings |
+| `/client/*` | Client dashboard, Bookings, Reviews |
+| `/booking/*`| Booking pages |
+| `/messages/*`| Chat interface |
+| `/admin/*` | Admin pages (logs, users, listings, etc) |
+| `/demo` `dev`| Demo / Dev testing routes |
 
 ### Auth Model
 
@@ -209,6 +206,13 @@ LedgerEntry ── PayoutItem ── Payout
 | **Client pages** | ✅ | Dashboard, bookings, reviews | `frontend/src/pages/client/` |
 | **Chat (realtime)** | ✅ | Socket.IO on `/chat` namespace. JWT auth. Send/read/typing/join. | `src/chat/` |
 | **AI Search** | ✅ | OpenAI-powered with Zod validation, fallback, max 1 follow-up | `src/modules/ai/` (see Section 6) |
+| **AI Assistant (Chatbot)** | ✅ | Orchestrated, multi-tool assistant with structured tool result rendering. | `src/chatbot/` |
+| **Assistant Modes** | ✅ | Discovery, Booking, Host, and General modes with deterministic pivoting. | `frontend/src/features/chatbot/utils/chatbot-assistant-modes.ts` |
+| **Branching Flows** | ✅ | State-aware guided branching (Search → Detail → Booking help/contact). | `frontend/src/features/chatbot/utils/chatbot-flow-branches.ts` |
+| **Flow Outcomes** | ✅ | Outcome detection (completed, interrupted, expired) with terminal UI cards. | `frontend/src/features/chatbot/utils/chatbot-flow-outcomes.ts` |
+| **Continuity/Resume** | ✅ | Session resume detecting pending confirmations or interrupted flows. | `frontend/src/features/chatbot/utils/chatbot-resume-utils.ts` |
+| **Comparison Layer** | ⚠️ | Comparison model and types defined; decision support logic pending UI. | `frontend/src/features/chatbot/types/chatbot-comparison.types.ts` |
+| **Chatbot Trust** | ✅ | Rate limiting, abuse incident recording, and tool governance (proposed vs confirmed). | `src/chatbot/trust/` |
 | **AI Listing Assistant** | ✅ | Generate/enhance descriptions, generate titles | `src/modules/ai/listing-assistant.service.ts` |
 | **ML Suggestions** | ⚠️ | Rule-based heuristics, not real ML. Category by keywords, price by location. | `ml-service/main.py` |
 | **Email/phone verification** | ❌ | Stubbed — `verify` endpoint auto-approves without actual code check | `src/modules/auth/auth.service.ts` (L137–159) |
@@ -424,30 +428,22 @@ If the NestJS exception response is an object, `message` is extracted from `.mes
 ## 8) Known Issues / Bugs
 
 ### Bug 1: `debug_findAll.log` file written on every listings search
-- **Status**: ✅ FIXED. Disk I/O successfully eliminated from the search route. No rogue `.log` outputs during standard requests.
+- **Status**: ✅ FIXED. Disk I/O successfully eliminated from the search route. Verified in codebase.
 
 ### Bug 2: Email/Phone verification is a no-op
-
 - **Symptom**: `POST /api/auth/verify` always succeeds regardless of input code.
-- **Steps to reproduce**: Call verify with any `userId` and `type: "email"`.
 - **Expected**: Should validate a real verification code.
-- **Actual**: Auto-approves with `// TODO: Implement actual verification code check`.
-- **Likely cause**: Intentional placeholder for MVP.
-- **File**: `src/modules/auth/auth.service.ts` (L137–159)
+- **Actual**: ✅ Verified as still buggy/stubbed. Code literally says `// TODO: Implement actual verification code check`.
 
 ### Bug 3: 401 interceptor does not attempt token refresh before redirect
-- **Status**: ✅ FIXED. The Axios interceptor now successfully traps 401s, attempts a background `POST /api/auth/refresh`, and transparently retries the failed requests before defaulting to logout if expired.
+- **Status**: ✅ FIXED. Verified that `http.ts` now uses a shared queue (`refreshPromise`) and intercepts `401` gracefully without looping.
 
 ### Bug 4: Listing create requires images but error happens after DB insert
-- **Status**: ✅ FIXED. Image payload validation was moved up line 0 in `listings.service.ts`, immediately blocking the Postgres `INSERT INTO` and blocking orphan listings. Covered by `test/listings-create.e2e-spec.ts`.
+- **Status**: ✅ FIXED. Verified that image checks happen *before* the Postgres `INSERT INTO`.
 
 ### Bug 5: Chat gateway CORS set to wildcard
-
 - **Symptom**: Chat WebSocket accepts connections from any origin.
-- **Steps to reproduce**: Connect to `/chat` namespace from any domain.
-- **Expected**: Should restrict to known frontend origins in production.
-- **Actual**: `origin: '*'` in gateway decorator.
-- **File**: `src/chat/chat.gateway.ts` (line 17)
+- **Actual**: 🚨 Verified as still present. `origin: '*'` is actively deployed on `/chat` gateway.
 
 ---
 
@@ -479,9 +475,10 @@ If the NestJS exception response is an object, `message` is extracted from `.mes
 
 ### Risky areas
 
-- `listings.service.ts` — complex raw SQL with PostGIS, dual fallback paths, debug logging left in.
-- `ai-search.service.ts` — OpenAI prompt engineering, JSON parse with 3 retry strategies.
-- `bookings.service.ts` — complex conflict detection across DAILY and SLOT types. Heavily reliant on DB row locks for correctness.
+- `src/modules/listings/listings.service.ts` — complex raw SQL with PostGIS, dual fallback paths.
+- `src/modules/ai/ai-search.service.ts` — OpenAI prompt engineering, JSON parse with 3 retry strategies.
+- `src/modules/bookings/bookings.service.ts` — complex conflict detection relies heavily on explicit `SELECT FOR UPDATE` DB row locks.
+- **Payments / Financial Integrity 🚨**: Payments are technically simulated. No robust third party payment webhook handlers exist. The existing state machine strictly controls flow, but only against *stubbed* inputs. There is also a hard guardrail in place blocking refunds if Host Payout assumes funds are cleared (`Refund Guardrail v1`).
 
 ---
 
@@ -556,5 +553,26 @@ curl http://localhost:8000/health
 > **No automated tests found** for the ML service.
 
 ---
+11) Chatbot Intelligence Architecture
+---
 
-*Generated: 2026-02-24. This document should be updated whenever major features or bugs are resolved.*
+The RentEverything Assistant uses a hierarchical, deterministic detection engine to provide specialized guidance without faking intelligence.
+
+### Signal Priority (High to Low)
+1. **Flow Completion/Outcome**: Terminal states (success/interruption) override active flows.
+2. **Active Flow State**: In-progress branching tasks (e.g., mid-booking-help).
+3. **Conversation Resume**: Priority detection for pending confirmations or blocked recoveries.
+4. **Conversation History (Recent)**: Recent tool calls pivot the Assistant Mode (e.g., just used Host tools → Host mode).
+5. **Page Context**: Fallback signal from the current URL (Listing page → Discovery mode).
+
+### Key Files (Logic Registry)
+- `detectFlowState()`: Classifies sequence of messages into known branching flows.
+- `detectFlowOutcome()`: Determines if a flow reached a terminal or meta-status state.
+- `detectAssistantMode()`: Sets the persona/entry-suggestions based on history + context.
+- `detectResumeState()`: Identifies continuity entry-points for returning users.
+
+### Security Model
+The Chatbot **never** assumes permissions.
+- **Proposed state**: Tool outputs that require mutation return a `confirmationToken`.
+- **Confirmed state**: Mutation only occurs after the user explicitly triggers `POST /api/chatbot/confirm` with the token.
+- **Rate Limits**: Independent limits for messages, propose-actions, and confirm-actions.

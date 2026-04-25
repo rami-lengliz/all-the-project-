@@ -16,7 +16,7 @@ mkdirSync(outDir, { recursive: true });
 
 console.log(`Generating OpenAPI client -> ${outDir}`);
 
-const inputUrl = 'http://localhost:3000/api/docs-json';
+const inputUrl = 'http://localhost:3001/api/docs-json';
 const codegenBin = path.join(root, 'node_modules', 'openapi-typescript-codegen', 'bin', 'index.js');
 
 // Fetch the spec to a local file first.

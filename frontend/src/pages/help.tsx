@@ -1,3 +1,6 @@
+import React from 'react';
+import { ChatbotPanel } from '@/features/chatbot/components/ChatbotPanel';
+
 export default function HelpPage() {
   return (
     <div className="bg-gray-50 font-sans">
@@ -239,99 +242,10 @@ export default function HelpPage() {
             </p>
           </div>
 
-          <div
-            id="chat-container"
-            className="bg-gray-50 rounded-2xl border border-gray-200 shadow-lg overflow-hidden"
-          >
-            <div className="bg-gradient-to-r from-blue-500 to-purple-500 text-white p-4 flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-3">
-                  <i className="fa-solid fa-robot text-lg" />
-                </div>
-                <div>
-                  <h3 className="font-semibold">RentLocal Assistant</h3>
-                  <p className="text-xs text-blue-100">Online</p>
-                </div>
-              </div>
-              <button className="w-8 h-8 hover:bg-white hover:bg-opacity-20 rounded-full flex items-center justify-center transition">
-                <i className="fa-solid fa-xmark" />
-              </button>
-            </div>
-
-            <div
-              className="p-6 space-y-4"
-              style={{ height: 400, overflowY: 'auto' }}
-            >
-              <div className="flex items-start">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
-                  <i className="fa-solid fa-robot text-white text-sm" />
-                </div>
-                <div className="bg-white rounded-2xl rounded-tl-none p-4 shadow-sm max-w-md">
-                  <p className="text-gray-800">
-                    Hello! I'm here to help you with anything related to
-                    RentLocal. What can I assist you with today?
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start justify-end">
-                <div className="bg-blue-500 text-white rounded-2xl rounded-tr-none p-4 shadow-sm max-w-md">
-                  <p>How do I create a listing?</p>
-                </div>
-              </div>
-
-              <div className="flex items-start">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
-                  <i className="fa-solid fa-robot text-white text-sm" />
-                </div>
-                <div className="bg-white rounded-2xl rounded-tl-none p-4 shadow-sm max-w-md">
-                  <p className="text-gray-800 mb-3">
-                    Creating a listing is easy! Here are the steps:
-                  </p>
-                  <ol className="text-gray-800 space-y-2 text-sm">
-                    <li className="flex items-start">
-                      <span className="font-semibold mr-2">1.</span>
-                      <span>Go to your profile and click "Become a host"</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="font-semibold mr-2">2.</span>
-                      <span>Upload photos of your item</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="font-semibold mr-2">3.</span>
-                      <span>Add title, description, and category</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="font-semibold mr-2">4.</span>
-                      <span>Set your price and availability</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="font-semibold mr-2">5.</span>
-                      <span>Publish your listing!</span>
-                    </li>
-                  </ol>
-                  <p className="text-gray-600 text-sm mt-3">
-                    Would you like more detailed guidance on any of these steps?
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 bg-white border-t border-gray-200">
-              <div className="flex items-center space-x-2">
-                <button className="w-10 h-10 hover:bg-gray-100 rounded-full flex items-center justify-center transition">
-                  <i className="fa-solid fa-paperclip text-gray-500" />
-                </button>
-                <input
-                  type="text"
-                  placeholder="Type your message..."
-                  className="flex-1 px-4 py-3 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button className="w-10 h-10 bg-blue-500 hover:bg-blue-600 rounded-full flex items-center justify-center transition">
-                  <i className="fa-solid fa-paper-plane text-white" />
-                </button>
-              </div>
-            </div>
+          <div className="flex justify-center">
+             <div className="w-full max-w-md">
+                <ChatbotPanel />
+             </div>
           </div>
         </div>
       </section>

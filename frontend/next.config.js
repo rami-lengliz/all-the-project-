@@ -6,7 +6,7 @@ const nextConfig = {
     // In production (Vercel): set NEXT_PUBLIC_API_URL=https://your-railway-app.railway.app
     // In local dev: falls back to localhost:3001
     async rewrites() {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
         return [
             {
                 source: '/api/:path*',

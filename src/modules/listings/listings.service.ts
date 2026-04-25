@@ -75,20 +75,13 @@ export class ListingsService {
       await this.prisma.$executeRaw`
         INSERT INTO listings (
           id, "hostId", title, description, "categoryId", images, "pricePerDay",
-          location, address, rules, availability, "isActive", status, "bookingType",
-          property_type, guests_capacity, bedrooms, near_beach,
-          "createdAt", "updatedAt"
+          location, address, rules, availability, "isActive", status, "bookingType", "createdAt", "updatedAt"
         ) VALUES (
           ${listingId}::uuid, ${hostId}, ${createListingDto.title}, ${createListingDto.description},
           ${createListingDto.categoryId}, ARRAY[]::text[], ${createListingDto.pricePerDay},
           ST_SetSRID(ST_GeomFromText(${locationWKT}), 4326), ${createListingDto.address},
           ${createListingDto.rules || null}, ${createListingDto.availability ? JSON.stringify(createListingDto.availability) : null}::jsonb,
-          true, 'ACTIVE'::"ListingStatus", ${bookingType}::"BookingType",
-          ${createListingDto.propertyType ?? null}::"PropertyType",
-          ${createListingDto.guestsCapacity ?? null},
-          ${createListingDto.bedrooms ?? null},
-          ${createListingDto.nearBeach ?? false},
-          NOW(), NOW()
+          true, 'ACTIVE'::"ListingStatus", ${bookingType}::"BookingType", NOW(), NOW()
         )
         RETURNING *
       `;
@@ -182,36 +175,11 @@ export class ListingsService {
   }
 
   async findAll(filters: FilterListingsDto = {}): Promise<any[]> {
-    const q = filters.q?.trim() || undefined;
-    const categoryId = filters.category;
-    const categorySlug = filters.categorySlug?.trim() || undefined;
-    const minPrice = filters.minPrice;
-    const maxPrice = filters.maxPrice;
-    const bookingType =
-      filters.bookingType && filters.bookingType !== 'ANY'
-        ? filters.bookingType
-        : undefined;
-    const nearBeach =
-      typeof filters.nearBeach === 'boolean' ? filters.nearBeach : undefined;
-    const city = filters.city?.trim() || undefined;
-    const sortBy = filters.sortBy || 'date';
-    const lat = filters.lat;
-    const lng = filters.lng;
     const hasLatLng =
-      typeof lat === 'number' &&
-      Number.isFinite(lat) &&
-      typeof lng === 'number' &&
-      Number.isFinite(lng);
-    const radiusKm = Math.min(Math.max(filters.radiusKm ?? 10, 0), 50);
-
-    // If only one side is provided, treat it as a single-day availability search.
-    let availableFrom = filters.availableFrom;
-    let availableTo = filters.availableTo;
-    if (availableFrom && !availableTo) availableTo = availableFrom;
-    if (!availableFrom && availableTo) availableFrom = availableTo;
-    if (availableFrom && availableTo && availableFrom > availableTo) {
-      [availableFrom, availableTo] = [availableTo, availableFrom];
-    }
+      typeof filters.lat === 'number' &&
+      Number.isFinite(filters.lat) &&
+      typeof filters.lng === 'number' &&
+      Number.isFinite(filters.lng);
 
     try {
       // Build conditions
@@ -224,76 +192,30 @@ export class ListingsService {
       let paramIndex = 1;
 
       // Text search
-      if (q) {
+      if (filters.q) {
         conditions.push(
           `(l.title ILIKE $${paramIndex} OR l.description ILIKE $${paramIndex})`,
         );
-        params.push(`%${q}%`);
+        params.push(`%${filters.q}%`);
         paramIndex++;
       }
 
       // Filter by category
-      if (categoryId) {
+      if (filters.category) {
         conditions.push(`l."categoryId" = $${paramIndex}`);
-        params.push(categoryId);
-        paramIndex++;
-      }
-      if (categorySlug) {
-        conditions.push(`c.slug = $${paramIndex}`);
-        params.push(categorySlug);
+        params.push(filters.category);
         paramIndex++;
       }
 
       // Filter by price range
-      if (minPrice !== undefined) {
+      if (filters.minPrice) {
         conditions.push(`l."pricePerDay" >= $${paramIndex}`);
-        params.push(minPrice);
+        params.push(filters.minPrice);
         paramIndex++;
       }
-      if (maxPrice !== undefined) {
+      if (filters.maxPrice) {
         conditions.push(`l."pricePerDay" <= $${paramIndex}`);
-        params.push(maxPrice);
-        paramIndex++;
-      }
-
-      // Filter by booking type
-      if (bookingType) {
-        conditions.push(`l."bookingType" = $${paramIndex}::"BookingType"`);
-        params.push(bookingType);
-        paramIndex++;
-      }
-
-      // Filter by near-beach flag
-      if (nearBeach !== undefined) {
-        conditions.push(`l.near_beach = $${paramIndex}`);
-        params.push(nearBeach);
-        paramIndex++;
-      }
-
-      // City filter (best effort via address/title/description text match)
-      if (city) {
-        conditions.push(
-          `(l.address ILIKE $${paramIndex} OR l.title ILIKE $${paramIndex} OR l.description ILIKE $${paramIndex})`,
-        );
-        params.push(`%${city}%`);
-        paramIndex++;
-      }
-
-      // Availability overlap check for DAILY searches
-      if (availableFrom && availableTo) {
-        conditions.push(`
-          NOT EXISTS (
-            SELECT 1
-            FROM bookings b
-            WHERE b."listingId" = l.id
-              AND b.status = ANY($${paramIndex + 2}::"BookingStatus"[])
-              AND b."startDate" <= $${paramIndex}::date
-              AND b."endDate" >= $${paramIndex + 1}::date
-          )
-        `);
-        params.push(availableTo, availableFrom, [...BLOCKING_BOOKING_STATUSES]);
-        paramIndex++;
-        paramIndex++;
+        params.push(filters.maxPrice);
         paramIndex++;
       }
 
@@ -302,8 +224,9 @@ export class ListingsService {
       let orderByClause = 'l."createdAt" DESC';
 
       if (hasLatLng) {
-        const latValue = lat as number;
-        const lngValue = lng as number;
+        const lat = filters.lat as number;
+        const lng = filters.lng as number;
+        const radiusKm = Math.min(filters.radiusKm || 10, 50);
         const maxDistanceMeters = radiusKm * 1000;
 
         conditions.push(`
@@ -313,26 +236,18 @@ export class ListingsService {
             $${paramIndex + 2}
           )
         `);
-        params.push(lngValue, latValue, maxDistanceMeters);
+        params.push(lng, lat, maxDistanceMeters);
         paramIndex += 3;
 
-        if (sortBy === 'distance') {
+        if (filters.sortBy === 'distance') {
           distanceSelect = `, ST_Distance(
             l.location::geography,
             ST_SetSRID(ST_MakePoint($${paramIndex}, $${paramIndex + 1}), 4326)::geography
           ) as distance`;
-          params.push(lngValue, latValue);
+          params.push(lng, lat);
           paramIndex += 2;
           orderByClause = 'distance ASC';
         }
-      }
-
-      if (sortBy === 'price_asc') {
-        orderByClause = 'l."pricePerDay" ASC';
-      } else if (sortBy === 'price_desc') {
-        orderByClause = 'l."pricePerDay" DESC';
-      } else if (sortBy === 'date') {
-        orderByClause = 'l."createdAt" DESC';
       }
 
       // Pagination
@@ -348,8 +263,6 @@ export class ListingsService {
         SELECT 
           l.id, l.title, l.description, l."pricePerDay",
           ST_AsGeoJSON(l.location)::text as location, l.address, l.images, l."createdAt", l."bookingType",
-          l.property_type as "propertyType", l.guests_capacity as "guestsCapacity",
-          l.bedrooms, l.near_beach as "nearBeach",
           c.id as "category_id", c.name as "category_name", c.icon as "category_icon", c.slug as "category_slug",
           h.id as "host_id", h.name as "host_name", h."ratingAvg" as "host_ratingAvg"
           ${distanceSelect}
@@ -376,10 +289,6 @@ export class ListingsService {
         images: row.images,
         createdAt: row.createdAt,
         bookingType: row.bookingType,
-        propertyType: row.propertyType ?? null,
-        guestsCapacity: row.guestsCapacity ?? null,
-        bedrooms: row.bedrooms ?? null,
-        nearBeach: row.nearBeach ?? false,
         category: {
           id: row.category_id,
           name: row.category_name,
@@ -399,78 +308,34 @@ export class ListingsService {
 
       try {
         // Fallback to simple query without geo
-        const andConditions: Prisma.ListingWhereInput[] = [
-          { isActive: true },
-          { deletedAt: null },
-          { status: 'ACTIVE' as any },
-        ];
+        const where: Prisma.ListingWhereInput = {
+          isActive: true,
+          deletedAt: null,
+        };
 
-        if (q) {
-          andConditions.push({
-            OR: [
-              { title: { contains: q, mode: 'insensitive' } },
-              { description: { contains: q, mode: 'insensitive' } },
-            ],
-          });
+        if (filters.q) {
+          where.OR = [
+            { title: { contains: filters.q, mode: 'insensitive' } },
+            { description: { contains: filters.q, mode: 'insensitive' } },
+          ];
         }
-        if (categoryId) {
-          andConditions.push({ categoryId });
+        if (filters.category) {
+          where.categoryId = filters.category;
         }
-        if (categorySlug) {
-          andConditions.push({
-            category: {
-              is: { slug: categorySlug },
-            },
-          });
-        }
-        if (minPrice !== undefined || maxPrice !== undefined) {
-          const priceFilter: Prisma.DecimalFilter = {};
-          if (minPrice !== undefined) {
-            priceFilter.gte = minPrice;
+        // Only show ACTIVE listings in public fallback
+        (where as any).status = 'ACTIVE';
+        if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
+          where.pricePerDay = {};
+          if (filters.minPrice) {
+            where.pricePerDay.gte = filters.minPrice;
           }
-          if (maxPrice !== undefined) {
-            priceFilter.lte = maxPrice;
+          if (filters.maxPrice) {
+            where.pricePerDay.lte = filters.maxPrice;
           }
-          andConditions.push({ pricePerDay: priceFilter as any });
         }
-        if (bookingType) {
-          andConditions.push({ bookingType: bookingType as any });
-        }
-        if (nearBeach !== undefined) {
-          andConditions.push({ nearBeach });
-        }
-        if (city) {
-          andConditions.push({
-            address: {
-              contains: city,
-              mode: 'insensitive',
-            },
-          });
-        }
-        if (availableFrom && availableTo) {
-          const fromDate = new Date(`${availableFrom}T00:00:00.000Z`);
-          const toDate = new Date(`${availableTo}T00:00:00.000Z`);
-          andConditions.push({
-            bookings: {
-              none: {
-                status: { in: [...BLOCKING_BOOKING_STATUSES] as any },
-                startDate: { lte: toDate },
-                endDate: { gte: fromDate },
-              },
-            },
-          });
-        }
-
-        const where: Prisma.ListingWhereInput = { AND: andConditions };
 
         const page = filters.page || 1;
         const limit = Math.min(filters.limit || 20, 100);
-        const orderBy: Prisma.ListingOrderByWithRelationInput =
-          sortBy === 'price_asc'
-            ? { pricePerDay: 'asc' }
-            : sortBy === 'price_desc'
-              ? { pricePerDay: 'desc' }
-              : { createdAt: 'desc' };
 
         return await this.prisma.listing.findMany({
           where,
@@ -483,10 +348,6 @@ export class ListingsService {
             images: true,
             createdAt: true,
             bookingType: true,
-            propertyType: true,
-            guestsCapacity: true,
-            bedrooms: true,
-            nearBeach: true,
             category: {
               select: {
                 id: true,
@@ -503,7 +364,7 @@ export class ListingsService {
               },
             },
           },
-          orderBy,
+          orderBy: { createdAt: 'desc' },
           skip: (page - 1) * limit,
           take: limit,
         });
@@ -548,6 +409,104 @@ export class ListingsService {
     return listing;
   }
 
+  async findManyByIds(ids: string[]): Promise<Listing[]> {
+    if (!ids || ids.length === 0) return [];
+    const listings = await this.prisma.listing.findMany({
+      where: {
+        id: { in: ids },
+        isActive: true,
+        deletedAt: null,
+      },
+      include: {
+        category: true,
+        host: {
+          select: {
+            id: true,
+            name: true,
+            ratingAvg: true,
+            ratingCount: true,
+            verifiedEmail: true,
+            verifiedPhone: true,
+          },
+        },
+      },
+    });
+
+    // Stable ordering: match the input ids array
+    return ids
+      .map((id) => listings.find((l) => l.id === id))
+      .filter((l): l is any => !!l);
+  }
+
+  async compareListings(ids: string[]) {
+    const listings = await this.findManyByIds(ids);
+    if (!listings.length) return { listings: [], insights: null };
+
+    let bestValueId = listings[0].id;
+    let lowestPrice = Number(listings[0].pricePerDay);
+    
+    let bestRatedId = listings[0].id;
+    let highestRating = Number((listings[0] as any).host?.ratingAvg || 0);
+
+    let mostExperiencedHostId = listings[0].id;
+    let highestCount = Number((listings[0] as any).host?.ratingCount || 0);
+
+    for (const l of listings) {
+      const price = Number(l.pricePerDay);
+      if (price < lowestPrice) {
+        lowestPrice = price;
+        bestValueId = l.id;
+      }
+
+      const rating = Number((l as any).host?.ratingAvg || 0);
+      if (rating > highestRating) {
+        highestRating = rating;
+        bestRatedId = l.id;
+      }
+
+      const count = Number((l as any).host?.ratingCount || 0);
+      if (count > highestCount) {
+        highestCount = count;
+        mostExperiencedHostId = l.id;
+      }
+    }
+
+    const summaries: Record<string, string> = {};
+    for (const l of listings) {
+      const isBestValue = l.id === bestValueId;
+      const isBestRated = l.id === bestRatedId;
+      const isExperienced = l.id === mostExperiencedHostId;
+      const isVerified = (l as any).host?.verifiedEmail && (l as any).host?.verifiedPhone;
+      const isSlot = l.bookingType === 'SLOT';
+
+      const tags = [];
+      if (isBestValue) tags.push("most affordable");
+      if (isBestRated) tags.push("highest rated");
+      if (isExperienced) tags.push("most reviewed host");
+      if (isVerified) tags.push("fully verified host");
+      if (isSlot) tags.push("flexible hourly booking");
+
+      if (tags.length === 0) {
+        summaries[l.id] = "Standard alternative. Consider evaluating specific rules or location.";
+      } else if (tags.length === 1) {
+        summaries[l.id] = `Standout feature: ${tags[0]}.`;
+      } else {
+        const lastTag = tags.pop();
+        summaries[l.id] = `Excellent choice: ${tags.join(", ")} and ${lastTag}.`;
+      }
+    }
+
+    return {
+      listings,
+      insights: {
+        bestValueId,
+        bestRatedId,
+        mostExperiencedHostId,
+        summaries,
+      },
+    };
+  }
+
   async update(
     id: string,
     updateListingDto: UpdateListingDto,
@@ -583,14 +542,21 @@ export class ListingsService {
       currentImages = currentImages.filter((url) => {
         const shouldRemove = imagesToRemove.includes(url);
         if (shouldRemove) {
-          // Delete file from filesystem
-          try {
-            const filePath = url.replace('/uploads/', path.join(baseDir, ''));
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
+          if (url.includes('cloudinary.com')) {
+            // Delete from Cloudinary
+            this.cloudinaryService.deleteFile(url).catch((e) => {
+              this.logger.warn(`Failed to delete image file from Cloudinary: ${url}`, e);
+            });
+          } else {
+            // Delete file from filesystem
+            try {
+              const filePath = url.replace('/uploads/', path.join(baseDir, ''));
+              if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+              }
+            } catch (e) {
+              this.logger.warn(`Failed to delete local image file: ${url}`, e);
             }
-          } catch (e) {
-            this.logger.warn(`Failed to delete image file: ${url}`, e);
           }
         }
         return !shouldRemove;
@@ -670,6 +636,27 @@ export class ListingsService {
     if (isAdmin) {
       // Hard delete for admin
       await this.prisma.listing.delete({ where: { id } });
+
+      // Clean up files safely
+      if (listing.images && listing.images.length > 0) {
+        const cloudinaryUrls = listing.images.filter((u) => u.includes('cloudinary.com'));
+        if (cloudinaryUrls.length > 0) {
+          this.cloudinaryService.deleteFiles(cloudinaryUrls).catch((e) => {
+            this.logger.warn(`Failed to delete Cloudinary images for listing ${id}`, e);
+          });
+        }
+        
+        // local disk cleanup fallback
+        const baseDir = this.configService.get<string>('upload.dir') || './uploads';
+        const listingDir = path.join(baseDir, 'listings', id);
+        if (fs.existsSync(listingDir)) {
+          try {
+             fs.rmSync(listingDir, { recursive: true, force: true });
+          } catch (e) {
+             this.logger.warn(`Failed to delete local image directory for listing ${id}`, e);
+          }
+        }
+      }
     } else {
       // Soft delete for hosts
       await this.prisma.listing.update({
@@ -786,10 +773,6 @@ export class ListingsService {
         bookingType: true,
         isActive: true,
         status: true,
-        propertyType: true,
-        guestsCapacity: true,
-        bedrooms: true,
-        nearBeach: true,
         category: {
           select: { id: true, name: true, icon: true, slug: true },
         },

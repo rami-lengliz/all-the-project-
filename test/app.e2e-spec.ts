@@ -142,6 +142,15 @@ describe('AppController (e2e)', () => {
 
   afterAll(async () => {
     if (prisma) {
+      await prisma.conversation.deleteMany({
+        where: {
+          OR: [
+            { listing: { title: { contains: SUFFIX } } },
+            { renter: { email: { contains: SUFFIX } } },
+            { host: { email: { contains: SUFFIX } } },
+          ],
+        },
+      });
       await prisma.paymentIntent.deleteMany({
         where: { booking: { listing: { title: { contains: SUFFIX } } } },
       });
@@ -170,7 +179,9 @@ describe('AppController (e2e)', () => {
       // TransformInterceptor wraps → data holds the actual health object
       const health = res.body.data;
       expect(health).toHaveProperty('status');
-      expect(health).toHaveProperty('services');
+      expect(health).toHaveProperty('db');
+      expect(health).toHaveProperty('postgis');
+      expect(health).toHaveProperty('timestamp');
     });
   });
 

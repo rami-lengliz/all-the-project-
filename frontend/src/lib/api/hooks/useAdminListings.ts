@@ -4,7 +4,7 @@ import { AdminService } from '@/lib/api/generated';
 export function useAdminListings() {
   return useQuery({
     queryKey: ['admin', 'listings'],
-    queryFn: async () => AdminService.adminControllerGetAllListings(),
+    queryFn: async () => AdminService.adminControllerGetAllListings(undefined as any),
   });
 }
 

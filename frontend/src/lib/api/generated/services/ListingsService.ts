@@ -86,6 +86,23 @@ export class ListingsService {
         });
     }
     /**
+     * Compare multiple listings
+     * @param ids Comma-separated UUIDs of listings
+     * @returns any
+     * @throws ApiError
+     */
+    public static listingsControllerCompare(
+        ids: Array<string>,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/listings/compare',
+            query: {
+                'ids': ids,
+            },
+        });
+    }
+    /**
      * Get listing details
      * @param id
      * @returns any

@@ -91,6 +91,9 @@ describe('Listing Moderation (e2e)', () => {
 
   afterAll(async () => {
     if (prisma) {
+      await prisma.adminLog.deleteMany({
+        where: { actor: { email: { contains: SUFFIX } } },
+      });
       await prisma.listing.deleteMany({
         where: { title: { contains: SUFFIX } },
       });

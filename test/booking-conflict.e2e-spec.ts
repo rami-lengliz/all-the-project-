@@ -181,6 +181,15 @@ describe('DAILY Booking — Conflict Prevention (e2e)', () => {
        ═══════════════════════════════════════════════════════════════════ */
   afterAll(async () => {
     if (prisma) {
+      await prisma.conversation.deleteMany({
+        where: {
+          OR: [
+            { listing: { title: { contains: SUFFIX } } },
+            { renter: { email: { contains: SUFFIX } } },
+            { host: { email: { contains: SUFFIX } } },
+          ],
+        },
+      });
       await prisma.paymentIntent.deleteMany({
         where: { booking: { listing: { title: { contains: SUFFIX } } } },
       });

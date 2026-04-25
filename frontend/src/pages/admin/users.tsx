@@ -1,19 +1,21 @@
+import Link from 'next/link';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { useAdminUsers } from '@/lib/api/hooks/useAdminUsers';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { InlineError } from '@/components/ui/InlineError';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { formatDate } from '@/lib/utils/format';
 
 export default function AdminUsersPage() {
   const q = useAdminUsers();
-  const users = (q.data as any) ?? [];
-  const items = Array.isArray(users) ? users : (users?.items ?? []);
+  const raw = (q.data as any) ?? [];
+  const items: any[] = Array.isArray(raw) ? raw : (raw?.items ?? []);
 
   return (
     <AdminLayout
       activeTab="users"
       title="Users"
-      subtitle="View user accounts and roles"
+      subtitle="Manage user accounts and moderation"
     >
       <section className="py-6">
         <div className="max-w-7xl mx-auto px-6">
@@ -27,7 +29,7 @@ export default function AdminUsersPage() {
           ) : null}
 
           {q.isLoading ? (
-            <LoadingCard variant="table" rows={6} columns={4} />
+            <LoadingCard variant="table" rows={6} columns={5} />
           ) : items.length === 0 ? (
             <EmptyState
               icon="fa-solid fa-users"
@@ -50,34 +52,35 @@ export default function AdminUsersPage() {
                         Role
                       </th>
                       <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">
-                        Created
+                        Status
+                      </th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase">
+                        Joined
+                      </th>
+                      <th className="text-right px-6 py-4 text-xs font-semibold text-gray-600 uppercase">
+                        Actions
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {items.map((u: any) => {
-                      const roles = (u.roles ?? []).map((r: any) =>
+                      const roles: string[] = (u.roles ?? []).map((r: any) =>
                         String(r).toLowerCase(),
                       );
-                      const roleLabel = roles.includes('admin')
-                        ? 'Admin'
-                        : u.isHost || roles.includes('host')
-                          ? 'Host'
-                          : 'User';
+                      const isSuspended = !!u.suspendedAt;
+                      const isAdmin = roles.includes('admin');
+                      const isHost = u.isHost || roles.includes('host');
+
+                      const roleLabel = isAdmin ? 'Admin' : isHost ? 'Host' : 'User';
+
                       return (
                         <tr key={u.id} className="hover:bg-gray-50 transition">
                           <td className="px-6 py-4">
-                            <p className="font-semibold text-gray-900">
-                              {u.name}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {u.phone ?? ''}
-                            </p>
+                            <p className="font-semibold text-gray-900">{u.name}</p>
+                            <p className="text-sm text-gray-500">{u.phone ?? ''}</p>
                           </td>
                           <td className="px-6 py-4">
-                            <p className="text-sm text-gray-900">
-                              {u.email ?? '—'}
-                            </p>
+                            <p className="text-sm text-gray-900">{u.email ?? '—'}</p>
                           </td>
                           <td className="px-6 py-4">
                             <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
@@ -85,11 +88,30 @@ export default function AdminUsersPage() {
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <p className="text-sm text-gray-900">
-                              {u.createdAt
-                                ? String(u.createdAt).slice(0, 10)
-                                : '—'}
-                            </p>
+                            {isSuspended ? (
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-2" />
+                                Suspended
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2" />
+                                Active
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm text-gray-900">{formatDate(u.createdAt)}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end">
+                              <Link
+                                href={`/admin/users/${u.id}`}
+                                className="px-3 py-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium rounded-lg transition"
+                              >
+                                Review
+                              </Link>
+                            </div>
                           </td>
                         </tr>
                       );

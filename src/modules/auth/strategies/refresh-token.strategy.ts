@@ -43,21 +43,13 @@ export class RefreshTokenStrategy extends PassportStrategy(
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-    // Always re-derive role from DB — refresh tokens are long-lived and the
-    // role claim can be stale (e.g. after become-host).
-    const roles = ((user as any).roles ?? []).map((r: unknown) =>
-      String(r).toUpperCase(),
-    );
-    let role: Role = 'USER';
-    if (roles.includes('ADMIN') || (user as any).role === 'ADMIN') {
-      role = 'ADMIN';
-    } else if ((user as any).isHost === true || roles.includes('HOST')) {
-      role = 'HOST';
+    if (user.suspendedAt) {
+      throw new UnauthorizedException('Your account has been suspended');
     }
     return {
       sub: user.id,
-      email: payload.email || (user as any).email || (user as any).phone || '',
-      role,
+      email: payload.email || user.email || user.phone || '',
+      role: this.normalizeRole(payload.role, user),
     };
   }
 }

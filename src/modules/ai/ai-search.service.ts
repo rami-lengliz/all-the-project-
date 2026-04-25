@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AiService } from './ai.service';
 import { ListingsService } from '../listings/listings.service';
 import { CategoriesService } from '../categories/categories.service';
@@ -12,24 +13,6 @@ import {
   FollowUpDto,
 } from './dto/ai-search.dto';
 
-/**
- * Canonical category slugs for the RentAI MVP.
- *
- * Exported so tests can import the same list to assert against —
- * there is a single source of truth.
- *
- * Rules:
- *   - AI may only emit slugs from this list.
- *   - If geo context provides a narrower subset, the intersection is used.
- *   - Any slug not in this list is silently discarded (no hallucination).
- */
-export const ALLOWED_CATEGORY_SLUGS: ReadonlyArray<string> = [
-  'stays',
-  'sports-facilities',
-  'mobility',
-  'beach-gear',
-];
-
 @Injectable()
 export class AiSearchService {
   private readonly logger = new Logger(AiSearchService.name);
@@ -38,42 +21,32 @@ export class AiSearchService {
     private readonly aiService: AiService,
     private readonly listingsService: ListingsService,
     private readonly categoriesService: CategoriesService,
+    private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
   ) { }
 
   async search(dto: AiSearchRequestDto): Promise<AiSearchResponseDto> {
+    const openaiKey = this.configService.get<string>('OPENAI_API_KEY');
+
     // Get available category slugs if location provided but not explicitly set
     let availableSlugs = dto.availableCategorySlugs || [];
     if (!availableSlugs.length && dto.lat && dto.lng) {
-      const nearbyCategories = await this.categoriesService.findNearbyWithCounts(
-        dto.lat,
-        dto.lng,
-        dto.radiusKm || 10,
-        false, // only categories with listings
-      );
+      const nearbyCategories =
+        await this.categoriesService.findNearbyWithCounts(
+          dto.lat,
+          dto.lng,
+          dto.radiusKm || 10,
+          false, // only categories with listings
+        );
       availableSlugs = nearbyCategories.map((c) => c.slug);
     }
 
     let result: AiSearchResponseDto;
 
-    // When no valid API key is configured, return an empty response.
-    // This makes it easy to distinguish:
-    //   AI working  → AI-parsed chips + real results
-    //   AI blocked  → zero results + 'ai_unavailable' chip (this branch)
-    if (!this.aiService.isAvailable()) {
-      this.logger.warn('[AiSearch] AI provider not configured — returning empty results');
-      result = {
-        mode: 'RESULT',
-        filters: { radiusKm: dto.radiusKm || 10 },
-        chips: [
-          {
-            key: 'ai_unavailable',
-            label: '⚠ AI unavailable — set GEMINI_API_KEY or OPENAI_API_KEY',
-          },
-        ],
-        followUp: null,
-        results: [],
-      } as AiSearchResponseDto;
+    // Fallback mode if no OpenAI key
+    if (!openaiKey || openaiKey.trim() === '') {
+      this.logger.warn('No OPENAI_API_KEY found, using fallback search');
+      result = await this.fallbackSearch(dto, availableSlugs);
     } else {
       try {
         // Call AI to parse query
@@ -104,22 +77,13 @@ export class AiSearchService {
           } as AiSearchResponseDto;
         }
       } catch (error) {
-        this.logger.error('[AiSearch] AI call failed — returning empty results', error);
-        result = {
-          mode: 'RESULT',
-          filters: { radiusKm: dto.radiusKm || 10 },
-          chips: [
-            {
-              key: 'ai_error',
-              label: '⚠ AI search failed — check server logs',
-            },
-          ],
-          followUp: null,
-          results: [],
-        } as AiSearchResponseDto;
+        this.logger.error(
+          'AI search failed, falling back to keyword search',
+          error,
+        );
+        result = await this.fallbackSearch(dto, availableSlugs);
       }
     }
-
 
     // Fire-and-forget: log the search (never blocks the response)
     this.prisma.aiSearchLog
@@ -151,77 +115,54 @@ export class AiSearchService {
     filters: SearchFiltersDto;
     chips: SearchChipDto[];
   }> {
-    const systemPrompt = this.buildSystemPrompt(availableSlugs, dto.conversationHistory ?? []);
-    const userPrompt   = this.buildUserPrompt(dto);
+    const systemPrompt = this.buildSystemPrompt(
+      availableSlugs,
+      dto.followUpUsed,
+    );
+    const userPrompt = this.buildUserPrompt(dto);
 
-    const MAX_PARSE_RETRIES = 2;
+    const aiResult = await this.aiService.generateCompletion(userPrompt, {
+      systemPrompt,
+      temperature: 0.3,
+      maxTokens: 800,
+    });
 
-    for (let attempt = 0; attempt <= MAX_PARSE_RETRIES; attempt++) {
-      const aiResult = await this.aiService.generateCompletion(userPrompt, {
-        systemPrompt,
-        temperature: 0.3,
-        maxTokens: 800,
-      });
+    // Parse JSON from AI response
+    const parsed = this.safeJsonParse(aiResult);
 
-      const parsed = this.safeJsonParse(aiResult);
-
-      if (parsed) {
-        return this.normalizeAiResponse(parsed, dto, availableSlugs);
-      }
-
-      // Log the raw response so the root cause is visible in server logs
-      this.logger.warn(
-        `AI response parse failed (attempt ${attempt + 1}/${MAX_PARSE_RETRIES + 1}) ` +
-        `— raw: ${aiResult.slice(0, 300)}`,
-      );
-
-      if (attempt < MAX_PARSE_RETRIES) {
-        await new Promise((r) => setTimeout(r, 1_000));
-      }
+    if (!parsed) {
+      throw new Error('Failed to parse AI response');
     }
 
-    throw new Error('Failed to parse AI response after retries');
+    // Validate and normalize the response
+    return this.normalizeAiResponse(parsed, dto, availableSlugs);
   }
-
 
   private buildSystemPrompt(
     availableSlugs: string[],
-    conversationHistory: { role: 'user' | 'assistant'; content: string }[],
+    followUpUsed: boolean,
   ): string {
-    // Allow up to 3 follow-ups total; count existing assistant turns in history
-    const assistantTurns = conversationHistory.filter((m) => m.role === 'assistant').length;
-    const followUpsLeft  = Math.max(0, 3 - assistantTurns);
+    const maxFollowUp = followUpUsed ? 0 : 1;
 
-    const historyNote = conversationHistory.length > 0
-      ? `You already know the following from the conversation (DO NOT ask about these again):\n` +
-        conversationHistory
-          .map((m) => `  ${m.role === 'assistant' ? 'You asked' : 'User said'}: ${m.content}`)
-          .join('\n')
-      : 'This is the first message in the conversation.';
-
-    return `You are a search query parser for a Tunisian rental marketplace. Convert natural language queries into structured JSON filters.
+    return `You are a search query parser for a rental marketplace. Your job is to convert natural language queries into structured filters.
 
 CRITICAL RULES:
 1. Output ONLY valid JSON. No markdown, no explanations, no code blocks.
-2. Follow-ups remaining: ${followUpsLeft}. If 0, you MUST return mode: "RESULT".
+2. Maximum ${maxFollowUp} follow-up question${maxFollowUp === 1 ? '' : 's'}. If followUpUsed=true, you MUST return mode: "RESULT".
 3. Available categories: ${availableSlugs.length > 0 ? availableSlugs.join(', ') : 'any'}
 4. Only use categorySlug from the available list above.
 5. Parse dates relative to today (${new Date().toISOString().split('T')[0]}).
-6. ${historyNote}
-7. NEVER ask again about info already established in conversation history.
-8. Detect "9riba men el b7ar", "ba7dha el b7ar", "près de la mer", "near the beach" → nearBeach: true.
-9. Detect vibe from context: romantic getaway → "romantic", kids/family → "family", sports/hiking → "adventure", cheap/budget → "budget", luxury/premium → "luxury".
 
 OUTPUT SCHEMA:
-For FOLLOW_UP mode (only if ${followUpsLeft} > 0 AND critical info is genuinely missing):
+For FOLLOW_UP mode (only if ${maxFollowUp} > 0 AND critical info missing):
 {
   "mode": "FOLLOW_UP",
   "followUp": {
     "question": "Which dates do you need?",
-    "field": "dates|price|category|bookingType|location|vibe|other",
+    "field": "dates|price|category|bookingType|location|other",
     "options": ["Today", "Tomorrow", "Pick a date"] // optional
   },
-  "filters": { /* best-effort partial filters extracted so far */ },
+  "filters": { /* best-effort partial filters */ },
   "chips": [ { "key": "...", "label": "..." } ]
 }
 
@@ -229,24 +170,20 @@ For RESULT mode (normal case):
 {
   "mode": "RESULT",
   "filters": {
-    "q": "keyword or null",
-    "categorySlug": "stays|sports-facilities|mobility|beach-gear or null",
+    "q": "keyword",
+    "categorySlug": "stays|sports-facilities|mobility|beach-gear",
     "minPrice": number or null,
     "maxPrice": number or null,
     "bookingType": "DAILY|SLOT|ANY",
     "availableFrom": "YYYY-MM-DD" or null,
     "availableTo": "YYYY-MM-DD" or null,
     "sortBy": "distance|date|price_asc|price_desc",
-    "radiusKm": number,
-    "nearBeach": true | false | null,
-    "city": "city name" or null,
-    "vibe": "romantic|family|adventure|budget|luxury" or null
+    "radiusKm": number
   },
   "chips": [
     { "key": "q", "label": "villa" },
     { "key": "category", "label": "Stays" },
-    { "key": "price", "label": "Up to 250 TND" },
-    { "key": "vibe", "label": "💑 Romantic" }
+    { "key": "price", "label": "Up to 250 TND" }
   ]
 }
 
@@ -254,31 +191,17 @@ Remember: Output JSON only!`;
   }
 
   private buildUserPrompt(dto: AiSearchRequestDto): string {
-    const history = dto.conversationHistory ?? [];
-    let prompt = '';
-
-    // Inject full conversation history so the model has multi-turn context
-    if (history.length > 0) {
-      prompt += 'CONVERSATION SO FAR:\n';
-      for (const msg of history) {
-        prompt += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}\n`;
-      }
-      prompt += '---\n';
-    }
-
-    prompt += `Current query: "${dto.query}"`;
+    let prompt = `Query: "${dto.query}"`;
 
     if (dto.lat && dto.lng) {
       prompt += `\nLocation: lat=${dto.lat}, lng=${dto.lng}, radius=${dto.radiusKm || 10}km`;
     }
 
-    if (dto.followUpAnswer) {
+    if (dto.followUpUsed && dto.followUpAnswer) {
       prompt += `\nFollow-up answer: "${dto.followUpAnswer}"`;
     }
 
-    // Tell the model how many assistant turns have already happened
-    const assistantTurns = history.filter((m) => m.role === 'assistant').length;
-    prompt += `\nFollow-ups used so far: ${assistantTurns}/3`;
+    prompt += `\nfollowUpUsed: ${dto.followUpUsed || false}`;
 
     return prompt;
   }
@@ -406,15 +329,8 @@ Remember: Output JSON only!`;
     chips: SearchChipDto[];
     results: any[];
   } {
-    // Count how many follow-ups have already been used from conversation history
-    const history = dto.conversationHistory ?? [];
-    const assistantTurns = history.filter((m) => m.role === 'assistant').length;
-    const followUpsExhausted = assistantTurns >= 3;
-
-    // Force RESULT if follow-ups exhausted (legacy flag still supported)
-    const mode = (dto.followUpUsed || followUpsExhausted)
-      ? 'RESULT'
-      : parsed.mode || 'RESULT';
+    // Force RESULT mode if followUpUsed
+    const mode = dto.followUpUsed ? 'RESULT' : parsed.mode || 'RESULT';
 
     const filters = this.normalizeFilters(
       parsed.filters || {},
@@ -423,7 +339,7 @@ Remember: Output JSON only!`;
     );
     const chips = this.filtersToChips(filters);
 
-    if (mode === 'FOLLOW_UP' && !dto.followUpUsed && !followUpsExhausted) {
+    if (mode === 'FOLLOW_UP' && !dto.followUpUsed) {
       return {
         mode: 'FOLLOW_UP',
         followUp: parsed.followUp || {
@@ -457,27 +373,21 @@ Remember: Output JSON only!`;
       normalized.q = filters.q.trim();
     }
 
-    // Category — always validate against the platform whitelist,
-    // then optionally narrow to the geo-derived subset.
+    // Category - validate against available slugs
     if (filters.categorySlug) {
-      const slug = filters.categorySlug as string;
-
-      // Guard 1: must be a known platform category (anti-hallucination)
-      const isKnownSlug = ALLOWED_CATEGORY_SLUGS.includes(slug);
-
-      // Guard 2: if geo resolved a narrower list, slug must be in that list too
-      const isInGeoSubset =
-        availableSlugs.length === 0 || availableSlugs.includes(slug);
-
-      if (isKnownSlug && isInGeoSubset) {
-        normalized.categorySlug = slug;
+      if (availableSlugs.length > 0) {
+        // If we have a restricted list, validate against it
+        if (availableSlugs.includes(filters.categorySlug)) {
+          normalized.categorySlug = filters.categorySlug;
+        } else {
+          this.logger.warn(
+            `AI suggested category "${filters.categorySlug}" not in available slugs [${availableSlugs.join(', ')}], discarding`,
+          );
+          // Discard invalid category (do not hallucinate)
+        }
       } else {
-        this.logger.warn(
-          isKnownSlug
-            ? `Category "${slug}" not available in this area [${availableSlugs.join(', ')}], discarding`
-            : `AI hallucinated unknown category "${slug}" — discarding (whitelist: ${ALLOWED_CATEGORY_SLUGS.join(', ')})`,
-        );
-        // categorySlug intentionally omitted — no hallucination passes through
+        // No restriction, accept any valid slug
+        normalized.categorySlug = filters.categorySlug;
       }
     }
 
@@ -511,22 +421,6 @@ Remember: Output JSON only!`;
       50,
       Math.max(0, dto.radiusKm || filters.radiusKm || 10),
     );
-
-    // Near beach
-    if (filters.nearBeach != null) {
-      normalized.nearBeach = filters.nearBeach as boolean;
-    }
-
-    // City
-    if (filters.city && typeof filters.city === 'string') {
-      normalized.city = filters.city.trim();
-    }
-
-    // Vibe
-    const VALID_VIBES = ['romantic', 'family', 'adventure', 'budget', 'luxury'] as const;
-    if (filters.vibe && VALID_VIBES.includes(filters.vibe)) {
-      normalized.vibe = filters.vibe;
-    }
 
     return normalized;
   }
@@ -571,26 +465,6 @@ Remember: Output JSON only!`;
       chips.push({ key: 'radius', label: `Within ${filters.radiusKm} km` });
     }
 
-    if (filters.city) {
-      chips.push({ key: 'city', label: filters.city });
-    }
-
-    if (filters.nearBeach) {
-      chips.push({ key: 'nearBeach', label: 'Near beach' });
-    }
-
-    // Vibe labels with emoji
-    const vibeLabels: Record<string, string> = {
-      romantic:  '💑 Romantic',
-      family:    '👨‍👩‍👧 Family',
-      adventure: '🏄 Adventure',
-      budget:    '💰 Budget',
-      luxury:    '✨ Luxury',
-    };
-    if (filters.vibe && vibeLabels[filters.vibe]) {
-      chips.push({ key: 'vibe', label: vibeLabels[filters.vibe] });
-    }
-
     return chips;
   }
 
@@ -623,8 +497,6 @@ Remember: Output JSON only!`;
       if (lat != null) query.latitude = lat;
       if (lng != null) query.longitude = lng;
       if (filters.radiusKm) query.radius = filters.radiusKm;
-      if (filters.nearBeach != null) query.nearBeach = filters.nearBeach;
-      if (filters.city) query.city = filters.city;
 
       const results = await this.listingsService.findAll(query);
       return results;

@@ -105,6 +105,11 @@ export class AuthService {
         throw new UnauthorizedException('Invalid credentials');
       }
 
+      if (user.suspendedAt) {
+        this.logger.warn(`Login rejected — account suspended: ${user.id}`);
+        throw new UnauthorizedException('Your account has been suspended');
+      }
+
       const tokens = await this.generateTokens(
         user.id,
         user.email || user.phone,

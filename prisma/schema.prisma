@@ -28,6 +28,9 @@ model User {
   ratingCount   Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  suspendedAt   DateTime? @map("suspended_at")
+  trustReviewedAt DateTime? @map("trust_reviewed_at")
+  manualTrustTier String? @map("manual_trust_tier") @db.VarChar(50)
 
   // Relations
   listings               Listing[]
@@ -43,11 +46,42 @@ model User {
   renterConversations Conversation[] @relation("RenterConversations")
   hostConversations   Conversation[] @relation("HostConversations")
   sentMessages        Message[]
+  chatbotConversations ChatConversation[] @relation("UserChatbotConversations")
+  chatbotActionConfirmations ChatbotActionConfirmation[] @relation("UserActionConfirmations")
+  chatbotSecurityEvents ChatbotSecurityEvent[] @relation("UserChatbotSecurityEvents")
   payoutsAsHost       Payout[]       @relation("HostPayouts")
+  categoryRequests    CategoryRequest[] @relation("RequesterCategoryRequests")
 
   @@index([email])
   @@index([phone])
   @@map("users")
+}
+
+// ===========================
+// Category Request Model
+// ===========================
+enum CategoryRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  MERGED
+}
+
+model CategoryRequest {
+  id              String   @id @default(uuid())
+  requesterId     String   @map("requester_id")
+  proposedName    String   @map("proposed_name") @db.VarChar(255)
+  reason          String?  @db.Text
+  status          CategoryRequestStatus @default(PENDING)
+  adminNotes      String?  @map("admin_notes") @db.Text
+  resolvedCategoryId String? @map("resolved_category_id")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  requester       User     @relation("RequesterCategoryRequests", fields: [requesterId], references: [id])
+  resolvedCategory Category? @relation("ResolvedCategory", fields: [resolvedCategoryId], references: [id])
+
+  @@map("category_requests")
 }
 
 // ===========================
@@ -59,12 +93,15 @@ model Category {
   slug              String   @unique @db.VarChar(255)
   icon              String?  @db.VarChar(100)
   allowedForPrivate Boolean  @default(true) @map("allowed_for_private")
+  isActive          Boolean  @default(true) @map("is_active")
   createdAt         DateTime @default(now())
 
   // Relations
   listings Listing[]
+  categoryRequests CategoryRequest[] @relation("ResolvedCategory")
 
   @@index([slug], name: "idx_category_slug")
+  @@index([isActive])
   @@map("categories")
 }
 
@@ -74,13 +111,6 @@ model Category {
 enum BookingType {
   DAILY
   SLOT
-}
-
-// Used by stays/accommodation listings for pricing context
-enum PropertyType {
-  villa
-  house
-  apartment
 }
 
 enum ListingStatus {
@@ -104,16 +134,10 @@ model Listing {
   availability Json?                                @db.JsonB
   isActive     Boolean                              @default(true)
   status       ListingStatus                        @default(PENDING_REVIEW)
-  bookingType     BookingType                          @default(DAILY)
-  deletedAt       DateTime?
-  createdAt       DateTime                             @default(now())
-  updatedAt       DateTime                             @updatedAt
-
-  // ── Stay / accommodation pricing fields (optional, null for non-stay categories) ──
-  propertyType    PropertyType?                        @map("property_type")
-  guestsCapacity  Int?                                 @map("guests_capacity")
-  bedrooms        Int?                                 @map("bedrooms")
-  nearBeach       Boolean                              @default(false) @map("near_beach")
+  bookingType  BookingType                          @default(DAILY)
+  deletedAt    DateTime?
+  createdAt    DateTime                             @default(now())
+  updatedAt    DateTime                             @updatedAt
 
   // Relations
   host              User               @relation(fields: [hostId], references: [id])
@@ -375,54 +399,6 @@ model AiSearchLog {
 }
 
 // ===========================
-// AI Price Suggestion Log
-// ===========================
-model PriceSuggestionLog {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-
-  // ── Request scalars (queryable for analysis / PFE eval) ───────────────────────
-  city         String  @db.VarChar(255)
-  categorySlug String  @map("category_slug") @db.VarChar(100) // stays | sports-facilities | ...
-  unit         String  @db.VarChar(50)                        // per_night | per_hour | per_day
-  season       String? @db.VarChar(50)                        // peak | shoulder | off_peak
-  propertyType String? @map("property_type") @db.VarChar(50)  // villa | house | apartment
-  distanceToSeaKm Float? @map("distance_to_sea_km")
-  capacity     Int?
-  lat          Float?
-  lng          Float?
-
-  // ── Full request body (JSON) ───────────────────────────────────────────────
-  inputJson Json @map("input_json") @db.JsonB
-
-  // ── Output scalars (queryable for PFE evaluation) ─────────────────────────
-  suggestedPrice Decimal @map("suggested_price") @db.Decimal(10, 2)
-  rangeMin       Decimal @map("range_min")       @db.Decimal(10, 2)
-  rangeMax       Decimal @map("range_max")       @db.Decimal(10, 2)
-  confidence     String  @db.VarChar(10)   // high | medium | low
-  compsCity      Int     @map("comps_city")
-  compsNational  Int     @map("comps_national")
-  wCity          Float   @map("w_city")
-  wNational      Float   @map("w_national")
-
-  // ── JSON blobs (full payload detail) ────────────────────────────────────
-  adjustments Json? @db.JsonB   // [{label, multiplier}] accommodation only
-  explanation Json  @db.JsonB   // [bullet1, bullet2, bullet3]
-  outputJson  Json  @map("output_json") @db.JsonB  // full response object
-
-  // ── Post-publish link (patched when host publishes the listing) ───────────
-  listingId  String?  @map("listing_id")              // set after publish
-  finalPrice Decimal? @map("final_price") @db.Decimal(10, 2)
-  overridden Boolean? // true = host changed price; false = accepted; null = not published yet
-
-  @@index([createdAt])
-  @@index([city])
-  @@index([categorySlug])
-  @@index([listingId])
-  @@map("ai_price_suggestion_logs")
-}
-
-// ===========================
 // Ledger Models
 // ===========================
 enum LedgerEntryType {
@@ -514,4 +490,100 @@ model PayoutItem {
 
   @@index([payoutId])
   @@map("payout_items")
+}
+
+// ===========================
+// Chatbot Models
+// ===========================
+model ChatConversation {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String?  @db.VarChar(255)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation("UserChatbotConversations", fields: [userId], references: [id])
+  messages  ChatMessage[]
+  summary   ChatConversationSummary?
+  actionConfirmations ChatbotActionConfirmation[]
+  securityEvents ChatbotSecurityEvent[]
+
+  @@index([userId])
+  @@map("chat_conversations")
+}
+
+model ChatConversationSummary {
+  id                   String   @id @default(uuid())
+  conversationId       String   @unique
+  summaryText          String   @db.Text
+  lastMessageIdCovered String?  @db.VarChar(255)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  conversation         ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("chat_conversation_summaries")
+}
+
+model ChatMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  role           String   @db.VarChar(50) // user | assistant | tool | system
+  content        String   @db.Text
+  toolName       String?  @db.VarChar(255)
+  toolPayload    Json?    @db.JsonB
+  createdAt      DateTime @default(now())
+
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("chat_messages")
+}
+
+// ===========================
+// Chatbot Mutation Flow
+// ===========================
+model ChatbotActionConfirmation {
+  id             String   @id @default(uuid())
+  userId         String
+  conversationId String
+  actionName     String   @db.VarChar(255)
+  resourceType   String?  @db.VarChar(255)
+  resourceId     String?  @db.VarChar(255)
+  payload        Json?    @db.JsonB
+  payloadHash    String   @db.VarChar(255)
+  token          String   @unique @db.VarChar(255)
+  status         String   @default("pending") @db.VarChar(50) // pending | confirmed | expired | consumed | cancelled
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+  consumedAt     DateTime?
+
+  user           User             @relation("UserActionConfirmations", fields: [userId], references: [id])
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id])
+
+  @@index([token])
+  @@index([userId, conversationId])
+  @@map("chatbot_action_confirmations")
+}
+
+// ===========================
+// Chatbot Trust & Abuse Subsystem
+// ===========================
+model ChatbotSecurityEvent {
+  id             String   @id @default(uuid())
+  userId         String
+  conversationId String?
+  eventType      String   @db.VarChar(100) // e.g. 'rate_limit_exceeded', 'suspicious_payload', 'confirmation_replay'
+  severity       String   @db.VarChar(50)  // 'low', 'medium', 'high', 'critical'
+  reasonCode     String   @db.VarChar(255)
+  metadata       Json?    @db.JsonB
+  createdAt      DateTime @default(now())
+
+  user           User              @relation("UserChatbotSecurityEvents", fields: [userId], references: [id])
+  conversation   ChatConversation? @relation(fields: [conversationId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("chatbot_security_events")
 }

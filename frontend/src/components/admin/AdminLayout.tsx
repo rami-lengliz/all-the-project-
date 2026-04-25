@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/lib/auth/AuthProvider';
 
-type AdminTab = 'dashboard' | 'users' | 'listings' | 'logs';
+type AdminTab = 'dashboard' | 'users' | 'listings' | 'categories' | 'logs' | 'ledger' | 'payouts' | 'trust';
 
 export function AdminLayout({
   children,
@@ -21,10 +21,16 @@ export function AdminLayout({
   const roles = (user?.roles ?? []).map((r: any) => String(r).toLowerCase());
   const isAdmin = roles.includes('admin') || user?.role === 'ADMIN';
 
-  // Admin-only: redirect non-admin authenticated users to /profile
-  if (typeof window !== 'undefined' && user && !isAdmin) {
-    router.replace('/profile');
-    return null;
+  // Admin-only: redirect unauthenticated or non-admin users
+  if (typeof window !== 'undefined') {
+    if (!user) {
+      router.replace('/auth/login');
+      return null;
+    }
+    if (!isAdmin) {
+      router.replace('/profile');
+      return null;
+    }
   }
 
   return (
@@ -73,6 +79,46 @@ export function AdminLayout({
                 }
               >
                 Listings
+              </Link>
+              <Link
+                href="/admin/categories"
+                className={
+                  activeTab === 'categories'
+                    ? 'text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-1'
+                    : 'text-sm font-medium text-gray-600 hover:text-gray-900'
+                }
+              >
+                Categories
+              </Link>
+              <Link
+                href="/admin/trust"
+                className={
+                  activeTab === 'trust'
+                    ? 'text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-1'
+                    : 'text-sm font-medium text-gray-600 hover:text-gray-900'
+                }
+              >
+                Trust
+              </Link>
+              <Link
+                href="/admin/ledger"
+                className={
+                  activeTab === 'ledger'
+                    ? 'text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-1'
+                    : 'text-sm font-medium text-gray-600 hover:text-gray-900'
+                }
+              >
+                Ledger
+              </Link>
+              <Link
+                href="/admin/payouts"
+                className={
+                  activeTab === 'payouts'
+                    ? 'text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-1'
+                    : 'text-sm font-medium text-gray-600 hover:text-gray-900'
+                }
+              >
+                Payouts
               </Link>
               <Link
                 href="/admin/logs"

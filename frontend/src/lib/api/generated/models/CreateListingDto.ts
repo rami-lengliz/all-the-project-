@@ -7,9 +7,9 @@ export type CreateListingDto = {
     description: string;
     categoryId: string;
     /**
-     * Price per day in TND — required at publish step, not before.
+     * Price per day in TND
      */
-    pricePerDay?: number;
+    pricePerDay: number;
     latitude: number;
     longitude: number;
     address: string;

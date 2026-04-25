@@ -143,11 +143,22 @@ describe('Contract E2E Tests (Beta Reliability)', () => {
     afterAll(async () => {
         if (prisma) {
             await prisma.review.deleteMany({ where: { listing: { title: { contains: SUFFIX } } } });
+            await prisma.conversation.deleteMany({
+                where: {
+                    OR: [
+                        { listing: { title: { contains: SUFFIX } } },
+                        { renter: { email: { contains: SUFFIX } } },
+                        { host: { email: { contains: SUFFIX } } },
+                    ],
+                },
+            });
             await prisma.paymentIntent.deleteMany({ where: { booking: { listing: { title: { contains: SUFFIX } } } } });
             await prisma.booking.deleteMany({ where: { listing: { title: { contains: SUFFIX } } } });
             await prisma.listing.deleteMany({ where: { title: { contains: SUFFIX } } });
             await prisma.category.deleteMany({ where: { slug: { contains: SUFFIX } } });
-            await prisma.adminLog.deleteMany({});
+            await prisma.adminLog.deleteMany({
+                where: { actor: { email: { contains: SUFFIX } } },
+            });
             await prisma.user.deleteMany({ where: { email: { contains: SUFFIX } } });
         }
         if (app) await app.close();

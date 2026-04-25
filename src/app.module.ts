@@ -22,6 +22,7 @@ import { LedgerModule } from './modules/ledger/ledger.module';
 import { PayoutsModule } from './modules/payouts/payouts.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
+import { ChatbotModule } from './chatbot/chatbot.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
     LedgerModule,
     PayoutsModule,
     CloudinaryModule,
+    ChatbotModule,
   ],
   controllers: [AppController],
   providers: [

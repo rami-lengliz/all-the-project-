@@ -10,6 +10,7 @@ describe('Listing Creation Validation (e2e)', () => {
     let prisma: PrismaService;
     let token: string;
     let categoryId: string;
+    const categorySlug = 'orphan-test-category';
 
     beforeAll(async () => {
         const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -60,15 +61,27 @@ describe('Listing Creation Validation (e2e)', () => {
             throw new Error("Login failed during setup");
         }
 
-        const category = await prisma.category.findFirst({
-            where: { allowedForPrivate: true }
+        const category = await prisma.category.upsert({
+            where: { slug: categorySlug },
+            update: {
+                name: 'Orphan Test Category',
+                allowedForPrivate: true,
+            },
+            create: {
+                name: 'Orphan Test Category',
+                slug: categorySlug,
+                icon: 'home',
+                allowedForPrivate: true,
+            },
         });
         categoryId = category.id;
     });
 
     afterAll(async () => {
         // Clean up
-        await prisma.user.delete({ where: { email: 'orphan-test-host@example.com' } })
+        await prisma.listing.deleteMany({ where: { title: 'Test Orphan Prevention' } });
+        await prisma.user.delete({ where: { email: 'orphan-test-host@example.com' } });
+        await prisma.category.deleteMany({ where: { slug: categorySlug } });
         await app.close();
     });
 

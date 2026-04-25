@@ -182,11 +182,7 @@ export default function HostEditListingPage() {
         submitData.append('images', img.file);
       });
 
-      await api.patch(`/listings/${id}`, submitData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      await api.patch(`/listings/${id}`, submitData);
 
       // Clean up preview URLs
       newImages.forEach((img) => URL.revokeObjectURL(img.preview));
@@ -200,11 +196,11 @@ export default function HostEditListingPage() {
       // Redirect to listings page
       router.push('/host/listings');
     } catch (err: any) {
-      const raw = err?.response?.data?.message ?? err?.response?.data?.error;
       const errorMessage =
-        Array.isArray(raw)         ? raw.join(', ')  :
-        typeof raw === 'string'    ? raw              :
-        err?.message               || 'Failed to update listing';
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Failed to update listing';
       setError(errorMessage);
     } finally {
       setIsUploading(false);

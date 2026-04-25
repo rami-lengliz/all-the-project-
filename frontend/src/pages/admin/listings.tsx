@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { useAdminListings } from '@/lib/api/hooks/useAdminListings';
-import { useAdminFlagListing } from '@/lib/api/hooks/useAdminFlagListing';
 import { formatTnd } from '@/lib/utils/format';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { InlineError } from '@/components/ui/InlineError';
@@ -10,16 +9,20 @@ import { EmptyState } from '@/components/ui/EmptyState';
 
 export default function AdminListingsPage() {
   const q = useAdminListings();
-  const flag = useAdminFlagListing();
 
   const raw = (q.data as any) ?? [];
-  const items = useMemo(
+  const allItems = useMemo(
     () => (Array.isArray(raw) ? raw : (raw?.items ?? [])),
     [raw],
   );
 
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [reason, setReason] = useState<string>('');
+  const [activeQueue, setActiveQueue] = useState<'PENDING' | 'ALL'>('PENDING');
+  const items = useMemo(() => {
+    if (activeQueue === 'PENDING') {
+      return allItems.filter((l: any) => l.status === 'PENDING_REVIEW');
+    }
+    return allItems;
+  }, [allItems, activeQueue]);
 
   return (
     <AdminLayout
@@ -37,14 +40,29 @@ export default function AdminListingsPage() {
               />
             </div>
           ) : null}
-          {flag.isError ? (
-            <div className="mb-4">
-              <InlineError
-                title="Could not flag listing"
-                message="Please try again."
-              />
-            </div>
-          ) : null}
+
+          <div className="mb-6 flex space-x-2 border-b border-gray-200">
+            <button
+              className={`px-4 py-2 font-medium text-sm transition-colors ${
+                activeQueue === 'PENDING'
+                  ? 'border-b-2 border-blue-500 text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+              onClick={() => setActiveQueue('PENDING')}
+            >
+              Pending Review
+            </button>
+            <button
+              className={`px-4 py-2 font-medium text-sm transition-colors ${
+                activeQueue === 'ALL'
+                  ? 'border-b-2 border-blue-500 text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+              onClick={() => setActiveQueue('ALL')}
+            >
+              All Listings
+            </button>
+          </div>
 
           {q.isLoading ? (
             <LoadingCard variant="table" rows={6} columns={5} />
@@ -83,11 +101,9 @@ export default function AdminListingsPage() {
                       const hostName = l.host?.name ?? '—';
                       const hostEmail = l.host?.email ?? '';
                       const img = l.images?.[0];
-                      const isOpen = openId === l.id;
 
                       return (
-                        <>
-                          <tr
+                        <tr
                             key={l.id}
                             className="hover:bg-gray-50 transition"
                           >
@@ -134,15 +150,20 @@ export default function AdminListingsPage() {
                               </p>
                             </td>
                             <td className="px-6 py-4">
-                              {active ? (
+                              {l.status === 'PENDING_REVIEW' ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+                                  <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full mr-2" />
+                                  Pending
+                                </span>
+                              ) : l.status === 'ACTIVE' ? (
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2" />
                                   Active
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
-                                  <span className="w-1.5 h-1.5 bg-gray-500 rounded-full mr-2" />
-                                  Paused
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-2" />
+                                  Suspended
                                 </span>
                               )}
                             </td>
@@ -159,73 +180,15 @@ export default function AdminListingsPage() {
                                 >
                                   <i className="fa-solid fa-arrow-up-right-from-square text-gray-600 text-sm" />
                                 </Link>
-                                <button
-                                  className="p-2 hover:bg-gray-100 rounded-lg transition"
-                                  type="button"
-                                  onClick={() => {
-                                    setOpenId(isOpen ? null : l.id);
-                                    setReason('');
-                                  }}
+                                <Link
+                                  href={`/admin/listings/${l.id}`}
+                                  className="px-3 py-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium rounded-lg transition"
                                 >
-                                  <i className="fa-solid fa-flag text-gray-600 text-sm" />
-                                </button>
-                                <button
-                                  className="p-2 hover:bg-gray-100 rounded-lg transition"
-                                  type="button"
-                                >
-                                  <i className="fa-solid fa-ellipsis-vertical text-gray-600 text-sm" />
-                                </button>
+                                  Review
+                                </Link>
                               </div>
                             </td>
                           </tr>
-                          {isOpen ? (
-                            <tr key={`${l.id}-flag`}>
-                              <td className="px-6 py-5 bg-gray-50" colSpan={5}>
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1 mr-4">
-                                    <label className="block text-xs font-semibold text-gray-700 mb-2">
-                                      Flag reason
-                                    </label>
-                                    <input
-                                      className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                      placeholder="Describe why this listing should be reviewed…"
-                                      value={reason}
-                                      onChange={(e) =>
-                                        setReason(e.target.value)
-                                      }
-                                    />
-                                  </div>
-                                  <div className="flex items-center space-x-3">
-                                    <button
-                                      className="border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-3 px-5 rounded-lg transition"
-                                      type="button"
-                                      onClick={() => setOpenId(null)}
-                                    >
-                                      Cancel
-                                    </button>
-                                    <button
-                                      className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition disabled:opacity-60"
-                                      type="button"
-                                      disabled={
-                                        !reason.trim() || flag.isPending
-                                      }
-                                      onClick={() =>
-                                        flag.mutate({
-                                          listingId: l.id,
-                                          reason: reason.trim(),
-                                        })
-                                      }
-                                    >
-                                      {flag.isPending
-                                        ? 'Flagging…'
-                                        : 'Flag listing'}
-                                    </button>
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          ) : null}
-                        </>
                       );
                     })}
                   </tbody>

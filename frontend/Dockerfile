@@ -18,4 +18,4 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 
 EXPOSE 3001
-CMD ["npm", "run", "dev", "--", "-p", "3001"]
+CMD ["npm", "start", "--", "-p", "3001"]

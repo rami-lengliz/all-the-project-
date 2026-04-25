@@ -7,11 +7,19 @@
  */
 'use client';
 
+import { useEffect, useState } from 'react';
 import { isApiUrlConfigured } from '@/lib/api/env';
 
 export function EnvCheck() {
-    // Only render on the client (window check) + only when the var is missing
-    if (typeof window === 'undefined') return null;
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    // Keep the initial server and client render identical to avoid hydration mismatches.
+    // The warning still appears immediately after mount when the env is missing.
+    if (!isMounted) return null;
     if (isApiUrlConfigured()) return null;
 
     return (

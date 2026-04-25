@@ -8,7 +8,6 @@ import {
   IsDateString,
   IsString,
   IsEnum,
-  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -18,12 +17,6 @@ export enum SortBy {
   PRICE_ASC = 'price_asc',
   PRICE_DESC = 'price_desc',
   DATE = 'date',
-}
-
-export enum BookingTypeFilter {
-  DAILY = 'DAILY',
-  SLOT = 'SLOT',
-  ANY = 'ANY',
 }
 
 export class FilterListingsDto {
@@ -36,11 +29,6 @@ export class FilterListingsDto {
   @IsOptional()
   @IsUUID()
   category?: string;
-
-  @ApiProperty({ required: false, example: 'stays' })
-  @IsOptional()
-  @IsString()
-  categorySlug?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -74,22 +62,6 @@ export class FilterListingsDto {
   @IsNumber()
   @Min(0)
   radiusKm?: number;
-
-  @ApiProperty({ required: false, enum: BookingTypeFilter })
-  @IsOptional()
-  @IsEnum(BookingTypeFilter)
-  bookingType?: BookingTypeFilter;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @Type(() => Boolean)
-  @IsBoolean()
-  nearBeach?: boolean;
-
-  @ApiProperty({ required: false, example: 'Kelibia' })
-  @IsOptional()
-  @IsString()
-  city?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()

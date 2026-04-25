@@ -4,6 +4,7 @@ import {
   LedgerEntryType,
   LedgerDirection,
   LedgerStatus,
+  DisputeStatus,
   Prisma,
 } from '@prisma/client';
 
@@ -324,6 +325,18 @@ export class LedgerService {
         .reduce((acc, e) => acc + Number(e.amount), 0)
         .toFixed(2);
 
+    const disputedEntries = await this.prisma.ledgerEntry.findMany({
+      where: {
+        ...where,
+        type: LedgerEntryType.HOST_PAYOUT_DUE,
+        booking: { disputeStatus: DisputeStatus.OPEN },
+      },
+    });
+
+    const disputedAmount = disputedEntries
+      .reduce((acc, e) => acc + Number(e.amount), 0)
+      .toFixed(2);
+
     const refundEntries = entries.filter(
       (e) => e.type === LedgerEntryType.REFUND,
     );
@@ -332,10 +345,13 @@ export class LedgerService {
       gross: sumByType(LedgerEntryType.RENT_PAID),
       commission: sumByType(LedgerEntryType.COMMISSION),
       hostNet: sumByType(LedgerEntryType.HOST_PAYOUT_DUE),
+      totalPaid: sumByType(LedgerEntryType.HOST_PAYOUT),
       refunds: sumByType(LedgerEntryType.REFUND),
       refundCount: refundEntries.length,
       currency: 'TND',
       entryCount: entries.length,
+      disputedAmount,
+      disputeCount: disputedEntries.length,
     };
   }
 }
