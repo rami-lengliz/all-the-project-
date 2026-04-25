@@ -86,6 +86,19 @@ export class AiSearchRequestDto {
   @IsOptional()
   @IsString()
   followUpAnswer?: string;
+
+  @ApiProperty({
+    description: 'Multi-turn conversation history for context',
+    required: false,
+    type: 'array',
+    example: [
+      { role: 'assistant', content: 'What is your budget?' },
+      { role: 'user', content: 'Under 500 TND' },
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  conversationHistory?: { role: 'user' | 'assistant'; content: string }[];
 }
 
 export class SearchFiltersDto {
@@ -118,6 +131,19 @@ export class SearchFiltersDto {
 
   @ApiProperty({ required: false })
   radiusKm?: number;
+
+  @ApiProperty({ required: false, nullable: true })
+  nearBeach?: boolean | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  city?: string | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    enum: ['romantic', 'family', 'adventure', 'budget', 'luxury'],
+  })
+  vibe?: 'romantic' | 'family' | 'adventure' | 'budget' | 'luxury' | null;
 }
 
 export class SearchChipDto {

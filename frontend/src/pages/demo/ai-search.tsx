@@ -12,10 +12,19 @@ import {
 // ── Small sub-components ──────────────────────────────────────────────────────
 
 function Chip({ chip }: { chip: AiChip }) {
+    // Special colour per chip key
+    const vibeStyle = chip.key === 'vibe'
+        ? 'border-pink-300 bg-pink-50 text-pink-800'
+        : chip.key === 'nearBeach'
+        ? 'border-teal-300 bg-teal-50 text-teal-800'
+        : chip.key === 'city'
+        ? 'border-indigo-300 bg-indigo-50 text-indigo-800'
+        : 'border-blue-300 bg-blue-50 text-blue-800';
+
     return (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm">
-            <span className="font-mono text-xs font-bold uppercase tracking-wide text-blue-400">{chip.key}</span>
-            <span className="font-medium text-blue-800">{chip.label}</span>
+        <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm ${vibeStyle}`}>
+            <span className="font-mono text-xs font-bold uppercase tracking-wide opacity-60">{chip.key}</span>
+            <span className="font-medium">{chip.label}</span>
         </span>
     );
 }
@@ -197,8 +206,10 @@ export default function DemoAiSearchPage() {
     const [followUpFallback, setFollowUpFallback] = useState(false);
     // Last request payload — shown in debug panel
     const [lastPayload, setLastPayload] = useState<Record<string, unknown> | null>(null);
-    // Track whether we've used the follow-up already (max 1 allowed by backend)
-    const followUpUsed = useRef(false);
+    // Multi-turn conversation history (sent to backend for context)
+    const [conversationHistory, setConversationHistory] = useState<
+        { role: 'user' | 'assistant'; content: string }[]
+    >([]);
     const inputRef = useRef<HTMLInputElement>(null);
 
     // ── Core search call ────────────────────────────────────────────────────────
@@ -207,6 +218,12 @@ export default function DemoAiSearchPage() {
         setLoading(true);
         setError(null);
         setFollowUpFallback(false);
+
+        // Build updated history before sending (add this user turn)
+        const historySnapshot = opts?.isFollowUp && opts.answer
+            ? [...conversationHistory, { role: 'user' as const, content: opts.answer }]
+            : conversationHistory;
+
         const payload = {
             query: q,
             location: selectedLocation.label,
@@ -214,10 +231,14 @@ export default function DemoAiSearchPage() {
             lng: selectedLocation.lng,
             radiusKm,
             followUpUsed: opts?.isFollowUp ?? false,
+            conversationHistory: historySnapshot,
             ...(opts?.answer ? { followUpAnswer: opts.answer } : {}),
         };
         setLastPayload(payload);
         const safeRadius = Math.min(50, Math.max(1, radiusKm));
+
+        // Count assistant turns — max 3 allowed
+        const assistantTurns = historySnapshot.filter(m => m.role === 'assistant').length;
 
         try {
             const res = await fetchAiSearch({
@@ -226,24 +247,39 @@ export default function DemoAiSearchPage() {
                 lng: selectedLocation.lng,
                 radiusKm: safeRadius,
                 followUpUsed: opts?.isFollowUp ?? false,
+                conversationHistory: historySnapshot,
                 ...(opts?.answer ? { followUpAnswer: opts.answer } : {}),
             });
 
-            // ── Infinite-loop guard ────────────────────────────────────────────
-            // Fires when:
-            //   a) this call explicitly set followUpUsed=true (isFollowUp), OR
-            //   b) followUpUsed ref is already true (previous call was a follow-up)
-            // Either way, a second FOLLOW_UP response must never reach the UI.
-            const isSecondFollowUp = (opts?.isFollowUp || followUpUsed.current) && res.mode === 'FOLLOW_UP';
-            if (isSecondFollowUp) {
+            // ── Infinite-loop / limit guard ────────────────────────────────────
+            // Forces RESULT when the backend used all 3 follow-ups but still
+            // returned FOLLOW_UP (defensive; backend should never do this).
+            const followUpsExhausted = assistantTurns >= 3;
+            if (followUpsExhausted && res.mode === 'FOLLOW_UP') {
                 res.mode = 'RESULT';
                 res.followUp = null;
                 setFollowUpFallback(true);
             }
-            // ─────────────────────────────────────────────────────────────────
+            // ──────────────────────────────────────────────────────────────────
 
             setResult(res);
-            if (opts?.isFollowUp) followUpUsed.current = true;
+
+            // Append to conversation history after each turn
+            if (res.mode === 'FOLLOW_UP' && res.followUp) {
+                // Record: user sent `q`, assistant replied with the follow-up question
+                setConversationHistory(prev => [
+                    ...prev,
+                    { role: 'user', content: opts?.answer ?? q },
+                    { role: 'assistant', content: res.followUp!.question },
+                ]);
+            } else if (opts?.isFollowUp && opts.answer) {
+                // Answer turn — just append the user answer (assistant won't ask again)
+                setConversationHistory(prev => [
+                    ...prev,
+                    { role: 'user', content: opts.answer! },
+                ]);
+            }
+
         } catch (e: any) {
             setError(e?.message ?? 'Request failed.');
         } finally {
@@ -262,7 +298,7 @@ export default function DemoAiSearchPage() {
         setResult(null);
         setError(null);
         setFollowUpFallback(false);
-        followUpUsed.current = false;
+        setConversationHistory([]);
         inputRef.current?.focus();
     }
 
@@ -286,7 +322,7 @@ export default function DemoAiSearchPage() {
                     <h1 className="text-2xl font-bold text-gray-900">AI Search</h1>
                     <p className="mt-1 text-sm text-gray-500">
                         Natural-language rental search. AI extracts filters and returns listings.
-                        Max 1 follow-up question allowed.
+                        Up to 3 follow-up questions allowed.
                     </p>
                 </div>
 
@@ -479,8 +515,10 @@ export default function DemoAiSearchPage() {
                             >
                                 {result.mode}
                             </span>
-                            {followUpUsed.current && (
-                                <span className="text-xs text-gray-400">follow-up used</span>
+                            {conversationHistory.filter(m => m.role === 'assistant').length > 0 && (
+                                <span className="text-xs text-gray-400">
+                                    {conversationHistory.filter(m => m.role === 'assistant').length}/3 follow-ups used
+                                </span>
                             )}
                         </div>
 
@@ -506,7 +544,7 @@ export default function DemoAiSearchPage() {
                                     ⚠️ Showing broad results
                                 </p>
                                 <p className="mt-0.5 text-xs text-orange-500">
-                                    The AI requested a second follow-up, which is not allowed.
+                                    All 3 follow-up questions have been used.
                                     Displaying the best available results instead.
                                 </p>
                             </div>

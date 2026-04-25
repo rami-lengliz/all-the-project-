@@ -19,7 +19,7 @@ export interface CompletionOptions {
  * @example
  * const provider: AiProviderName = 'openai';
  */
-export type AiProviderName = 'openai' | 'anthropic' | 'google' | 'mock';
+export type AiProviderName = 'openai' | 'anthropic' | 'google' | 'mock' | 'groq';
 
 /**
  * Metadata that every concrete provider implementation must expose.

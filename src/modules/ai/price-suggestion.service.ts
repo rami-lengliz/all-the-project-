@@ -8,37 +8,47 @@ import {
   PropertyType,
 } from './dto/price-suggestion.dto';
 import { CATEGORY_PRICING_UNITS } from '../../common/constants/category-pricing-units';
-import { selectTopKComps, selectSimilarComps, type TargetDraft, type CompCandidate } from '../../common/utils/comp-scorer';
+import { selectTopKComps, selectSimilarComps, type TargetDraft, type CompCandidate, type ScoredComp } from '../../common/utils/comp-scorer';
 import { calcBasePrice }   from '../../common/utils/base-price-calculator';
 import { calcPriceRange, calcCompsRange, percentile } from '../../common/utils/price-range';
 import { calcConfidence }  from '../../common/utils/confidence-score';
-import { buildExplanation } from '../../common/utils/explanation-builder'; // kept for non-AI fallback path
-import { getBaseline }     from '../../common/config/price-baselines';
+import { getBaseline, type CategoryBaseline } from '../../common/config/price-baselines';
 import { applyGuardrails } from '../../common/utils/output-guardrails';
+import { parsePriceSuggestionResponse } from './schemas/ai-response.schema';
 
 // ── Comp row types ──────────────────────────────────────────────────────────
 /** Normalised comp returned by both fetchCompsGeo and the fallback */
 interface CompRow {
-  listingId:    string;
-  price:        number;      // ground-truth booking price, or listing asking price
-  source:       'booking' | 'listing';
-  categorySlug: string;
-  address:      string;
-  lat:          number;
-  lng:          number;
-  distanceM:    number;       // 0 for city-string fallback comps
+  listingId:      string;
+  price:          number;      // ground-truth booking price, or listing asking price
+  source:         'booking' | 'listing';
+  categorySlug:   string;
+  address:        string;
+  lat:            number;
+  lng:            number;
+  distanceM:      number;       // 0 for city-string fallback comps
+  // Stay-pricing dimensions — populated by fetchCompsGeo, null for non-accommodation
+  nearBeach:      boolean | null;
+  propertyType:   string | null;
+  guestsCapacity: number | null;
+  bedrooms:       number | null;
 }
 
 /** Raw row returned by $queryRaw before normalisation */
 interface RawCompRow {
-  listingId:    string;
-  listingPrice: number;       // Prisma returns ::float as JS number
-  address:      string;
-  lat:          string | number;  // PostGIS returns text from $queryRaw
-  lng:          string | number;
-  distanceM:    string | number;
-  categorySlug: string;
-  bookedPrice:  number | null;
+  listingId:      string;
+  listingPrice:   number;       // Prisma returns ::float as JS number
+  address:        string;
+  lat:            string | number;  // PostGIS returns text from $queryRaw
+  lng:            string | number;
+  distanceM:      string | number;
+  categorySlug:   string;
+  bookedPrice:    number | null;
+  // Stay-pricing dimensions (null for non-accommodation listings)
+  nearBeach:      boolean | null;
+  propertyType:   string | null;
+  guestsCapacity: number | null;
+  bedrooms:       number | null;
 }
 
 // ── Comparable listing (public type used by getComparableListings) ───────────────
@@ -206,23 +216,26 @@ export class PriceSuggestionService {
   private async _suggest(
     dto: PriceSuggestionRequestDto,
   ): Promise<PriceSuggestionResponseDto> {
-    const hasGeo  = dto.lat !== undefined && dto.lng !== undefined;
+    const hasGeo   = dto.lat !== undefined && dto.lng !== undefined;
     const radiusKm = dto.radiusKm ?? 25;
     const catSlug  = this.categoryToSlug(dto.category);
     const season   = dto.season ?? this.currentSeason();
-    const seasonMult = SEASON_MULTIPLIER[season] ?? 1.0;
+    const baseline = getBaseline(catSlug, dto.unit);
 
     // ── 1. Fetch raw comps ────────────────────────────────────────────────────
+    //    Unchanged from original — PostGIS geospatial retrieval.
     const rawCityComps: CompRow[] = hasGeo
       ? await this.fetchCompsGeo(dto, dto.lat!, dto.lng!, radiusKm)
       : (await this.fetchComps(dto, dto.city)).map((p) => ({
           listingId: '', price: p, source: 'listing' as const,
           categorySlug: catSlug, address: dto.city, lat: 0, lng: 0, distanceM: 0,
+          nearBeach: null, propertyType: null, guestsCapacity: null, bedrooms: null,
         }));
 
     const rawNationalComps: CompRow[] = await this.fetchNationalComps(dto);
 
     // ── 2. Score + select topK comps ─────────────────────────────────────────
+    //    Unchanged from original — similarity scoring across 4 dimensions.
     const target: TargetDraft = {
       categorySlug:  catSlug,
       city:          dto.city,
@@ -231,80 +244,55 @@ export class PriceSuggestionService {
       propertyType:  dto.propertyType ?? null,
       capacity:      dto.capacity ?? null,
       amenities:     dto.amenities ?? null,
-      // Derive nearBeach from the distanceToSeaKm field (standard proxy)
       nearBeach:
         dto.distanceToSeaKm !== undefined && dto.distanceToSeaKm !== null
           ? dto.distanceToSeaKm <= 0.5
           : null,
-      bedrooms: null, // not exposed in PriceSuggestionRequestDto
+      bedrooms: null,
     };
 
     const scoredCity     = selectTopKComps(target, rawCityComps     as CompCandidate[], 30, 0.10);
     const scoredNational = selectTopKComps(target, rawNationalComps as CompCandidate[], 80, 0.05);
+    const allScored      = [...scoredCity, ...scoredNational];
+    const cityCompsN     = scoredCity.length;
 
-    // ── 3. Base price (weighted median + city-first blend) ───────────────────
-    // getBaseline() gives the accurate per-unit default so the weighted median
-    // has a sensible anchor when comps are sparse.
-    const baseline        = getBaseline(catSlug, dto.unit);
-    const categoryDefault = baseline.recommended;
-    const { baseFinal, baseCity, baseNational, wCity, wNational, cityCompsN } =
-      calcBasePrice(scoredCity, scoredNational, categoryDefault);
-
-    // ── 4. Accommodation-specific adjustments ─────────────────────────────────
-    const { adjustedBase, seaTier, seaMult, propMult, capacityMult, adjustments } =
-      dto.category === 'accommodation'
-        ? this.accommodationAdjustments(baseFinal, dto)
-        : { adjustedBase: baseFinal, seaTier: null, seaMult: 1, propMult: 1, capacityMult: 1, adjustments: [] };
-
-    // ── 5. Final recommended price (round to nearest 0.5 TND) ────────────────
-    const raw         = adjustedBase * seasonMult;
-    const recommended = Math.round(raw * 2) / 2;
-
-    // ── 6. Price range — always from comparables, never from AI ───────────────
+    // ── 3. Gemini RAG pricing (primary path) ──────────────────────────────────
     //
-    // calcCompsRange uses the similarity-weighted median as the base and
-    // IQR ±20% for the bounds.  The AI provider is NOT involved in this step.
-    // Even if GEMINI_API_KEY or OPENAI_API_KEY is missing, the numeric range
-    // is always computed deterministically from real market data.
-    const allScored     = [...scoredCity, ...scoredNational];
-    const compsForRange = allScored.map((c) => ({ price: c.price, similarityScore: c.similarityScore }));
-    const {
-      base: medianPrice,
-      rangeMin,
-      rangeMax,
-      iqr,
-    } = calcCompsRange(compsForRange, categoryDefault);
-
-    // ── 7. Confidence (multi-signal) ──────────────────────────────────────────
-    const avgSim = allScored.length > 0
-      ? allScored.reduce((s, c) => s + c.similarityScore, 0) / allScored.length
-      : 0;
-    const { score: confidenceScore, band: confidence } = calcConfidence({
-      cityCompsN,
-      nationalCompsN: scoredNational.length,
-      avgSimilarity:  avgSim,
-      iqr,
-      medianPrice:    medianPrice || recommended,
-    });
-
-    // ── 8. Explanation — AI when available, heuristic fallback otherwise ───────
+    // Inject ALL scored comps into a Gemini prompt. Gemini reasons about the
+    // comp prices, similarity scores, propertyType, nearBeach, and capacity,
+    // then returns recommended / rangeMin / rangeMax / confidence / explanation
+    // as a single JSON object.
     //
-    // The AI generates 2–3 readable bullets that EXPLAIN the numeric range.
-    // Removing or misconfiguring the AI key has zero effect on the numbers:
-    //   • recommended, rangeMin, rangeMax — always comp-driven (step 6)
-    //   • explanation                    — AI if enabled, heuristic if not
-    const explanation = await this.buildExplanation(
-      dto,
-      recommended,
-      cityCompsN,
-      wCity,
-      wNational,
-      season,
-      seaTier,
-      adjustments,
-    );
+    // Fallback: if Gemini is unavailable (no key, API error, or invalid JSON)
+    // computeFallbackPrice() runs the math pipeline and returns the same shape.
+    const geminiResult = await this.callGeminiPricing(allScored as ScoredComp[], dto, season, baseline);
 
-    // ── 9. Write log (fire-and-forget) ────────────────────────────────────────
+    let recommended: number;
+    let rangeMin:    number;
+    let rangeMax:    number;
+    let confidence:  'high' | 'medium' | 'low';
+    let explanation: [string, string, string];
+    // Log-only fields — only populated by the math fallback path
+    let wCity       = 0;
+    let wNational   = 0;
+    let adjustments: string[] = [];
+
+    if (geminiResult) {
+      // ── Primary: Gemini-driven pricing ──────────────────────────────────────
+      ({ recommended, rangeMin, rangeMax, confidence, explanation } = geminiResult);
+      this.logger.log(
+        `Gemini pricing OK: recommended=${recommended} range=[${rangeMin},${rangeMax}] confidence=${confidence}`,
+      );
+    } else {
+      // ── Fallback: math pipeline ──────────────────────────────────────────────
+      this.logger.warn('[PriceSuggestion] Gemini unavailable, falling back to math pipeline');
+      const fb = this.computeFallbackPrice(scoredCity, scoredNational, allScored, dto, season, baseline);
+      ({ recommended, rangeMin, rangeMax, confidence, explanation,
+         wCity, wNational, adjustments } = fb);
+    }
+
+
+    // ── 4. Write log (fire-and-forget) ────────────────────────────────────────
     let logId: string | undefined;
     try {
       const log = await (this.prisma as any).priceSuggestionLog.create({
@@ -342,7 +330,7 @@ export class PriceSuggestionService {
       this.logger.error('Failed to write PriceSuggestionLog', err);
     }
 
-    // ── 10. Apply output guardrails (clamp NaN/outliers before returning) ──────────
+    // ── 5. Apply output guardrails (clamp NaN/outliers before returning) ───────
     const guarded = applyGuardrails(
       { recommended, rangeMin, rangeMax, confidence, explanation,
         compsUsed: cityCompsN, currency: 'TND', unit: dto.unit, logId },
@@ -367,7 +355,7 @@ export class PriceSuggestionService {
       unit:        guarded.unit,
       logId:       guarded.logId,
     };
-    }  // end _suggest
+  }  // end _suggest
 
 
   /**
@@ -577,6 +565,11 @@ export class PriceSuggestionService {
             ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography
           )::numeric, 0)                            AS "distanceM",
           c.slug                                    AS "categorySlug",
+          -- Stay-pricing dimensions used by comp-scorer similarity scoring
+          l.near_beach                              AS "nearBeach",
+          l.property_type                           AS "propertyType",
+          l.guests_capacity                         AS "guestsCapacity",
+          l.bedrooms                                AS "bedrooms",
           -- Best booking price for this listing (most recent confirmed/paid/completed)
           (
             SELECT b.snapshot_price_per_day::float
@@ -604,21 +597,26 @@ export class PriceSuggestionService {
       `;
 
       return rows.map((r) => ({
-        listingId:    r.listingId,
+        listingId:      r.listingId,
         // bookedPrice is ground-truth; fall back to listing asking price
-        price:        r.bookedPrice ?? r.listingPrice,
-        source:       r.bookedPrice !== null ? 'booking' : 'listing',
-        categorySlug: r.categorySlug,
-        address:      r.address,
-        lat:          Number(r.lat),
-        lng:          Number(r.lng),
-        distanceM:    Number(r.distanceM),
+        price:          r.bookedPrice ?? r.listingPrice,
+        source:         r.bookedPrice !== null ? 'booking' : 'listing',
+        categorySlug:   r.categorySlug,
+        address:        r.address,
+        lat:            Number(r.lat),
+        lng:            Number(r.lng),
+        distanceM:      Number(r.distanceM),
+        // Stay-pricing dimensions — null if not set on the listing
+        nearBeach:      r.nearBeach ?? null,
+        propertyType:   r.propertyType ?? null,
+        guestsCapacity: r.guestsCapacity !== null ? Number(r.guestsCapacity) : null,
+        bedrooms:       r.bedrooms      !== null ? Number(r.bedrooms)      : null,
       }));
     } catch (err) {
       this.logger.error('fetchCompsGeo error', err);
       // Graceful fallback to city-string query
       const prices = await this.fetchComps(dto, dto.city);
-      return prices.map((p) => ({ listingId: '', price: p, source: 'listing' as const, categorySlug: catSlug, address: '', lat: 0, lng: 0, distanceM: 0 }));
+      return prices.map((p) => ({ listingId: '', price: p, source: 'listing' as const, categorySlug: catSlug, address: '', lat: 0, lng: 0, distanceM: 0, nearBeach: null, propertyType: null, guestsCapacity: null, bedrooms: null }));
     }
   }
   //
@@ -798,11 +796,13 @@ export class PriceSuggestionService {
           listingId: b.listingId, price: this.toNumbers([b.snapshotPricePerDay])[0] ?? 0,
           source: 'booking' as const, categorySlug: catSlug,
           address: '', lat: 0, lng: 0, distanceM: 0,
+          nearBeach: null, propertyType: null, guestsCapacity: null, bedrooms: null,
         })).filter((r) => r.price > 0);
         const listingRows: CompRow[] = listings.map((l) => ({
           listingId: l.id, price: this.toNumbers([l.pricePerDay])[0] ?? 0,
           source: 'listing' as const, categorySlug: catSlug,
           address: l.address, lat: 0, lng: 0, distanceM: 0,
+          nearBeach: null, propertyType: null, guestsCapacity: null, bedrooms: null,
         })).filter((r) => r.price > 0);
         rows = [...bookingRows, ...listingRows];
       } catch (fallbackErr) {
@@ -854,75 +854,239 @@ export class PriceSuggestionService {
     return PricingSeason.OFF_PEAK;
   }
 
-  // ── Explanation ────────────────────────────────────────────────────────────
+  // ── Gemini RAG Pricing ──────────────────────────────────────────────────────
 
-  private async buildExplanation(
-    dto: PriceSuggestionRequestDto,
-    recommended: number,
-    cityComps: number,
-    wCity: number,
-    wNational: number,
-    season: string,
-    seaTier: string | null,
-    adjustments: string[],
-  ): Promise<[string, string, string]> {
+  /**
+   * Builds a prompt that injects ALL scored comps into Gemini so it can reason
+   * about the market and return a complete pricing decision.
+   *
+   * The top MAX_COMPS_IN_PROMPT comps (sorted by similarity, highest first) are
+   * serialised as a numbered list so Gemini can distinguish high-signal comps
+  /**
+   * Builds the system and user prompts sent to Gemini for RAG-based pricing.
+   *
+   * System prompt: strict role + rules to prevent hallucination.
+   * User prompt:   target listing details + ALL scored comps as a JSON array
+   *                (capped at MAX_COMPS_IN_PROMPT) + the output instruction.
+   *
+   * Comps are serialised with both listingPrice and bookedPrice so Gemini
+   * can distinguish asking prices from actual transaction prices.
+   */
+  private buildPricingPrompt(
+    allScored: ScoredComp[],
+    dto:       PriceSuggestionRequestDto,
+    season:    string,
+    baseline:  CategoryBaseline,
+  ): { systemPrompt: string; userPrompt: string } {
+    // ── System prompt (exact wording as specified) ──────────────────────────
+    const systemPrompt =
+      'You are a pricing expert for a Tunisian rental marketplace. ' +
+      'You will receive a target listing and a list of real comparable listings ' +
+      'from the database with their actual prices. ' +
+      'Your job is to suggest a fair rental price based ONLY on the provided comps. ' +
+      'Never invent prices. If comps are insufficient, widen the range and set ' +
+      'confidence to low. ' +
+      'Always return valid JSON only, no markdown, no explanation outside the JSON.';
+
+    // ── Target listing (structured object) ─────────────────────────────────
+    const target = {
+      category:         dto.category,
+      city:             dto.city,
+      unit:             dto.unit,
+      season,
+      propertyType:     dto.propertyType     ?? null,
+      distanceToSeaKm:  dto.distanceToSeaKm  ?? null,
+      capacity:         dto.capacity         ?? null,
+      bedrooms:         null,                 // not exposed in DTO — Gemini infers from comps
+      amenities:        dto.amenities        ?? [],
+      nationalBaseline: `${baseline.recommended} TND ${dto.unit}`,
+    };
+
+    // ── Comps JSON array (top MAX_COMPS_IN_PROMPT, sorted by score desc) ───
+    const MAX_COMPS_IN_PROMPT = 20;
+    const comps = allScored.slice(0, MAX_COMPS_IN_PROMPT).map((c) => ({
+      // If the comp came from a real booking, bookedPrice carries the ground-truth
+      // transaction price; listingPrice is the asking price. Both are in TND.
+      listingPrice:   c.source === 'listing'  ? c.price : null,
+      bookedPrice:    c.source === 'booking'  ? c.price : null,
+      score:          parseFloat(c.similarityScore.toFixed(3)),  // 0–1, higher = more similar
+      distanceM:      c.distanceM  ?? null,
+      propertyType:   c.propertyType  ?? null,
+      nearBeach:      c.nearBeach     ?? null,
+      guestsCapacity: c.capacity      ?? null,
+      bedrooms:       c.bedrooms      ?? null,
+    }));
+
+    // ── User prompt ─────────────────────────────────────────────────────────
+    const userPrompt =
+      `TARGET LISTING:\n${JSON.stringify(target, null, 2)}\n\n` +
+      `COMPARABLE LISTINGS (sorted by score descending, score=1 is a perfect match):\n` +
+      `${JSON.stringify(comps, null, 2)}\n\n` +
+      `Based on the comps above, suggest a price for this listing.\n` +
+      `Weight each comp by its score field.\n` +
+      `Account for: sea proximity, property type, capacity, distance.\n` +
+      `Return ONLY:\n` +
+      `{\n` +
+      `  "recommended": number,\n` +
+      `  "rangeMin": number,\n` +
+      `  "rangeMax": number,\n` +
+      `  "confidence": "high" | "medium" | "low",\n` +
+      `  "explanation": [string, string, string]\n` +
+      `}`;
+
+    return { systemPrompt, userPrompt };
+  }
+
+  /**
+   * Calls Gemini with the comp-injected pricing prompt.
+   * Returns the parsed, validated result or null if Gemini is unavailable /
+   * returns malformed JSON — the caller falls back to the math pipeline.
+   */
+  private async callGeminiPricing(
+    allScored: ScoredComp[],
+    dto:       PriceSuggestionRequestDto,
+    season:    string,
+    baseline:  CategoryBaseline,
+  ): Promise<{
+    recommended: number;
+    rangeMin:    number;
+    rangeMax:    number;
+    confidence:  'high' | 'medium' | 'low';
+    explanation: [string, string, string];
+  } | null> {
     if (!this.aiService.isAiEnabled()) {
-      return this.heuristicExplanation(dto, recommended, cityComps, wCity, wNational, season, seaTier);
+      this.logger.debug('AI provider not available — skipping Gemini pricing');
+      return null;
+    }
+    if (allScored.length === 0) {
+      this.logger.debug('No scored comps — skipping Gemini pricing');
+      return null;
     }
 
-    const amenitiesText = dto.amenities?.length
-      ? `Amenities: ${dto.amenities.join(', ')}.`
-      : 'No specific amenities listed.';
+    try {
+      const { systemPrompt, userPrompt } = this.buildPricingPrompt(allScored, dto, season, baseline);
+      const raw = await this.aiService.generateCompletion(userPrompt, {
+        maxTokens:    500,
+        temperature:  0.2,   // low temp = more deterministic pricing
+        systemPrompt,
+      });
 
-    const weightingNote =
-      wCity === 0
-        ? 'No city comparables found; price is based entirely on national benchmarks.'
-        : wCity === 1
-          ? `Price is based entirely on ${cityComps} local comparables in ${dto.city}.`
-          : `Price blends ${Math.round(wCity * 100)}% local data (${cityComps} comps in ${dto.city}) and ${Math.round(wNational * 100)}% national average.`;
+      // Parse and validate via Zod schema.
+      // parsePriceSuggestionResponse handles: fence stripping, JSON.parse,
+      // type-checking, positivity constraints.  Returns null on any failure.
+      const parsed = parsePriceSuggestionResponse(raw);
+      if (!parsed) {
+        this.logger.warn('Gemini pricing: Zod validation failed', { raw: raw.slice(0, 200) });
+        return null;
+      }
 
-    const adjNote = adjustments.length
-      ? `Applied adjustments: ${adjustments.join('; ')}.`
-      : 'No accommodation-specific adjustments applied.';
+      const { recommended, rangeMin, rangeMax, confidence } = parsed;
 
-    const prompt = `You are a pricing analyst for a Tunisian rental platform.
-Write EXACTLY 3 short explanation bullets (1 sentence each) justifying the suggested price of ${recommended} TND.
+      // Zod ensures all values are positive numbers, but NOT their ordering.
+      // Enforce rangeMin < recommended < rangeMax — fall back to math if wrong.
+      if (!(rangeMin < recommended && recommended < rangeMax)) {
+        this.logger.warn(
+          `Gemini pricing: invalid ordering rangeMin=${rangeMin} ` +
+          `recommended=${recommended} rangeMax=${rangeMax}`,
+        );
+        return null;
+      }
 
-Listing details:
-- City: ${dto.city}
-- Category: ${dto.category}
-- Unit: ${dto.unit}
-- Season: ${season}
-- Property type: ${dto.propertyType ?? 'not specified'}
-- Distance to sea: ${dto.distanceToSeaKm !== undefined ? `${dto.distanceToSeaKm} km (${seaTier ?? ''})` : 'not specified'}
-- Capacity: ${dto.capacity ?? 'not specified'}
-- ${amenitiesText}
-- Weighting: ${weightingNote}
-- ${adjNote}
+      const explanation: [string, string, string] = [
+        parsed.explanation[0] ?? EXPLANATION_FALLBACK,
+        parsed.explanation[1] ?? EXPLANATION_FALLBACK,
+        parsed.explanation[2] ?? EXPLANATION_FALLBACK,
+      ];
 
-Reply with a JSON array of exactly 3 strings.
-["Reason 1.", "Reason 2.", "Reason 3."]`;
+      return { recommended, rangeMin, rangeMax, confidence, explanation };
 
-    const raw = await this.aiService.generateCompletion(prompt, {
-      maxTokens: 280,
-      temperature: 0.5,
-      systemPrompt:
-        'You are a concise pricing analyst. Always respond with a valid JSON array of 3 strings.',
-    });
+    } catch (err) {
+      this.logger.error('Gemini pricing call failed — using math fallback', err);
+      return null;
+    }
+  }
 
-    const match = raw.match(/\[[\s\S]*\]/);
-    if (!match) throw new Error('No JSON array in AI response');
+  // ── Math Fallback Pipeline ───────────────────────────────────────────────────
 
-    const parsed: string[] = JSON.parse(match[0]);
-    if (!Array.isArray(parsed) || parsed.length < 3) {
-      throw new Error('AI returned fewer than 3 explanations');
+  /**
+   * Full math-based pricing pipeline — called ONLY when Gemini is unavailable,
+   * returns invalid JSON, or parsePriceSuggestionResponse() returns null.
+   *
+   * Returns the same shape as the Gemini response so _suggest() can consume
+   * either path identically. Confidence is always 'low' to signal degraded mode.
+   *
+   * Also returns wCity / wNational / adjustments for the audit log.
+   */
+  private computeFallbackPrice(
+    scoredCity:     ReturnType<typeof selectTopKComps>,
+    scoredNational: ReturnType<typeof selectTopKComps>,
+    allScored:      ReturnType<typeof selectTopKComps>,
+    dto:            PriceSuggestionRequestDto,
+    season:         string,
+    baseline:       CategoryBaseline,
+  ): {
+    recommended: number;
+    rangeMin:    number;
+    rangeMax:    number;
+    confidence:  'low';
+    explanation: [string, string, string];
+    // log-only fields
+    wCity:       number;
+    wNational:   number;
+    adjustments: string[];
+  } {
+    const seasonMult      = SEASON_MULTIPLIER[season] ?? 1.0;
+    const categoryDefault = baseline.recommended;
+
+    // ── Weighted median (city-first blend) ─────────────────────────────────────
+    const mathResult  = calcBasePrice(scoredCity, scoredNational, categoryDefault);
+    const { wCity, wNational } = mathResult;
+
+    // ── Accommodation-specific adjustments (sea tier, property type, capacity) ─
+    const accomResult = dto.category === 'accommodation'
+      ? this.accommodationAdjustments(mathResult.baseFinal, dto)
+      : {
+          adjustedBase: mathResult.baseFinal,
+          seaTier:      null,
+          seaMult:      1,
+          propMult:     1,
+          capacityMult: 1,
+          adjustments:  [] as string[],
+        };
+
+    const adjustments = accomResult.adjustments;
+
+    // ── Seasonal multiplier + round to nearest 0.5 TND ───────────────────────
+    const recommended = Math.round(accomResult.adjustedBase * seasonMult * 2) / 2;
+
+    // ── IQR range (nearBeach-filtered for accommodation) ──────────────────────
+    let compsForRange: { price: number; similarityScore: number }[];
+    if (dto.category === 'accommodation' && dto.distanceToSeaKm != null) {
+      const queryNearBeach = dto.distanceToSeaKm <= 0.5;
+      const beachMatched   = allScored.filter((c) => c.nearBeach === queryNearBeach);
+      const rangePool      = beachMatched.length >= 4 ? beachMatched : allScored;
+      compsForRange = rangePool.map((c) => ({ price: c.price, similarityScore: c.similarityScore }));
+    } else {
+      compsForRange = allScored.map((c) => ({ price: c.price, similarityScore: c.similarityScore }));
     }
 
-    return [
-      parsed[0] ?? EXPLANATION_FALLBACK,
-      parsed[1] ?? EXPLANATION_FALLBACK,
-      parsed[2] ?? EXPLANATION_FALLBACK,
-    ];
+    const rangeResult = calcCompsRange(compsForRange, categoryDefault);
+
+    // ── Heuristic explanation (template-based, deterministic) ─────────────────
+    const explanation = this.heuristicExplanation(
+      dto, recommended, scoredCity.length, wCity, wNational, season, accomResult.seaTier,
+    );
+
+    return {
+      recommended,
+      rangeMin:    rangeResult.rangeMin,
+      rangeMax:    rangeResult.rangeMax,
+      confidence:  'low',   // always low — degraded mode
+      explanation,
+      wCity,
+      wNational,
+      adjustments,
+    };
   }
 
   private heuristicExplanation(

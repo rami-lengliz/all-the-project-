@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { AiProvider, OpenAiProvider, GeminiProvider } from './providers';
+import { AiProvider, OpenAiProvider, GeminiProvider, GroqProvider } from './providers';
 
 // ─── Shared types (re-exported so existing consumers keep working) ────────────
 
@@ -45,6 +45,7 @@ export class AiService {
     private readonly configService: ConfigService,
     private readonly openAiProvider: OpenAiProvider,
     private readonly geminiProvider: GeminiProvider,
+    private readonly groqProvider: GroqProvider,
   ) {
     // Keep the raw OpenAI client alive for embeddings + moderation (not yet extracted)
     const openAiKey = this.configService.get<string>('OPENAI_API_KEY');
@@ -71,6 +72,13 @@ export class AiService {
         );
         break;
 
+      case 'groq':
+        this.activeProvider = this.groqProvider;
+        this.logger.log(
+          `AI provider selected: groq (model: ${this.groqProvider.info.model})`,
+        );
+        break;
+
       default:
         this.logger.warn(
           `Unknown AI_PROVIDER "${providerName}". Falling back to openai.`,
@@ -94,6 +102,15 @@ export class AiService {
    * Check if AI features are enabled.
    */
   isAiEnabled(): boolean {
+    return this.isEnabled;
+  }
+
+  /**
+   * Provider-agnostic availability check.
+   * Returns true if the active provider (Gemini or OpenAI) has a valid API key.
+   * Use this instead of reading AI_PROVIDER or OPENAI_API_KEY directly.
+   */
+  isAvailable(): boolean {
     return this.isEnabled;
   }
 

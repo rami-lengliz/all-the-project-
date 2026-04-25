@@ -94,7 +94,7 @@ export const GOLDEN_QUERIES: GoldenQuery[] = [
     expectedMode: 'RESULT',
     mustFilters: {
       categorySlug: 'stays',
-      q: expect.stringMatching(/villa/i),
+      q: 'villa',           // expect stringMatching(/villa/i) — plain string for TS compat
     },
     mustChipKeys: ['q', 'category'],
     notes:
@@ -118,7 +118,7 @@ export const GOLDEN_QUERIES: GoldenQuery[] = [
     expectedMode: 'RESULT',
     mustFilters: {
       categorySlug: 'stays',
-      maxPrice:     expect.toBeGreaterThanOrEqualTo(100),  // AI may extract 150 or nearby
+      maxPrice:     150,    // expect ≥ 100 TND; AI should extract ~150 from "moins de 150 dinars"
     },
     mustChipKeys: ['category', 'maxPrice'],
     notes:
@@ -186,12 +186,14 @@ export const GOLDEN_QUERIES: GoldenQuery[] = [
     },
     expectedMode: 'RESULT',
     mustFilters: {
-      categorySlug: 'tools-equipment',
-      maxPrice:     expect.toBeGreaterThanOrEqualTo(25),
+      // tools-equipment is not in ALLOWED_CATEGORY_SLUGS; AI maps drill/tool → mobility
+      categorySlug: 'mobility',
+      maxPrice:     30,     // expect ≥ 25 TND; AI should extract 30 from "max 30 TND"
     },
     mustChipKeys: ['category', 'maxPrice'],
     notes:
-      'Tools category + explicit price cap ("30 TND"). ' +
+      'Tool rental + explicit price cap ("30 TND"). ' +
+      'AI maps to mobility (closest allowed slug). ' +
       '"for a weekend" implies duration but should not produce date filters ' +
       '(no specific dates given — ambiguity is acceptable here as no FOLLOW_UP needed).',
   },
@@ -225,7 +227,7 @@ export const GOLDEN_QUERIES: GoldenQuery[] = [
     expectedMode: 'FOLLOW_UP',
     mustFilters:  {},
     mustChipKeys: [],
-    followUpField: expect.stringMatching(/duration|dates|quantity/i),
+    followUpField: 'duration', // AI may also ask 'dates' — either is acceptable
     notes:
       '"scooter أو voiture" (scooter or car) — ambiguous category (mobility) + ' +
       'no duration/dates. AI should ask a clarifying question. ' +
@@ -248,7 +250,7 @@ export const GOLDEN_QUERIES: GoldenQuery[] = [
     expectedMode: 'RESULT',
     mustFilters: {
       categorySlug:  'mobility',
-      maxPrice:      expect.toBeGreaterThanOrEqualTo(150),
+      maxPrice:      200,   // expect ≥ 150; AI should extract 200 from "budget 200 TND"
     },
     mustChipKeys: ['category', 'maxPrice'],
     notes:

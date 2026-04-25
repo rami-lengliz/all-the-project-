@@ -122,7 +122,7 @@ export class SeedService {
           ${`${i + 1} Street, ${cityName}`},
           ${category.id}::uuid,
           ${host.id}::uuid,
-          ARRAY['/placeholder.png']::TEXT[],
+          ARRAY['/uploads/placeholder.svg']::TEXT[],
           true, 'ACTIVE'::"ListingStatus",
           NOW(), NOW()
         )
@@ -163,7 +163,7 @@ export class SeedService {
           ${'Sports Complex, Kelibia'},
           ${sportsCat.id}::uuid,
           ${host.id}::uuid,
-          ARRAY[${`/uploads/sports-facility-${i + 1}.jpg`}]::TEXT[],
+          ARRAY['/uploads/demo-court.svg']::TEXT[],
           true, 'ACTIVE'::"ListingStatus",
           'SLOT'::"BookingType",
           NOW(), NOW()
@@ -213,7 +213,7 @@ export class SeedService {
         ${'Pending Street, Kelibia'},
         ${savedCategories[0].id}::uuid,
         ${pendingHost.id}::uuid,
-        ARRAY['/placeholder.png']::TEXT[],
+        ARRAY['/uploads/placeholder.svg']::TEXT[],
         true, 'PENDING_REVIEW'::"ListingStatus",
         NOW(), NOW()
       )
@@ -421,7 +421,7 @@ export class SeedService {
               ${`Kelibia, ${cluster.label} Zone`},
               ${staysCat.id}::uuid,
               ${host.id}::uuid,
-              ARRAY['/placeholder.png']::TEXT[],
+              ARRAY['/uploads/placeholder.svg']::TEXT[],
               true, 'ACTIVE'::"ListingStatus",
               'DAILY'::"BookingType",
               ${propType.type}::"PropertyType",
@@ -481,7 +481,7 @@ export class SeedService {
         ${'Demo Street 1, Kelibia'},
         ${staysCat.id}::uuid,
         ${host.id}::uuid,
-        ARRAY['/uploads/demo-villa.jpg']::TEXT[],
+        ARRAY['/uploads/demo-villa.svg']::TEXT[],
         true, 'ACTIVE'::"ListingStatus",
         'DAILY'::"BookingType",
         NOW(), NOW()
@@ -543,7 +543,7 @@ export class SeedService {
         ${'Demo Street 2, Kelibia'},
         ${sportsCat.id}::uuid,
         ${host.id}::uuid,
-        ARRAY['/uploads/demo-court.jpg']::TEXT[],
+        ARRAY['/uploads/demo-court.svg']::TEXT[],
         true, 'ACTIVE'::"ListingStatus",
         'SLOT'::"BookingType",
         NOW(), NOW()

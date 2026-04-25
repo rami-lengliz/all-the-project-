@@ -16,7 +16,7 @@ import {
  * To switch model, change the env var (preferred) or update DEFAULT_GEMINI_MODEL.
  * Available models: https://ai.google.dev/gemini-api/docs/models
  */
-const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
+const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
 
 /**
  * Gemini provider — implements the `AiProvider` contract using Google's
@@ -31,8 +31,8 @@ export class GeminiProvider implements AiProvider {
 
   readonly info: AiProviderInfo;
 
-  /** Request timeout in ms. Gemini can be slow on first call. */
-  private static readonly TIMEOUT_MS = 15_000;
+  /** Request timeout in ms — covers up to 3 retries with backoff (1+2+4 s). */
+  private static readonly TIMEOUT_MS = 30_000;
 
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
@@ -89,7 +89,10 @@ export class GeminiProvider implements AiProvider {
     return completion;
   }
 
-  // ── Private helpers ─────────────────────────────────────────────────────────
+  /** Maximum number of retries on transient Gemini errors (503 / 429). */
+  private static readonly MAX_RETRIES = 3;
+  /** Base delay in ms — doubled after each retry (1 s, 2 s, 4 s). */
+  private static readonly RETRY_BASE_MS = 1_000;
 
   private async callGemini(
     prompt: string,
@@ -97,37 +100,68 @@ export class GeminiProvider implements AiProvider {
     temperature: number,
     maxTokens: number,
   ): Promise<string> {
-    try {
-      const response = await this.client!.models.generateContent({
-        model: this.model,
-        contents: prompt,
-        ...(systemPrompt && {
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: Math.max(0, Math.min(2, temperature)),
-            maxOutputTokens: maxTokens,
-          },
-        }),
-        ...(!systemPrompt && {
-          config: {
-            temperature: Math.max(0, Math.min(2, temperature)),
-            maxOutputTokens: maxTokens,
-          },
-        }),
-      });
+    let lastError: Error = new Error('Unknown error');
 
-      const text = response.text;
+    for (let attempt = 0; attempt <= GeminiProvider.MAX_RETRIES; attempt++) {
+      try {
+        const response = await this.client!.models.generateContent({
+          model: this.model,
+          contents: prompt,
+          ...(systemPrompt && {
+            config: {
+              systemInstruction: systemPrompt,
+              temperature: Math.max(0, Math.min(2, temperature)),
+              maxOutputTokens: maxTokens,
+            },
+          }),
+          ...(!systemPrompt && {
+            config: {
+              temperature: Math.max(0, Math.min(2, temperature)),
+              maxOutputTokens: maxTokens,
+            },
+          }),
+        });
 
-      if (!text || text.trim() === '') {
-        throw new Error('Gemini returned an empty response');
+        const text = response.text;
+        if (!text || text.trim() === '') {
+          throw new Error('Gemini returned an empty response');
+        }
+
+        return text.trim();
+
+      } catch (error) {
+        lastError = error as Error;
+        const msg = lastError.message ?? '';
+
+        // Retryable: 503 overload or 429 rate-limit
+        const isTransient =
+          msg.includes('"code":503') ||
+          msg.includes('"code":429') ||
+          msg.includes('UNAVAILABLE') ||
+          msg.includes('Too Many Requests');
+
+        if (isTransient && attempt < GeminiProvider.MAX_RETRIES) {
+          const delayMs = GeminiProvider.RETRY_BASE_MS * Math.pow(2, attempt);
+          this.logger.warn(
+            `Gemini transient error (attempt ${attempt + 1}/${GeminiProvider.MAX_RETRIES + 1}) — ` +
+            `retrying in ${delayMs}ms… [${msg.slice(0, 80)}]`,
+          );
+          await new Promise((r) => setTimeout(r, delayMs));
+          continue;
+        }
+
+        // Non-retryable or out of retries — log and rethrow
+        this.logger.error('Gemini API call failed:', error);
+        throw new Error(
+          `GeminiProvider: failed to generate completion — ${msg}`,
+        );
       }
-
-      return text.trim();
-    } catch (error) {
-      this.logger.error('Gemini API call failed:', error);
-      throw new Error(`GeminiProvider: failed to generate completion — ${(error as Error).message}`);
     }
+
+    // Should never reach here, but satisfies TypeScript
+    throw new Error(`GeminiProvider: all retries exhausted — ${lastError.message}`);
   }
+
 
   /** Rejects after `ms` milliseconds with a descriptive timeout error. */
   private timeout(ms: number): Promise<never> {
