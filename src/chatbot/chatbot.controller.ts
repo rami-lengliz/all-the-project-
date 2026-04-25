@@ -7,7 +7,7 @@ import { CreateMessageDto } from './dto/create-message.dto';
 @ApiTags('chatbot')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('chatbot')
+@Controller('api/chatbot')
 export class ChatbotController {
   constructor(private readonly chatbotService: ChatbotService) {}
 

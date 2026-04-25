@@ -1,4 +1,0 @@
-{
-  "status": 400,
-  "body": "{\"success\":false,\"error\":{\"code\":\"VALIDATION_ERROR\",\"message\":\"Can only review completed bookings\"},\"timestamp\":\"2026-03-08T03:06:22.940Z\",\"requestId\":\"24c4c0c8-cd72-4853-88f8-abf56d24002a\"}"
-}

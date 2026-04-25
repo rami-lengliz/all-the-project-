@@ -13,6 +13,20 @@ export class SeedService {
     // Clear existing data (foreign-key-safe order)
     console.log('Clearing existing data...');
     await this.prisma.aiSearchLog.deleteMany({});
+    
+    // Chatbot & Security Models
+    await this.prisma.chatbotActionConfirmation.deleteMany({});
+    await this.prisma.chatbotSecurityEvent.deleteMany({});
+    await this.prisma.chatMessage.deleteMany({});
+    await this.prisma.chatConversationSummary.deleteMany({});
+    await this.prisma.chatConversation.deleteMany({});
+
+    // Finance & Ledger Models
+    await this.prisma.payoutItem.deleteMany({});
+    await this.prisma.payout.deleteMany({});
+    await this.prisma.ledgerEntry.deleteMany({});
+
+    // Standard Models
     await this.prisma.message.deleteMany({});
     await this.prisma.conversation.deleteMany({});
     await this.prisma.review.deleteMany({});
@@ -21,7 +35,12 @@ export class SeedService {
     await this.prisma.adminLog.deleteMany({});
     await this.prisma.slotConfiguration.deleteMany({});
     await this.prisma.listing.deleteMany({});
+    
+    // Taxonomy & Governance
+    await this.prisma.categoryRequest.deleteMany({});
     await this.prisma.category.deleteMany({});
+    
+    // Base Entity
     await this.prisma.user.deleteMany({});
 
     // ── Categories ────────────────────────────────────────────

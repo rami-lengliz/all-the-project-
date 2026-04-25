@@ -17,9 +17,9 @@ export class LlmResilienceService {
     @Inject(LLM_ADAPTER) private llmAdapter: ILlmAdapter,
     private configService: ConfigService,
   ) {
-    this.timeoutMs = this.configService.get<number>('CHATBOT_LLM_TIMEOUT_MS') || 15000;
+    this.timeoutMs = this.configService.get<number>('CHATBOT_LLM_TIMEOUT_MS') || 60000;
     this.maxRetries = this.configService.get<number>('CHATBOT_LLM_MAX_RETRIES') || 1;
-    this.primaryModel = this.configService.get<string>('CHATBOT_PRIMARY_MODEL') || 'gpt-4o-mini';
+    this.primaryModel = this.configService.get<string>('CHATBOT_PRIMARY_MODEL') || this.configService.get<string>('OPENAI_MODEL') || 'llama-3.3-70b-versatile';
     this.fallbackModel = this.configService.get<string>('CHATBOT_FALLBACK_MODEL') || '';
   }
 
@@ -40,12 +40,14 @@ export class LlmResilienceService {
         const startAttemptMs = Date.now();
         
         // Execute with timeout
+        // Execute with timeout and clean up timer to prevent memory leaks
+        let timerId: NodeJS.Timeout;
         const output: any = await Promise.race([
           this.llmAdapter.generateResponse(history, runOptions),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('LLM_TIMEOUT')), this.timeoutMs),
-          ),
-        ]);
+          new Promise((_, reject) => {
+            timerId = setTimeout(() => reject(new Error('LLM_TIMEOUT')), this.timeoutMs);
+          }),
+        ]).finally(() => clearTimeout(timerId));
 
         const durationMs = Date.now() - startAttemptMs;
         

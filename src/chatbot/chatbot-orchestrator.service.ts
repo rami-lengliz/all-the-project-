@@ -24,9 +24,9 @@ export class ChatbotOrchestratorService {
     private contextService: ChatbotContextService,
   ) {
     this.maxToolRoundsPerRequest =
-      this.configService.get<number>('CHATBOT_MAX_TOOL_ROUNDS') || 3;
+      this.configService.get<number>('CHATBOT_MAX_TOOL_ROUNDS') || 5;
     this.maxToolCallsPerTurn =
-      this.configService.get<number>('CHATBOT_MAX_TOOL_CALLS_PER_TURN') || 5;
+      this.configService.get<number>('CHATBOT_MAX_TOOL_CALLS_PER_TURN') || 10;
   }
 
   public async handleMessage(
@@ -125,6 +125,7 @@ export class ChatbotOrchestratorService {
 
           // Save the tool requests invocation intent into memory as 'assistant'
           for (const req of safeToolRequests) {
+            this.logger.log(`Tool request: ${req.name} with args: ${JSON.stringify(req.arguments)}`);
             await this.memoryService.saveMessage(
               conversationId,
               'assistant',
@@ -184,9 +185,21 @@ export class ChatbotOrchestratorService {
 
       this.traceService.finalizeTrace(trace);
       
+      // De-duplicate results based on ID to avoid double-listing if the AI refined its search
+      const uniqueResults = [];
+      const seenIds = new Set();
+      for (const res of allToolResults) {
+        if (res.id && !seenIds.has(res.id)) {
+          uniqueResults.push(res);
+          seenIds.add(res.id);
+        } else if (!res.id) {
+          uniqueResults.push(res); // Keep non-ID items (like text results)
+        }
+      }
+
       return {
         response: finalResponseText,
-        results: allToolResults,
+        results: uniqueResults,
       };
 
     } catch (error) {

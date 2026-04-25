@@ -6,7 +6,7 @@ export function useAdminUsers() {
     queryKey: ['admin', 'users'],
     queryFn: async () => {
       const res = await api.get('/admin/users');
-      return res.data?.data ?? res.data;
+      return res.data;
     },
   });
 }

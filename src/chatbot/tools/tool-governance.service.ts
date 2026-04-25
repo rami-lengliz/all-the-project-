@@ -249,8 +249,6 @@ export class ToolGovernanceService {
             type: 'array',
             items: { type: 'string' },
             description: 'Array of 2 to 3 listing UUIDs to compare',
-            minItems: 2,
-            maxItems: 3,
           },
         },
         required: ['listingIds'],
@@ -302,8 +300,7 @@ export class ToolGovernanceService {
           query: { type: 'string', description: 'Search term or keyword' },
           category: {
             type: 'string',
-            enum: ALLOWED_CHATBOT_CATEGORIES,
-            description: 'Strict category parameter',
+            description: 'Strict category parameter (one of: accommodation, mobility, water-beach-activities)',
           },
           lat: { type: 'number', description: 'Latitude' },
           lng: { type: 'number', description: 'Longitude' },
@@ -311,6 +308,7 @@ export class ToolGovernanceService {
           minPrice: { type: 'number', description: 'Min price per day' },
           maxPrice: { type: 'number', description: 'Max price per day' },
         },
+        required: [],
       },
       handler: async (args: SearchListingsToolArgs) => {
         const filters: any = {};
@@ -400,7 +398,8 @@ export class ToolGovernanceService {
         properties: {
           status: { type: 'string' },
           limit: { type: 'number' }
-        }
+        },
+        required: [],
       },
       handler: async (args: GetMyBookingsToolArgs, context: any) => {
         const filters: any = { renterId: context.userId };
@@ -460,7 +459,8 @@ export class ToolGovernanceService {
       schema: GetHostListingsToolSchema,
       jsonSchema: {
         type: 'object',
-        properties: { limit: { type: 'number' } }
+        properties: { limit: { type: 'number' } },
+        required: [],
       },
       handler: async (args: GetHostListingsToolArgs, context: any) => {
         const results = await this.listingsService.findAllForHost(context.userId);
@@ -491,7 +491,8 @@ export class ToolGovernanceService {
           listingId: { type: 'string' },
           status: { type: 'string' },
           limit: { type: 'number' }
-        }
+        },
+        required: [],
       },
       handler: async (args: GetHostBookingRequestsToolArgs, context: any) => {
         const filters: any = { hostId: context.userId };

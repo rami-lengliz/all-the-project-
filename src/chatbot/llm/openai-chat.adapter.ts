@@ -16,10 +16,20 @@ export class OpenAiChatAdapter implements ILlmAdapter {
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    this.defaultModel = this.configService.get<string>('AI_MODEL') || 'gpt-4o-mini';
+    const baseURL = this.configService.get<string>('OPENAI_BASE_URL');
+    this.defaultModel =
+      this.configService.get<string>('OPENAI_MODEL') ||
+      this.configService.get<string>('AI_MODEL') ||
+      'gpt-4o-mini';
 
     if (apiKey) {
-      this.openai = new OpenAI({ apiKey });
+      const opts: ConstructorParameters<typeof OpenAI>[0] = { apiKey };
+      if (baseURL) {
+        opts.baseURL = baseURL;
+        this.logger.log(`OpenAI adapter using custom base URL: ${baseURL}`);
+      }
+      this.openai = new OpenAI(opts);
+      this.logger.log(`OpenAI adapter initialised (model: ${this.defaultModel})`);
     } else {
       this.logger.warn('OPENAI_API_KEY is not set. Chatbot LLM adapter cannot execute calls.');
     }

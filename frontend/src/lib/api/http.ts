@@ -80,7 +80,13 @@ api.interceptors.request.use((config) => {
  *  Response interceptor — 401 → refresh → retry (once)
  * ------------------------------------------------------------------ */
 api.interceptors.response.use(
-  (r) => r,
+  (r) => {
+    // Automatically unwrap NestJS TransformInterceptor structure
+    if (r.data && r.data.success === true && 'data' in r.data) {
+      return { ...r, data: r.data.data };
+    }
+    return r;
+  },
   async (error) => {
     const status = error?.response?.status;
     const originalRequest = error?.config;

@@ -21,10 +21,16 @@ export function AdminLayout({
   const roles = (user?.roles ?? []).map((r: any) => String(r).toLowerCase());
   const isAdmin = roles.includes('admin') || user?.role === 'ADMIN';
 
-  // Admin-only: redirect non-admin authenticated users to /profile
-  if (typeof window !== 'undefined' && user && !isAdmin) {
-    router.replace('/profile');
-    return null;
+  // Admin-only: redirect unauthenticated or non-admin users
+  if (typeof window !== 'undefined') {
+    if (!user) {
+      router.replace('/auth/login');
+      return null;
+    }
+    if (!isAdmin) {
+      router.replace('/profile');
+      return null;
+    }
   }
 
   return (

@@ -67,7 +67,7 @@ export function ChatbotPanel({ onClose, pageContext = null }: ChatbotPanelProps)
 
   const sideMessages = useChatbotMultiMessages(sideConversationIds);
 
-  const { mutateAsync: sendMessage, isPending: isSending } =
+  const { mutateAsync: sendMessage, isPending: isSending, isError: isSendError } =
     useSendChatbotMessage();
 
   const handleSendMessage = async (text: string) => {
@@ -343,6 +343,13 @@ export function ChatbotPanel({ onClose, pageContext = null }: ChatbotPanelProps)
               disabled={isSending}
               label="Try asking"
             />
+          )}
+
+          {isSendError && (
+            <div className="bg-red-50 p-3 flex items-start text-red-600 border-t border-red-100 text-xs">
+              <i className="fa-solid fa-triangle-exclamation mt-0.5 mr-2" />
+              <p>Failed to send message. Please try again or check your connection.</p>
+            </div>
           )}
 
           <ChatbotComposer onSendMessage={handleSendMessage} isPending={isSending} />

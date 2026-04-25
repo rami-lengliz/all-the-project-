@@ -1,1 +1,0 @@
-{"success":false,"error":{"code":"VALIDATION_ERROR","message":"You cannot book your own listing"},"timestamp":"2026-03-08T02:55:23.025Z","requestId":"9b699296-563d-4f50-9e22-a93e2cd3ddb8"}
