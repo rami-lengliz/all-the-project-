@@ -91,6 +91,19 @@ export class PaymentsController {
     }
   }
 
+  // ─── Konnect server-side webhook ──────────────────────────────────────
+  // Konnect calls GET /api/payments/konnect/webhook?payment_ref=... after a
+  // payment attempt. Fully idempotent — safe for Konnect to call multiple times.
+
+  @Public()
+  @Get('konnect/webhook')
+  @ApiOperation({
+    summary: 'Konnect payment webhook — verifies and captures confirmed payments',
+  })
+  async konnectWebhook(@Query('payment_ref') paymentRef: string) {
+    return this.paymentsService.handleKonnectWebhook(paymentRef);
+  }
+
   // ─── Existing simulated / state-machine endpoints ──────────────────────
   // (Kept for the demo flow and for tests; real renters go through /checkout.)
 

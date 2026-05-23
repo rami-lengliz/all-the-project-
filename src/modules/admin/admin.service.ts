@@ -29,8 +29,17 @@ export class AdminService {
     return this.prisma.adminLog.create({ data: { actorId, action, details } });
   }
 
-  async getAllUsers() {
+  async getAllUsers(search?: string) {
     return this.prisma.user.findMany({
+      where: search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+              { phone: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : undefined,
       select: {
         id: true,
         name: true,
@@ -42,6 +51,27 @@ export class AdminService {
         ratingCount: true,
         createdAt: true,
         suspendedAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getUserListings(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!user) throw new NotFoundException('User not found');
+
+    return this.prisma.listing.findMany({
+      where: { hostId: userId, deletedAt: null },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        pricePerDay: true,
+        address: true,
+        images: true,
+        createdAt: true,
+        updatedAt: true,
+        category: { select: { id: true, name: true, slug: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -501,6 +531,30 @@ export class AdminService {
     return { message: 'User trust tier updated', userId, tier: tier || 'AUTOMATIC' };
   }
 
+  // ---- Payment visibility ----
+
+  async getBookingPayment(bookingId: string) {
+    const intent = await this.prisma.paymentIntent.findUnique({
+      where: { bookingId },
+      select: {
+        id: true,
+        status: true,
+        amount: true,
+        currency: true,
+        provider: true,
+        providerRef: true,
+        redirectUrl: true,
+        paidAt: true,
+        createdAt: true,
+        updatedAt: true,
+        renter: { select: { id: true, name: true, email: true } },
+        host: { select: { id: true, name: true, email: true } },
+      },
+    });
+    if (!intent) throw new NotFoundException(`No payment intent for booking ${bookingId}`);
+    return intent;
+  }
+
   // ---- Wallet Oversight (Batch 3) ----
 
   /**
@@ -589,6 +643,22 @@ export class AdminService {
       },
     });
 
+    const topUpIntents = await this.prisma.topUpIntent.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        amount: true,
+        currency: true,
+        provider: true,
+        providerRef: true,
+        status: true,
+        paidAt: true,
+        createdAt: true,
+      },
+    });
+
     if (!wallet) {
       return {
         user,
@@ -596,6 +666,10 @@ export class AdminService {
         balance: 0,
         currency: 'TND',
         transactions: [],
+        topUpIntents: topUpIntents.map((i) => ({
+          ...i,
+          amount: parseFloat(i.amount.toString()),
+        })),
       };
     }
 
@@ -618,6 +692,10 @@ export class AdminService {
         ledgerEntryId: t.ledgerEntryId,
         ledgerEntry: t.ledgerEntry,
         createdAt: t.createdAt,
+      })),
+      topUpIntents: topUpIntents.map((i) => ({
+        ...i,
+        amount: parseFloat(i.amount.toString()),
       })),
     };
   }

@@ -54,9 +54,21 @@ export default function BookingPayPage() {
   const [submitting, setSubmitting] = useState<ProviderKey | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const bookingQuery = useQuery({
+    queryKey: ['booking', bookingId],
+    enabled: !!bookingId,
+    queryFn: async () => {
+      const res = await api.get(`/bookings/${bookingId}`);
+      return res.data as { id: string; status: string; totalAmount?: number };
+    },
+  });
+
+  const bookingStatus = bookingQuery.data?.status;
+  const isConfirmed = bookingStatus === 'confirmed';
+
   const intentQuery = useQuery({
     queryKey: ['payment-intent', bookingId],
-    enabled: !!bookingId,
+    enabled: !!bookingId && isConfirmed,
     queryFn: async () => {
       const res = await api.post(`/payments/booking/${bookingId}`);
       return res.data;
@@ -117,9 +129,9 @@ export default function BookingPayPage() {
   };
 
   const intent = intentQuery.data;
-  const isPaid = intent?.status === 'captured';
+  const isPaid = intent?.status === 'captured' || bookingStatus === 'paid';
 
-  if (intentQuery.isLoading) {
+  if (bookingQuery.isLoading) {
     return (
       <Layout>
         <div className="mx-auto max-w-2xl px-6 py-10">
@@ -129,13 +141,72 @@ export default function BookingPayPage() {
     );
   }
 
-  if (intentQuery.isError || !intent) {
+  if (bookingQuery.isError) {
+    return (
+      <Layout>
+        <div className="mx-auto max-w-2xl px-6 py-10">
+          <InlineError message="Could not load this booking." />
+          <Link
+            href="/client/bookings"
+            className="mt-4 inline-block font-semibold text-primary hover:underline"
+          >
+            ← Back to my bookings
+          </Link>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (bookingStatus === 'pending') {
+    return (
+      <Layout>
+        <div className="mx-auto max-w-2xl px-6 py-10">
+          <h1 className="text-2xl font-bold text-slate-900">Booking request sent</h1>
+          <p className="mt-1 text-slate-600">
+            Your request was sent to the host. Payment becomes available after approval.
+          </p>
+          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-6">
+            <div className="flex items-start gap-3">
+              <i className="fa-solid fa-clock mt-0.5 text-amber-500 text-lg" />
+              <div>
+                <p className="font-semibold text-amber-900">Waiting for host approval</p>
+                <p className="mt-1 text-sm text-amber-800">
+                  You will be notified once the host confirms your request. You can then return here to pay.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4">
+            <Link
+              href="/client/bookings"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
+            >
+              <i className="fa-solid fa-list-check" />
+              View my bookings
+            </Link>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (intentQuery.isLoading && isConfirmed) {
+    return (
+      <Layout>
+        <div className="mx-auto max-w-2xl px-6 py-10">
+          <LoadingCard />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (intentQuery.isError || (!intent && isConfirmed)) {
     return (
       <Layout>
         <div className="mx-auto max-w-2xl px-6 py-10">
           <InlineError message="Could not load this booking's payment details." />
           <Link
-            href="/bookings"
+            href="/client/bookings"
             className="mt-4 inline-block font-semibold text-primary hover:underline"
           >
             ← Back to my bookings
@@ -175,7 +246,7 @@ export default function BookingPayPage() {
               </div>
               <p className="mt-1">
                 The host has been notified. You'll find this booking in{' '}
-                <Link href="/bookings" className="font-semibold underline">
+                <Link href="/client/bookings" className="font-semibold underline">
                   My bookings
                 </Link>
                 .
@@ -241,7 +312,7 @@ export default function BookingPayPage() {
         </div>
 
         <div className="mt-4 text-sm text-slate-600">
-          <Link href="/bookings" className="font-semibold text-primary hover:underline">
+          <Link href="/client/bookings" className="font-semibold text-primary hover:underline">
             ← Back to my bookings
           </Link>
         </div>

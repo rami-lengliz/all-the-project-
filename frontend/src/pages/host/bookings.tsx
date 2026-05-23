@@ -6,12 +6,46 @@ import { useAuth } from '@/lib/auth/AuthProvider';
 import { useMyBookings } from '@/lib/api/hooks/useMyBookings';
 import { useConfirmBooking } from '@/lib/api/hooks/useConfirmBooking';
 import { useRejectBooking } from '@/lib/api/hooks/useRejectBooking';
+import { useBookingReviews } from '@/lib/api/hooks/useBookingReviews';
+import { ReviewModal } from '@/components/shared/ReviewModal';
 import { createConversation } from '@/lib/api/chat';
 import { formatTnd } from '@/lib/utils/format';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { InlineError } from '@/components/ui/InlineError';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { toast } from '@/components/ui/Toaster';
+
+function ReviewButton({
+  bookingId,
+  myId,
+  renterName,
+  onReview,
+}: {
+  bookingId: string;
+  myId: string | undefined;
+  renterName: string;
+  onReview: () => void;
+}) {
+  const reviewsQ = useBookingReviews(bookingId);
+  const reviews: any[] = reviewsQ.data ?? [];
+  const alreadyReviewed = reviews.some((r: any) => r.authorId === myId);
+  if (alreadyReviewed) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-gray-400 font-medium">
+        <i className="fa-solid fa-star text-yellow-400" /> Reviewed
+      </span>
+    );
+  }
+  return (
+    <button
+      onClick={onReview}
+      className="flex-1 border border-yellow-400 hover:bg-yellow-50 text-yellow-700 text-sm font-medium py-2 rounded-lg transition text-center"
+    >
+      <i className="fa-solid fa-star mr-1" />
+      Review renter
+    </button>
+  );
+}
 
 export default function HostBookingsPage() {
   const router = useRouter();
@@ -21,6 +55,10 @@ export default function HostBookingsPage() {
   const confirm = useConfirmBooking();
   const reject = useRejectBooking();
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
+  const [reviewBookingId, setReviewBookingId] = useState<string | null>(null);
+
+  const allBookingsFlat = (bookingsQuery.data as any) ?? [];
+  const reviewBooking = allBookingsFlat.find((b: any) => b.id === reviewBookingId);
 
   const errorMessage = (e: any): string => {
     const body = e?.body ?? e?.response?.data;
@@ -82,7 +120,7 @@ export default function HostBookingsPage() {
     }
   };
 
-  const allBookings = (bookingsQuery.data as any) ?? [];
+  const allBookings = allBookingsFlat;
   const hostBookings = meId
     ? allBookings.filter(
         (b: any) =>
@@ -98,6 +136,15 @@ export default function HostBookingsPage() {
       title="Bookings"
       subtitle="Review and manage incoming reservations"
     >
+      {reviewBookingId && reviewBooking && (
+        <ReviewModal
+          bookingId={reviewBookingId}
+          targetName={reviewBooking.renter?.name ?? 'Renter'}
+          role="host"
+          onClose={() => setReviewBookingId(null)}
+          onSuccess={() => void bookingsQuery.refetch()}
+        />
+      )}
       <section id="bookings-overview" className="py-6">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between mb-6">
@@ -233,6 +280,14 @@ export default function HostBookingsPage() {
                             <><i className="fa-solid fa-message mr-2" />Message renter</>
                           )}
                         </button>
+                        {isCompleted && (
+                          <ReviewButton
+                            bookingId={b.id}
+                            myId={meId}
+                            renterName={renterName}
+                            onReview={() => setReviewBookingId(b.id)}
+                          />
+                        )}
                         <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
                           <i className="fa-solid fa-ellipsis-vertical text-gray-600" />
                         </button>

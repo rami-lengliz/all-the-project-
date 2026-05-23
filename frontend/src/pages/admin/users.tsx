@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { useAdminUsers } from '@/lib/api/hooks/useAdminUsers';
@@ -7,7 +8,15 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { formatDate } from '@/lib/utils/format';
 
 export default function AdminUsersPage() {
-  const q = useAdminUsers();
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  const q = useAdminUsers(search || undefined);
   const raw = (q.data as any) ?? [];
   const items: any[] = Array.isArray(raw) ? raw : (raw?.items ?? []);
 
@@ -19,6 +28,18 @@ export default function AdminUsersPage() {
     >
       <section className="py-6">
         <div className="max-w-7xl mx-auto px-6">
+          <div className="mb-5">
+            <div className="relative max-w-sm">
+              <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search by name, email, or phone"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+              />
+            </div>
+          </div>
           {q.isError ? (
             <div className="mb-4">
               <InlineError

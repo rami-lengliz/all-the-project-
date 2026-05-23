@@ -25,12 +25,20 @@ export function useTopUpWallet() {
 
   return useMutation<any, ApiError, TopUpDto>({
     mutationFn: async (data: TopUpDto) => {
-      // Direct API call since swagger didn't pick up the DTO without restart
       const res = await api.post('/wallet/topup', data);
       return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: walletKeys.me() });
+    },
+  });
+}
+
+export function useKonnectTopUp() {
+  return useMutation<{ redirectUrl: string }, ApiError, { amount: number }>({
+    mutationFn: async (data) => {
+      const res = await api.post('/wallet/konnect/topup', data);
+      return res.data;
     },
   });
 }

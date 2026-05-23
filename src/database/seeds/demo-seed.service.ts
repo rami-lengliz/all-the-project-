@@ -1140,7 +1140,7 @@ export class DemoSeedService {
 
     for (const booking of completedBookings) {
       const existing = await this.prisma.review.findUnique({
-        where: { bookingId: booking.id },
+        where: { bookingId_authorId: { bookingId: booking.id, authorId: booking.renterId } },
       });
       if (existing) continue;
       await this.prisma.review.create({
@@ -1149,6 +1149,7 @@ export class DemoSeedService {
           authorId: booking.renterId,
           targetUserId: booking.hostId,
           listingId: booking.listingId,
+          type: 'RENTER_TO_HOST',
           rating: Math.floor(Math.random() * 2) + 4, // 4 or 5
           comment: [
             'Expérience parfaite, hôte très réactif et propriété conforme aux photos. Je recommande vivement !',

@@ -33,15 +33,21 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('users')
-  @ApiOperation({ summary: 'Get all users (admin only)' })
-  getAllUsers() {
-    return this.adminService.getAllUsers();
+  @ApiOperation({ summary: 'Get all users (admin only), optionally filter by name/email/phone' })
+  getAllUsers(@Query('search') search?: string) {
+    return this.adminService.getAllUsers(search);
   }
 
   @Get('users/:id')
   @ApiOperation({ summary: 'Get single user details for admin review' })
   getUserDetails(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getUserDetails(id);
+  }
+
+  @Get('users/:id/listings')
+  @ApiOperation({ summary: 'Get all listings owned by a specific user (admin only)' })
+  getUserListings(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getUserListings(id);
   }
 
   @Get('users/:id/logs')
@@ -142,6 +148,12 @@ export class AdminController {
   @ApiOperation({ summary: 'Ledger entries for a booking (admin only)' })
   getBookingLedger(@Param('id') id: string) {
     return this.adminService.getBookingLedger(id);
+  }
+
+  @Get('bookings/:id/payment')
+  @ApiOperation({ summary: 'Payment intent details for a booking (admin only)' })
+  getBookingPayment(@Param('id') id: string) {
+    return this.adminService.getBookingPayment(id);
   }
 
   // ---- Payout endpoints ----

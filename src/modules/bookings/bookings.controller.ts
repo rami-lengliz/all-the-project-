@@ -65,6 +65,15 @@ export class BookingsController {
     return this.bookingsService.findOne(id);
   }
 
+  @Get(':id/host-details')
+  @UseGuards(HostGuard)
+  @ApiOperation({ summary: 'Host-only: full booking details including renter profile' })
+  @ApiResponse({ status: 200, description: 'Booking details visible only to the listing host or admin.' })
+  @ApiResponse({ status: 403, description: 'Caller is not the listing host.' })
+  getHostDetails(@Param('id') id: string, @Request() req) {
+    return this.bookingsService.getHostDetails(id, req.user.sub, req.user.role);
+  }
+
   @Patch(':id/confirm')
   @UseGuards(HostGuard)
   @ApiOperation({

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { useAdminUserDetails } from '@/lib/api/hooks/useAdminUserDetails';
 import { useAdminUserLogs } from '@/lib/api/hooks/useAdminUserLogs';
+import { useAdminUserListings } from '@/lib/api/hooks/useAdminUserListings';
 import { useAdminModerateUser } from '@/lib/api/hooks/useAdminModerateUser';
 import { formatDate, formatDateTime } from '@/lib/utils/format';
 import { LoadingCard } from '@/components/ui/LoadingCard';
@@ -34,6 +35,7 @@ export default function AdminUserDetailPage() {
 
   const { data: user, isLoading, isError, refetch } = useAdminUserDetails(id);
   const { data: logsData } = useAdminUserLogs(id);
+  const { data: listingsData } = useAdminUserListings(id);
   const moderate = useAdminModerateUser();
 
   const [reason, setReason] = useState('');
@@ -62,6 +64,7 @@ export default function AdminUserDetailPage() {
   const roleLabel = isAdmin ? 'Admin' : isHost ? 'Host' : 'User';
 
   const logs: any[] = Array.isArray(logsData) ? logsData : [];
+  const listings: any[] = Array.isArray(listingsData) ? listingsData : [];
   const counts = user._count ?? {};
 
   const handleAction = () => {
@@ -256,6 +259,76 @@ export default function AdminUserDetailPage() {
                   ))
                 )}
               </div>
+            </div>
+
+            {/* Listings Section */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-800 text-lg">Listings</h3>
+                <span className="text-xs text-gray-400">{listings.length} total</span>
+              </div>
+              {listings.length === 0 ? (
+                <div className="px-6 py-12 text-center text-gray-400 flex flex-col items-center">
+                  <i className="fa-solid fa-box-open text-4xl mb-3 text-gray-100" />
+                  <p className="text-sm font-medium">No listings created by this user.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {listings.map((l: any) => {
+                    const thumb = Array.isArray(l.images) && l.images.length > 0 ? l.images[0] : null;
+                    const statusColor: Record<string, string> = {
+                      ACTIVE: 'bg-green-100 text-green-700',
+                      PENDING: 'bg-yellow-100 text-yellow-700',
+                      SUSPENDED: 'bg-red-100 text-red-700',
+                      DRAFT: 'bg-gray-100 text-gray-500',
+                    };
+                    return (
+                      <div key={l.id} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50 transition">
+                        {thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={thumb}
+                            alt={l.title ?? ''}
+                            className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border border-gray-100"
+                            onError={(e) => { e.currentTarget.src = '/placeholder.png'; e.currentTarget.onerror = null; }}
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                            <i className="fa-solid fa-image text-gray-300 text-xl" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 truncate">{l.title ?? 'Untitled'}</p>
+                          <p className="text-xs text-gray-500 truncate mt-0.5">
+                            {l.category?.name ?? '—'} · {l.address ?? '—'}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {l.pricePerDay != null ? `${Number(l.pricePerDay).toFixed(2)} TND/day` : '—'} · Added {formatDate(l.createdAt)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusColor[l.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                            {l.status}
+                          </span>
+                          <Link
+                            href={`/admin/listings/${l.id}`}
+                            className="px-3 py-1.5 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium rounded-lg transition"
+                          >
+                            Review
+                          </Link>
+                          <Link
+                            href={`/listings/${l.id}`}
+                            target="_blank"
+                            className="px-3 py-1.5 text-xs bg-gray-50 hover:bg-gray-100 text-gray-700 font-medium rounded-lg transition"
+                          >
+                            Open
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 

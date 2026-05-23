@@ -283,9 +283,73 @@ export class BookingsService {
     };
   }
 
+  async getHostDetails(bookingId: string, callerId: string, callerRole: string) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        listing: { include: { category: true } },
+        renter: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+            verifiedEmail: true,
+            verifiedPhone: true,
+            ratingAvg: true,
+            ratingCount: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) throw new NotFoundException(`Booking ${bookingId} not found`);
+
+    const isAdmin = callerRole === 'ADMIN';
+    if (booking.hostId !== callerId && !isAdmin) {
+      throw new ForbiddenException('Only the listing host can view booking details');
+    }
+
+    const [renterBookingCount] = await Promise.all([
+      this.prisma.booking.count({
+        where: { renterId: booking.renterId, status: { in: ['paid', 'completed'] } },
+      }),
+    ]);
+
+    const publicTotal = Number(booking.totalPrice);
+    const commission = Number(booking.commission);
+    const hostAmount = +(publicTotal - commission).toFixed(2);
+
+    const formatTime = (t: Date | null) =>
+      t ? t.toISOString().substring(11, 16) : null;
+
+    return {
+      bookingId: booking.id,
+      status: booking.status,
+      displayStatus: toDisplayStatus(booking.status),
+      startDate: booking.startDate,
+      endDate: booking.endDate,
+      startTime: formatTime(booking.startTime as Date | null),
+      endTime: formatTime(booking.endTime as Date | null),
+      publicTotal,
+      hostAmount,
+      listing: {
+        id: booking.listingId,
+        title: booking.snapshotTitle,
+        category: booking.listing?.category?.name ?? null,
+        bookingType: booking.listing?.bookingType ?? null,
+      },
+      renter: {
+        ...booking.renter,
+        ratingAvg: Number(booking.renter.ratingAvg),
+        completedBookings: renterBookingCount,
+      },
+    };
+  }
+
   async confirm(id: string, userId: string): Promise<Booking> {
     // Use transaction with locking to prevent race conditions
-    return await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Reload booking with lock to get latest state
       const bookings = await tx.$queryRaw<Booking[]>`
         SELECT * FROM bookings
@@ -367,6 +431,20 @@ export class BookingsService {
       });
       return withDisplay(updated);
     });
+
+    // Post-transaction: notify via chat (non-fatal)
+    try {
+      const conv = await this.prisma.conversation.findFirst({ where: { bookingId: id } });
+      if (conv) {
+        await this.chatService.sendMessage(
+          conv.id,
+          userId,
+          '✅ Booking accepted. You can now pay to complete your reservation.',
+        );
+      }
+    } catch { /* non-fatal */ }
+
+    return result as unknown as Booking;
   }
 
   /** Host rejects a pending booking (sets status = rejected). */
@@ -374,7 +452,7 @@ export class BookingsService {
     id: string,
     userId: string,
   ): Promise<Booking & { displayStatus: DisplayStatus }> {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const bookings = await tx.$queryRaw<Booking[]>`
         SELECT * FROM bookings
         WHERE id::text = ${id}
@@ -411,6 +489,23 @@ export class BookingsService {
 
       return withDisplay(updated);
     });
+
+    // Post-transaction: notify via chat (non-fatal)
+    try {
+      const conv = await this.prisma.conversation.findFirst({ where: { bookingId: id } });
+      if (conv) {
+        await this.chatService.sendMessage(conv.id, userId, '❌ Booking request declined.');
+      }
+    } catch { /* non-fatal */ }
+
+    return result;
+  }
+
+  private computeWalletPricing(publicTotal: number, commissionRate: number) {
+    const platformMargin = +(publicTotal * commissionRate).toFixed(2);
+    const walletDiscount = +(platformMargin * 0.5).toFixed(2);
+    const walletTotal = +(publicTotal - walletDiscount).toFixed(2);
+    return { walletDiscount, walletTotal };
   }
 
   async pay(
@@ -443,23 +538,18 @@ export class BookingsService {
       }
 
       if (paymentIntent.status === 'authorized') {
-        // ── Critical: wallet debit + ledger capture MUST be atomic ───────────
-        // We coordinate by debiting the wallet and then immediately capturing.
-        // If payForBooking throws (e.g. insufficient balance), capture is never called.
-        // If capture throws, the wallet debit transaction is still committed — we catch
-        // and surface the error so the operator can manually reverse via admin tools.
-        // A fully atomic single TX would require passing the tx client through capture
-        // which would require significant PaymentsService refactoring. This is the
-        // minimal safe change for MVP: debit first, then capture, error if capture fails.
+        const commissionRate = bookingCheck.snapshotCommissionRate
+          ? Number(bookingCheck.snapshotCommissionRate)
+          : this.commissionPercentage;
+        const { walletTotal } = this.computeWalletPricing(Number(paymentIntent.amount), commissionRate);
+
         await this.prisma.$transaction(async (tx) => {
-          await this.walletService.payForBooking(userId, id, Number(paymentIntent.amount), tx);
+          await this.walletService.payForBooking(userId, id, walletTotal, tx);
         });
 
         try {
-          await this.paymentsService.capture(id);
+          await this.paymentsService.captureWalletPayment(id, walletTotal, commissionRate);
         } catch (captureErr) {
-          // Capture failed after wallet was already debited. Log and surface the error.
-          // In production, an admin reconciliation workflow should refund the wallet.
           this.logger.error(
             `[WALLET PAY] Capture failed after wallet debit for booking ${id}. ` +
             `Manual wallet reconciliation may be required.`,
@@ -530,6 +620,49 @@ export class BookingsService {
         },
       });
       return withDisplay(updated);
+    });
+  }
+
+  /**
+   * Marks a booking as paid after a provider webhook confirms payment server-side.
+   * No renter auth check — only called from trusted internal webhook handlers.
+   * Idempotent: if already paid, returns silently.
+   */
+  async markPaidByProvider(
+    bookingId: string,
+    provider: string,
+    paymentIntentId: string,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const bookings = await tx.$queryRaw<Booking[]>`
+        SELECT * FROM bookings WHERE id::text = ${bookingId} FOR UPDATE
+      `;
+      if (!bookings.length) {
+        throw new NotFoundException(`Booking ${bookingId} not found`);
+      }
+      const booking = bookings[0];
+
+      if (booking.status === 'paid' && booking.paid) return; // already done — idempotent
+
+      if (!BookingStateMachine.canPay(booking.status as any, booking.paid)) {
+        throw new BadRequestException(
+          `Cannot mark booking ${bookingId} as paid via provider: ` +
+          `status is ${booking.status}. Booking must be confirmed.`,
+        );
+      }
+
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: {
+          status: 'paid',
+          paid: true,
+          paymentInfo: {
+            paymentIntentId,
+            paidAt: new Date().toISOString(),
+            method: provider,
+          } as any,
+        },
+      });
     });
   }
 
