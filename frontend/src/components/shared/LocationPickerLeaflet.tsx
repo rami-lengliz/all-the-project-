@@ -35,6 +35,8 @@ interface Props {
 function FlyTo({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
+    const [lat, lng] = center;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     map.flyTo(center, Math.max(map.getZoom(), 14), { animate: true, duration: 0.8 });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center[0], center[1]]);

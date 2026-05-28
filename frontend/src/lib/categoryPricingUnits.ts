@@ -9,6 +9,13 @@
 
 export type PricingUnit = 'night' | 'day' | 'hour' | 'slot';
 
+/** Default booking model for a category slug. Hour/slot units → SLOT, otherwise DAILY. */
+export function defaultBookingType(slug?: string | null): 'DAILY' | 'SLOT' {
+  if (!slug) return 'DAILY';
+  const unit = CATEGORY_PRICING_UNITS[slug.toLowerCase()];
+  return unit === 'hour' || unit === 'slot' ? 'SLOT' : 'DAILY';
+}
+
 export const CATEGORY_PRICING_UNITS: Record<string, PricingUnit> = {
   // accommodation
   stays: 'night',

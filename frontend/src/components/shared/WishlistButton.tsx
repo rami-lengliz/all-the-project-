@@ -7,6 +7,8 @@ interface Props {
   listingId: string;
   /** Visual style — `circle` is for overlaying on a listing card image. */
   variant?: 'circle' | 'inline';
+  /** Override the default position classes on the circle variant. */
+  className?: string;
 }
 
 /**
@@ -14,7 +16,7 @@ interface Props {
  * /auth/login on click — that preserves the "I want to save this" intent
  * for after sign-up (we attach the listing id to the next= param).
  */
-export function WishlistButton({ listingId, variant = 'circle' }: Props) {
+export function WishlistButton({ listingId, variant = 'circle', className }: Props) {
   const { user } = useAuth();
   const [saved, setSaved] = useState<boolean | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -70,9 +72,23 @@ export function WishlistButton({ listingId, variant = 'circle' }: Props) {
     }
   };
 
-  const iconClass = saved
-    ? 'fa-solid fa-heart text-rose-500'
-    : 'fa-regular fa-heart text-slate-600';
+  // Inline SVG (not Font Awesome) — avoids the duplicate-glyph rendering bug
+  // we hit when fa-solid + fa-regular weights both loaded on the same node.
+  const heartIcon = (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      aria-hidden="true"
+      fill={saved ? '#f43f5e' : 'none'}
+      stroke={saved ? '#f43f5e' : 'currentColor'}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
 
   if (variant === 'inline') {
     return (
@@ -84,7 +100,7 @@ export function WishlistButton({ listingId, variant = 'circle' }: Props) {
         aria-pressed={!!saved}
         aria-label={saved ? 'Remove from wishlist' : 'Save to wishlist'}
       >
-        <i className={iconClass} aria-hidden="true" />
+        {heartIcon}
         {saved ? 'Saved' : 'Save'}
       </button>
     );
@@ -95,11 +111,14 @@ export function WishlistButton({ listingId, variant = 'circle' }: Props) {
       type="button"
       onClick={toggle}
       disabled={submitting}
-      className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/95 shadow-md hover:scale-105 transition disabled:opacity-60"
+      className={
+        className ??
+        'absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/95 shadow-md hover:scale-105 transition disabled:opacity-60'
+      }
       aria-pressed={!!saved}
       aria-label={saved ? 'Remove from wishlist' : 'Save to wishlist'}
     >
-      <i className={iconClass} aria-hidden="true" />
+      {heartIcon}
     </button>
   );
 }

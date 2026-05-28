@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Listing } from '@/lib/api/types';
 import { formatTnd } from '@/lib/utils/format';
 import { useCompare } from '@/lib/context/CompareContext';
+import { WishlistButton } from '@/components/shared/WishlistButton';
 
 interface MatchFilters {
   nearSea?: boolean;
@@ -68,6 +69,11 @@ export function ListingCard({ listing, matchFilters }: { listing: Listing & { ma
 
   return (
     <div className="relative group overflow-hidden rounded-2xl border border-border bg-white shadow-sm transition hover:shadow-md">
+      {/* Wishlist heart — top-left so it doesn't fight the Compare checkbox */}
+      <WishlistButton
+        listingId={listing.id}
+        className="absolute top-3 left-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/95 shadow-md hover:scale-105 transition disabled:opacity-60"
+      />
       <div className="absolute top-3 right-3 z-20">
         <label className="flex items-center space-x-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg border border-slate-200 cursor-pointer hover:bg-white transition shadow-sm">
           <input

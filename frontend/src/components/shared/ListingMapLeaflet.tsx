@@ -51,6 +51,8 @@ const YOU_ARE_HERE_ICON = L.divIcon({
 function MapFlyTo({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
+    const [lat, lng] = center;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     map.flyTo(center, map.getZoom(), { animate: true, duration: 1.2 });
   // only re-fly when the coords actually change
   // eslint-disable-next-line react-hooks/exhaustive-deps

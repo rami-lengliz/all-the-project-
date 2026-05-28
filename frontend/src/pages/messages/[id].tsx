@@ -856,10 +856,21 @@ export default function ChatThreadPage() {
                               {card.listingImage ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
-                                  src={card.listingImage.startsWith('http') || card.listingImage.startsWith('/') ? card.listingImage : `${API_URL}${card.listingImage}`}
+                                  src={
+                                    card.listingImage.startsWith('http')
+                                      ? card.listingImage
+                                      : card.listingImage.startsWith('/')
+                                        ? `${API_URL}${card.listingImage}`
+                                        : `${API_URL}/${card.listingImage}`
+                                  }
                                   alt={card.listingTitle}
                                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                  onError={(e) => {
+                                    // Swap broken image for the placeholder rather than
+                                    // leaving a blank gray box.
+                                    e.currentTarget.src = '/placeholder.png';
+                                    e.currentTarget.onerror = null;
+                                  }}
                                 />
                               ) : (
                                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

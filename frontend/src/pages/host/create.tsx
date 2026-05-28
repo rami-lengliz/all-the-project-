@@ -5,6 +5,7 @@ import { api } from '@/lib/api/http';
 import { InlineError } from '@/components/ui/InlineError';
 import { toast } from '@/components/ui/Toaster';
 import { useCategories } from '@/lib/api/hooks/useCategories';
+import { defaultBookingType } from '@/lib/categoryPricingUnits';
 import type { Category } from '@/lib/api/types';
 import { CategoriesService } from '@/lib/api/generated';
 import { useMutation } from '@tanstack/react-query';
@@ -266,7 +267,11 @@ export default function HostCreatePage() {
                 (c) => c.slug === data.categorySlug,
               );
               if (match) {
-                setFormData((prev) => ({ ...prev, categoryId: match.id }));
+                setFormData((prev) => ({
+                  ...prev,
+                  categoryId: match.id,
+                  bookingType: defaultBookingType(match.slug),
+                }));
                 setAiCategory({
                   categorySlug: data.categorySlug,
                   label: data.label,
@@ -847,8 +852,16 @@ export default function HostCreatePage() {
                   <select
                     value={formData.categoryId}
                     onChange={(e) => {
-                      setFormData({ ...formData, categoryId: e.target.value });
-                      // User overrode — keep badge but mark as modified
+                      const newCatId = e.target.value;
+                      const cat = categories.find((c) => c.id === newCatId);
+                      const inferred = defaultBookingType(cat?.slug);
+                      // Switch to the booking model that fits this category.
+                      // Hosts can still override on the pricing step if they want.
+                      setFormData({
+                        ...formData,
+                        categoryId: newCatId,
+                        bookingType: inferred,
+                      });
                     }}
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required

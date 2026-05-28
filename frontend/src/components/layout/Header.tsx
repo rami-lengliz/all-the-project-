@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CategoryStrip } from '@/components/shared/CategoryStrip';
 import { LocationCityPicker } from '@/components/shared/LocationCityPicker';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { isAdminUser } from '@/lib/auth/roleUtils';
 import { useQuery } from '@tanstack/react-query';
 import { fetchUnreadCount } from '@/lib/api/chat';
 import { useUserLocation } from '@/lib/hooks/useUserLocation';
@@ -271,6 +272,16 @@ export function Header() {
               {/* Notification bell (in-app notifications) */}
               <NotificationBell />
 
+              {/* Wishlist */}
+              <Link
+                href="/wishlist"
+                className="rounded-full p-2 text-slate-700 hover:bg-slate-100 transition"
+                aria-label="Wishlist"
+                title="Wishlist"
+              >
+                <i className="fa-regular fa-heart text-base" />
+              </Link>
+
               {/* Messages icon with unread badge */}
               <Link
                 href="/messages"
@@ -285,6 +296,15 @@ export function Header() {
                 )}
               </Link>
 
+              {isAdminUser(user) && (
+                <Link
+                  href="/admin/dashboard"
+                  className="rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                >
+                  <i className="fa-solid fa-shield-halved mr-1 text-xs" />
+                  Admin
+                </Link>
+              )}
               <Link
                 href="/profile"
                 className="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"

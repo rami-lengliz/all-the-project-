@@ -31,6 +31,11 @@ export class FilterListingsDto {
   @IsUUID()
   category?: string;
 
+  @ApiProperty({ required: false, description: 'Filter by category slug (e.g. "stays", "mobility")' })
+  @IsOptional()
+  @IsString()
+  categorySlug?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @Type(() => Number)

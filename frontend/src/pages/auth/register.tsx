@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -7,8 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { SocialAuthButtons } from '@/components/auth/SocialAuthButtons';
-
-type Intent = 'rent' | 'host';
 
 const schema = z
   .object({
@@ -57,16 +54,10 @@ export default function RegisterPage() {
     defaultValues: { email: '', phone: '' },
   });
   const next = safeNext(router.query.next);
-  const [intent, setIntent] = useState<Intent>('rent');
 
-  // Where to send the user after a successful registration.
-  // - If they came from a protected page with ?next=, honor that.
-  // - Otherwise, hosts go to /profile (to verify and start hosting),
-  //   renters go to / (so they can immediately browse).
-  const destination = (): string => {
-    if (next !== '/') return next;
-    return intent === 'host' ? '/profile?onboard=host' : '/';
-  };
+  // Every new account starts as a renter. Users can opt in to hosting later
+  // from their profile ("Become a host" flow) — keeps signup to a single decision.
+  const destination = (): string => (next !== '/' ? next : '/');
 
   return (
     <Layout>
@@ -93,50 +84,6 @@ export default function RegisterPage() {
             }
           })}
         >
-          {/* ── Intent picker ── */}
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-2 block">
-              I want to…
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setIntent('rent')}
-                className={`rounded-xl border-2 p-4 text-left transition ${
-                  intent === 'rent'
-                    ? 'border-primary bg-primary/5'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-                aria-pressed={intent === 'rent'}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <i className="fa-solid fa-bag-shopping text-primary" />
-                  <span className="font-semibold text-slate-900">Rent things</span>
-                </div>
-                <p className="text-xs text-slate-600">
-                  Find a place, a car, a padel court, beach gear.
-                </p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIntent('host')}
-                className={`rounded-xl border-2 p-4 text-left transition ${
-                  intent === 'host'
-                    ? 'border-primary bg-primary/5'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-                aria-pressed={intent === 'host'}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <i className="fa-solid fa-house-chimney text-primary" />
-                  <span className="font-semibold text-slate-900">List my stuff</span>
-                </div>
-                <p className="text-xs text-slate-600">
-                  Earn money renting out what you own.
-                </p>
-              </button>
-            </div>
-          </div>
           <div>
             <label className="text-sm font-medium text-slate-700">Name</label>
             <input
@@ -201,9 +148,7 @@ export default function RegisterPage() {
           >
             {form.formState.isSubmitting
               ? 'Creating account…'
-              : intent === 'host'
-                ? 'Create account and start hosting'
-                : 'Create account and start browsing'}
+              : 'Create account'}
           </button>
 
           {form.formState.errors.root ? (

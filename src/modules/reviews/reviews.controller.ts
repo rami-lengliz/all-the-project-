@@ -26,6 +26,14 @@ export class ReviewsController {
     return this.reviewsService.create(dto, req.user.sub);
   }
 
+  @Get('me/pending')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get reviews the current user still needs to write' })
+  findPendingForMe(@Request() req) {
+    return this.reviewsService.findPendingForUser(req.user.sub);
+  }
+
   @Get('listing/:listingId')
   @Public()
   @ApiOperation({ summary: 'Get renter reviews for a listing' })

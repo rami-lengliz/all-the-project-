@@ -71,13 +71,30 @@ interface ManualOverride {
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
   const data = await geoReverse(lat, lng, 10);
   const addr = data?.address as any;
-  return (
+  // Walk address granularity from city → smaller settlements → administrative
+  // areas before falling back to display_name parsing. Tunisia's smaller
+  // delegations don't always have a `city`/`town`, so we accept hamlet/suburb
+  // before giving up and saying "Nearby".
+  const name =
     addr?.city ||
     addr?.town ||
     addr?.village ||
     addr?.municipality ||
-    'Nearby'
-  );
+    addr?.hamlet ||
+    addr?.suburb ||
+    addr?.neighbourhood ||
+    addr?.county ||
+    addr?.state_district ||
+    addr?.state;
+  if (name) return name;
+
+  // Last resort: take the first comma-separated component of the display string.
+  const display = (data as any)?.display_name as string | undefined;
+  if (display) {
+    const first = display.split(',')[0]?.trim();
+    if (first) return first;
+  }
+  return 'Nearby';
 }
 
 function readCache(): Cached | null {

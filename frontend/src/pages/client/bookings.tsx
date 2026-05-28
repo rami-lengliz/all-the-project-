@@ -5,6 +5,7 @@ import { ClientLayout } from '@/components/client/ClientLayout';
 import { useMyBookings } from '@/lib/api/hooks/useMyBookings';
 import { useBookingReviews } from '@/lib/api/hooks/useBookingReviews';
 import { ReviewModal } from '@/components/shared/ReviewModal';
+import { OpenDisputeModal } from '@/components/shared/OpenDisputeModal';
 import { createConversation } from '@/lib/api/chat';
 import { formatTnd } from '@/lib/utils/format';
 import { InlineError } from '@/components/ui/InlineError';
@@ -54,6 +55,7 @@ export default function ClientBookingsPage() {
   const [tab, setTab] = useState<TabKey>('current');
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
   const [reviewBookingId, setReviewBookingId] = useState<string | null>(null);
+  const [disputeFor, setDisputeFor] = useState<string | null>(null);
 
   const bookings = useMemo(
     () => ((query.data as any) ?? []) as any[],

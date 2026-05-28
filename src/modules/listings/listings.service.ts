@@ -223,10 +223,15 @@ export class ListingsService {
         }
       }
 
-      // Filter by category
+      // Filter by category (by ID or by slug)
       if (filters.category) {
         conditions.push(`l."categoryId" = $${paramIndex}`);
         params.push(filters.category);
+        paramIndex++;
+      } else if (filters.categorySlug) {
+        // Categories table is already LEFT JOINed below as `c`
+        conditions.push(`c.slug = $${paramIndex}`);
+        params.push(filters.categorySlug);
         paramIndex++;
       }
 

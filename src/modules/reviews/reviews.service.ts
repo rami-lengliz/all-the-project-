@@ -78,6 +78,61 @@ export class ReviewsService {
     return review;
   }
 
+  /**
+   * Bookings the current user can still review.
+   * Completed bookings (or paid bookings whose end date has passed) where the
+   * user is either the renter or the host AND has not yet posted a review.
+   */
+  async findPendingForUser(userId: string) {
+    const now = new Date();
+    const eligible = await this.prisma.booking.findMany({
+      where: {
+        AND: [
+          { OR: [{ renterId: userId }, { hostId: userId }] },
+          {
+            OR: [
+              { status: 'completed' },
+              { status: 'paid', endDate: { lt: now } },
+            ],
+          },
+        ],
+      },
+      include: {
+        listing: { select: { id: true, title: true, images: true } },
+        renter: { select: { id: true, name: true } },
+        host: { select: { id: true, name: true } },
+      },
+    });
+    if (eligible.length === 0) return [];
+
+    const existingReviews = await this.prisma.review.findMany({
+      where: {
+        bookingId: { in: eligible.map((b) => b.id) },
+        authorId: userId,
+      },
+      select: { bookingId: true },
+    });
+    const reviewedIds = new Set(existingReviews.map((r) => r.bookingId));
+
+    return eligible
+      .filter((b) => !reviewedIds.has(b.id))
+      .map((b: any) => {
+      const isRenter = b.renterId === userId;
+      return {
+        bookingId: b.id,
+        listing: {
+          id: b.listing?.id,
+          title: b.listing?.title,
+          images: b.listing?.images ?? [],
+        },
+        counterparty: isRenter
+          ? { id: b.host?.id, name: b.host?.name ?? 'Host' }
+          : { id: b.renter?.id, name: b.renter?.name ?? 'Renter' },
+        myRole: isRenter ? 'RENTER' : 'HOST',
+      };
+    });
+  }
+
   async findByListing(listingId: string) {
     const listing = await this.prisma.listing.findUnique({ where: { id: listingId }, select: { id: true } });
     if (!listing) throw new NotFoundException('Listing not found');

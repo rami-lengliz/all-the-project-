@@ -237,6 +237,20 @@ export default function ProfilePage() {
   const isPhoneVerified = Boolean(
     profileData?.verifiedPhone ?? user?.verifiedPhone,
   );
+
+  // When the user lands here via "Become a host" link/button (?onboard=host),
+  // auto-open the modal — otherwise they see a hosting onboarding card with
+  // no clear "next" and have to hunt for the second Become-a-host button.
+  useEffect(() => {
+    if (!router.isReady) return;
+    const isHostAlready = profileData?.isHost ?? user?.isHost;
+    if (onboardingMode === 'host' && !isHostAlready && !becomeHostModalOpen) {
+      setBecomeHostError(null);
+      setBecomeHostModalOpen(true);
+    }
+  // We deliberately only react to the URL flag — opening the modal once per landing.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, onboardingMode]);
   const hasHome = Boolean((user as any)?.homeLat && (user as any)?.homeLng);
   const isHostFlag = Boolean(profileData?.isHost ?? user?.isHost);
 
