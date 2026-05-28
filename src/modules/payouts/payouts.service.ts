@@ -62,6 +62,9 @@ export class PayoutsService {
                     status: true,
                     startDate: true,
                     endDate: true,
+                    paymentIntent: {
+                      select: { provider: true, providerRef: true, paidAt: true },
+                    },
                   },
                 },
               },

@@ -3,22 +3,57 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { ClientLayout } from '@/components/client/ClientLayout';
 import { useMyBookings } from '@/lib/api/hooks/useMyBookings';
+import { useBookingReviews } from '@/lib/api/hooks/useBookingReviews';
+import { ReviewModal } from '@/components/shared/ReviewModal';
 import { createConversation } from '@/lib/api/chat';
 import { formatTnd } from '@/lib/utils/format';
 import { InlineError } from '@/components/ui/InlineError';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingCard } from '@/components/ui/LoadingCard';
-import { OpenDisputeModal } from '@/components/shared/OpenDisputeModal';
+import { useAuth } from '@/lib/auth/AuthProvider';
 
 type TabKey = 'current' | 'past' | 'cancelled';
 
+function ReviewButton({
+  bookingId,
+  myId,
+  hostName,
+  onReview,
+}: {
+  bookingId: string;
+  myId: string | undefined;
+  hostName: string;
+  onReview: () => void;
+}) {
+  const reviewsQ = useBookingReviews(bookingId);
+  const reviews: any[] = reviewsQ.data ?? [];
+  const alreadyReviewed = reviews.some((r) => r.authorId === myId);
+  if (alreadyReviewed) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-gray-400 font-medium">
+        <i className="fa-solid fa-star text-yellow-400" /> Reviewed
+      </span>
+    );
+  }
+  return (
+    <button
+      onClick={onReview}
+      className="flex-1 border border-yellow-400 hover:bg-yellow-50 text-yellow-700 font-medium py-2.5 px-4 rounded-lg transition text-center text-sm"
+    >
+      <i className="fa-solid fa-star mr-2" />
+      Review host
+    </button>
+  );
+}
+
 export default function ClientBookingsPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const myId = user?.id;
   const query = useMyBookings();
   const [tab, setTab] = useState<TabKey>('current');
-  // Track which booking is being created to show a per-row spinner
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
-  const [disputeFor, setDisputeFor] = useState<string | null>(null);
+  const [reviewBookingId, setReviewBookingId] = useState<string | null>(null);
 
   const bookings = useMemo(
     () => ((query.data as any) ?? []) as any[],
@@ -32,6 +67,11 @@ export default function ClientBookingsPage() {
 
   const activeList =
     tab === 'current' ? current : tab === 'past' ? past : cancelled;
+
+  const reviewBooking = useMemo(
+    () => bookings.find((b: any) => b.id === reviewBookingId),
+    [bookings, reviewBookingId],
+  );
 
   return (
     <ClientLayout>
@@ -56,6 +96,16 @@ export default function ClientBookingsPage() {
           </div>
         </div>
       </section>
+
+      {reviewBookingId && reviewBooking && (
+        <ReviewModal
+          bookingId={reviewBookingId}
+          targetName={reviewBooking.listing?.host?.name ?? reviewBooking.listing?.title ?? 'Host'}
+          role="renter"
+          onClose={() => setReviewBookingId(null)}
+          onSuccess={() => void query.refetch()}
+        />
+      )}
 
       <section
         id="tabs-navigation"
@@ -261,6 +311,14 @@ export default function ClientBookingsPage() {
                               <><i className="fa-solid fa-message mr-2" />Contact host</>
                             )}
                           </button>
+                        )}
+                        {b.status === 'completed' && (
+                          <ReviewButton
+                            bookingId={b.id}
+                            myId={myId}
+                            hostName={b.listing?.host?.name ?? b.listing?.title ?? 'Host'}
+                            onReview={() => setReviewBookingId(b.id)}
+                          />
                         )}
                         <Link
                           href={

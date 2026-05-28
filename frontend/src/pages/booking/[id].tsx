@@ -3,15 +3,11 @@ import { Layout } from '@/components/layout/Layout';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { useCreateBooking } from '@/lib/api/hooks/useCreateBooking';
-import { BookingsService } from '@/lib/api/generated';
 import { formatTnd } from '@/lib/utils/format';
 import { useListing } from '@/lib/api/hooks/useListing';
 import { InlineError } from '@/components/ui/InlineError';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingCard } from '@/components/ui/LoadingCard';
-import { api } from '@/lib/api/http';
-import { useWallet } from '@/lib/api/hooks/useWallet';
-import { toast } from '@/components/ui/Toaster';
 
 export default function BookingPage() {
   const router = useRouter();
@@ -47,13 +43,10 @@ export default function BookingPage() {
   ]);
 
   const [message, setMessage] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('card');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [acceptRules, setAcceptRules] = useState(false);
-  const [paid, setPaid] = useState(false);
   const createBooking = useCreateBooking();
   const listingQuery = useListing(listingId);
-  const { data: wallet } = useWallet();
   const listing = listingQuery.data as any;
 
   const isSlot = listing?.bookingType === 'SLOT';
@@ -62,7 +55,6 @@ export default function BookingPage() {
     if (!listingId || !startDate || !endDate || !acceptTerms || !acceptRules)
       return;
     if (isSlot && (!startTime || !endTime)) return;
-    setPaid(false);
     try {
       await createBooking.mutateAsync({
         listingId,
@@ -74,39 +66,6 @@ export default function BookingPage() {
       });
     } catch (error) {
       // Error handled by InlineError component
-    }
-  };
-
-  const handlePayment = async () => {
-    if (!createBooking.data) return;
-    try {
-      if (paymentMethod === 'wallet') {
-        // Pay directly from wallet, skipping manual authorization step
-        await BookingsService.bookingsControllerPay(createBooking.data.id, {
-          useWallet: true,
-        });
-      } else {
-        // First authorize payment intent
-        await api.post(`/payments/booking/${createBooking.data.id}/authorize`, {
-          metadata: { paymentToken: 'demo-token' },
-        });
-
-        // Then pay the booking (which will capture the payment intent)
-        await BookingsService.bookingsControllerPay(createBooking.data.id, {
-          paymentToken: 'demo-token',
-          receipt: 'demo-receipt',
-        });
-      }
-      setPaid(true);
-    } catch (error: any) {
-      toast({
-        title: 'Payment failed',
-        message:
-          error?.body?.error?.message ||
-          error?.body?.message ||
-          'Please try again or use a different method.',
-        variant: 'error',
-      });
     }
   };
 
@@ -430,140 +389,6 @@ export default function BookingPage() {
               </div>
             </section>
 
-            {/* Payment Method */}
-            <section
-              id="payment-method"
-              className="mb-6 rounded-xl border border-gray-200 bg-white p-6"
-            >
-              <h2 className="mb-4 text-xl font-semibold text-gray-900">
-                Payment method
-              </h2>
-              <div className="space-y-3">
-                <button
-                  onClick={() => setPaymentMethod('wallet')}
-                  className={`w-full rounded-lg border p-4 transition ${
-                    paymentMethod === 'wallet'
-                      ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-gray-300 hover:border-indigo-500'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center w-full">
-                      <i className="fa-solid fa-wallet mr-3 text-xl text-indigo-500"></i>
-                      <div className="flex-1 text-left">
-                        <div className="font-medium text-gray-900">
-                          RentEverything Wallet
-                        </div>
-                        <div className="text-sm text-gray-500 flex justify-between">
-                          <span>Pay with your account balance</span>
-                          <span className={wallet?.balance < total ? 'text-red-500 font-medium' : 'text-green-600 font-medium'}>
-                            Balance: {formatTnd(wallet?.balance || 0)}
-                          </span>
-                        </div>
-                        {wallet?.balance < total && (
-                          <div className="text-xs text-red-500 mt-1">
-                            Insufficient balance for this booking. <Link href="/client/wallet" className="underline">Top up</Link>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <i
-                      className={`fa-solid ml-4 ${
-                        paymentMethod === 'wallet'
-                          ? 'fa-circle-check text-indigo-500'
-                          : 'fa-circle text-gray-300'
-                      }`}
-                    ></i>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setPaymentMethod('card')}
-                  className={`w-full rounded-lg border p-4 transition ${
-                    paymentMethod === 'card'
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-300 hover:border-blue-500'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <i className="fa-solid fa-credit-card mr-3 text-xl text-blue-500"></i>
-                      <div>
-                        <div className="font-medium text-gray-900">
-                          Credit or debit card
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          Visa, Mastercard, Amex
-                        </div>
-                      </div>
-                    </div>
-                    <i
-                      className={`fa-solid ${
-                        paymentMethod === 'card'
-                          ? 'fa-circle-check text-blue-500'
-                          : 'fa-circle text-gray-300'
-                      }`}
-                    ></i>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setPaymentMethod('paypal')}
-                  className={`w-full rounded-lg border p-4 transition ${
-                    paymentMethod === 'paypal'
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-300 hover:border-blue-500'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <i className="fa-brands fa-paypal mr-3 text-xl text-blue-600"></i>
-                      <div>
-                        <div className="font-medium text-gray-900">PayPal</div>
-                        <div className="text-sm text-gray-500">
-                          Pay with your PayPal account
-                        </div>
-                      </div>
-                    </div>
-                    <i
-                      className={`fa-regular ${
-                        paymentMethod === 'paypal'
-                          ? 'fa-circle-check text-blue-500'
-                          : 'fa-circle text-gray-300'
-                      }`}
-                    ></i>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setPaymentMethod('bank')}
-                  className={`w-full rounded-lg border p-4 transition ${
-                    paymentMethod === 'bank'
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-300 hover:border-blue-500'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <i className="fa-solid fa-building-columns mr-3 text-xl text-gray-600"></i>
-                      <div>
-                        <div className="font-medium text-gray-900">
-                          Bank transfer
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          Direct bank transfer
-                        </div>
-                      </div>
-                    </div>
-                    <i
-                      className={`fa-regular ${
-                        paymentMethod === 'bank'
-                          ? 'fa-circle-check text-blue-500'
-                          : 'fa-circle text-gray-300'
-                      }`}
-                    ></i>
-                  </div>
-                </button>
-              </div>
-            </section>
-
             {/* Booking Agreement */}
             <section
               id="booking-agreement"
@@ -621,18 +446,7 @@ export default function BookingPage() {
               >
                 Cancel
               </button>
-              {createBooking.data && !paid ? (
-                <button
-                  onClick={handlePayment}
-                  disabled={
-                    createBooking.isPending ||
-                    (paymentMethod === 'wallet' && (wallet?.balance || 0) < total)
-                  }
-                  className="rounded-lg bg-blue-500 px-8 py-4 font-semibold text-white shadow-md transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Complete Payment
-                </button>
-              ) : (
+              {!createBooking.data && (
                 <button
                   onClick={handleCreateBooking}
                   disabled={
@@ -663,57 +477,31 @@ export default function BookingPage() {
               </div>
             )}
 
-            {createBooking.data && !paid && (
-              <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+            {createBooking.data && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-5">
                 <div className="flex items-start gap-3">
-                  <i className="fa-solid fa-circle-info mt-0.5 text-blue-600"></i>
+                  <i className="fa-solid fa-clock mt-0.5 text-amber-500 text-lg"></i>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-blue-900">
-                      Booking request created
+                    <p className="text-sm font-semibold text-amber-900">
+                      Booking request sent
                     </p>
-                    <p className="mt-1 text-sm text-blue-700">
-                      Complete payment to confirm your reservation. The host will
-                      review your request and you&apos;ll get a notification once
-                      they respond.
+                    <p className="mt-1 text-sm text-amber-800">
+                      Your request was sent to the host. Payment becomes available after approval.
                     </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {paid && (
-              <div className="mt-6 rounded-xl border border-green-200 bg-green-50 p-5">
-                <div className="flex items-start gap-3">
-                  <i className="fa-solid fa-check-circle mt-0.5 text-2xl text-green-600"></i>
-                  <div className="flex-1">
-                    <p className="text-base font-semibold text-green-900">
-                      Payment authorized — booking submitted
-                    </p>
-                    <p className="mt-1 text-sm text-green-800">
-                      The host will review your request shortly. You can track
-                      its status in &quot;My rentals&quot; or message the host
-                      directly with any questions.
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-3">
                       <Link
-                        href="/rentals"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+                        href="/client/bookings"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 transition"
                       >
                         <i className="fa-solid fa-list-check" />
-                        View my rentals
-                      </Link>
-                      <Link
-                        href="/messages"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-green-300 bg-white px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
-                      >
-                        <i className="fa-regular fa-comment" />
-                        Message host
+                        View my bookings
                       </Link>
                     </div>
                   </div>
                 </div>
               </div>
             )}
+
           </div>
 
           {/* Booking Summary Card */}

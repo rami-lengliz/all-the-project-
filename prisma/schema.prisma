@@ -87,6 +87,7 @@ model User {
   disputesOpened             Dispute[]                   @relation("DisputeOpener")
   disputeMessages            DisputeMessage[]            @relation("DisputeMessageAuthor")
   notifications              Notification[]              @relation("UserNotifications")
+  topUpIntents               TopUpIntent[]               @relation("UserTopUpIntents")
 
   @@index([email])
   @@index([phone])
@@ -468,13 +469,14 @@ model DisputeMessage {
 // ===========================
 // Review Model
 // ===========================
-// Two-sided: each booking gets up to two reviews — one from renter→host
-// (with the listing) and one from host→renter. authorRole tells which is which
-// so the UI can render differently and the host-of-renter rating doesn't
-// surface on a listing page.
 enum ReviewAuthorRole {
   RENTER
   HOST
+}
+
+enum ReviewType {
+  RENTER_TO_HOST
+  HOST_TO_RENTER
 }
 
 model Review {
@@ -484,9 +486,10 @@ model Review {
   authorRole   ReviewAuthorRole @default(RENTER) @map("author_role")
   targetUserId String
   listingId    String
+  type         ReviewType
   rating       Int
-  comment      String?          @db.Text
-  createdAt    DateTime         @default(now())
+  comment      String?    @db.Text
+  createdAt    DateTime   @default(now())
 
   // Relations
   booking    Booking @relation(fields: [bookingId], references: [id])
@@ -494,7 +497,7 @@ model Review {
   targetUser User    @relation("ReviewTarget", fields: [targetUserId], references: [id])
   listing    Listing @relation(fields: [listingId], references: [id])
 
-  @@unique([bookingId, authorRole])
+  @@unique([bookingId, authorId])
   @@index([targetUserId])
   @@index([listingId])
   @@map("reviews")
@@ -542,7 +545,7 @@ model PaymentIntent {
   // 'flouci' / 'konnect' / 'd17' for real ones. `providerRef` is the external
   // payment id we get back from the gateway; we use it to verify callbacks.
   provider    String?             @db.VarChar(32)
-  providerRef String?             @map("provider_ref") @db.VarChar(128)
+  providerRef String?             @unique @map("provider_ref") @db.VarChar(128)
   redirectUrl String?             @map("redirect_url") @db.VarChar(500)
   paidAt      DateTime?           @map("paid_at")
   createdAt   DateTime            @default(now())
@@ -557,7 +560,6 @@ model PaymentIntent {
   @@index([bookingId])
   @@index([status])
   @@index([renterId])
-  @@index([providerRef])
   @@map("payment_intents")
 }
 
@@ -992,4 +994,26 @@ model WalletTransaction {
   @@index([walletId])
   @@index([createdAt])
   @@map("wallet_transactions")
+}
+
+// ===========================
+// TopUpIntent Model
+// Tracks Konnect wallet top-up sessions, separate from booking PaymentIntents.
+// ===========================
+model TopUpIntent {
+  id          String    @id @default(uuid())
+  userId      String
+  amount      Decimal   @db.Decimal(10, 2)
+  currency    String    @default("TND") @db.VarChar(3)
+  status      String    @default("pending") @db.VarChar(32)
+  provider    String    @default("konnect") @db.VarChar(32)
+  providerRef String?   @unique @map("provider_ref") @db.VarChar(128)
+  redirectUrl String?   @map("redirect_url") @db.VarChar(500)
+  paidAt      DateTime? @map("paid_at")
+  createdAt   DateTime  @default(now())
+
+  user User @relation("UserTopUpIntents", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("top_up_intents")
 }

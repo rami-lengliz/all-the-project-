@@ -571,6 +571,7 @@ export class SeedService {
         targetUserId: paidBooking.hostId,
         listingId: paidBooking.listingId,
         bookingId: paidBooking.id,
+        type: 'RENTER_TO_HOST',
       },
     });
 

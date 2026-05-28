@@ -23,8 +23,10 @@ export interface CreatePaymentInput {
   failUrl: string;
   /** Free-text we want to see back on the receipt. */
   description: string;
-  /** Booking id — surfaced in the provider's dashboard for reconciliation. */
+  /** Booking id or top-up intent id — surfaced in the provider's dashboard for reconciliation. */
   reference: string;
+  /** Override the default booking webhook URL (e.g. for wallet top-ups). */
+  webhookUrl?: string;
 }
 
 export interface CreatePaymentOutput {

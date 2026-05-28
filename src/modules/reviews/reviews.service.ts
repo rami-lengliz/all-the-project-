@@ -5,199 +5,149 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { Review, ReviewAuthorRole } from '@prisma/client';
 import { CreateReviewDto } from './dto/create-review.dto';
-import { BookingsService } from '../bookings/bookings.service';
-import { UsersService } from '../users/users.service';
-import { QualityScoreService } from '../quality/quality-score.service';
-import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ReviewsService {
-  constructor(
-    private prisma: PrismaService,
-    private bookingsService: BookingsService,
-    private usersService: UsersService,
-    private qualityScore: QualityScoreService,
-    private notifications: NotificationsService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
-  /**
-   * Two-sided review create. The author's relation to the booking decides
-   * the side (renter→host or host→renter); we never trust a role passed
-   * from the client.
-   */
-  async create(
-    createReviewDto: CreateReviewDto,
-    authorId: string,
-  ): Promise<Review> {
-    const booking = await this.bookingsService.findOne(
-      createReviewDto.bookingId,
-    );
-
-    let authorRole: ReviewAuthorRole;
-    let targetUserId: string;
-    if (booking.renterId === authorId) {
-      authorRole = 'RENTER';
-      targetUserId = booking.hostId;
-    } else if (booking.hostId === authorId) {
-      authorRole = 'HOST';
-      targetUserId = booking.renterId;
-    } else {
-      throw new ForbiddenException(
-        'Only the renter or host of this booking can leave a review',
-      );
-    }
-
-    if (booking.status !== 'completed') {
-      throw new BadRequestException('Can only review completed bookings');
-    }
-
-    // One review per side per booking. The DB enforces this too, but a
-    // friendlier error is worth the round-trip.
-    const existing = await this.prisma.review.findUnique({
-      where: {
-        bookingId_authorRole: {
-          bookingId: createReviewDto.bookingId,
-          authorRole,
-        },
+  async create(dto: CreateReviewDto, authorId: string) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: dto.bookingId },
+      select: {
+        id: true,
+        renterId: true,
+        hostId: true,
+        listingId: true,
+        status: true,
+        endDate: true,
       },
     });
-    if (existing) {
+    if (!booking) throw new NotFoundException('Booking not found');
+
+    const isRenter = booking.renterId === authorId;
+    const isHost = booking.hostId === authorId;
+    if (!isRenter && !isHost) {
+      throw new ForbiddenException('Only booking participants can leave a review');
+    }
+
+    // Eligibility: completed, or paid with endDate in the past
+    const now = new Date();
+    const endDate = new Date(booking.endDate);
+    const eligible =
+      booking.status === 'completed' ||
+      (booking.status === 'paid' && endDate < now);
+    if (!eligible) {
       throw new BadRequestException(
-        'You have already reviewed this booking',
+        'Reviews are only allowed after the booking is completed or after the rental period has ended',
       );
     }
+
+    // Duplicate check (enforced by DB unique too, but give a clear message)
+    const existing = await this.prisma.review.findUnique({
+      where: { bookingId_authorId: { bookingId: dto.bookingId, authorId } },
+    });
+    if (existing) {
+      throw new BadRequestException('You have already reviewed this booking');
+    }
+
+    const type = isRenter ? 'RENTER_TO_HOST' : 'HOST_TO_RENTER';
+    const targetUserId = isRenter ? booking.hostId : booking.renterId;
 
     const review = await this.prisma.review.create({
       data: {
-        bookingId: createReviewDto.bookingId,
+        bookingId: dto.bookingId,
         authorId,
-        authorRole,
         targetUserId,
         listingId: booking.listingId,
-        rating: createReviewDto.rating,
-        comment: createReviewDto.comment,
+        type: type as any,
+        rating: dto.rating,
+        comment: dto.comment,
+      },
+      include: {
+        author: { select: { id: true, name: true, avatarUrl: true } },
       },
     });
 
-    await this.updateUserRating(targetUserId);
+    await this.recalcUserRating(targetUserId);
 
-    // Renter→host: bumps listing quality + host quality.
-    // Host→renter: bumps the renter's trust score.
-    if (authorRole === 'RENTER') {
-      this.qualityScore.recomputeListing(booking.listingId).catch(() => undefined);
-      this.qualityScore.recomputeHost(targetUserId).catch(() => undefined);
-    } else {
-      this.qualityScore.recomputeRenter(targetUserId).catch(() => undefined);
+    if (isRenter) {
+      await this.recalcListingRating(booking.listingId);
     }
-
-    this.notifications.create({
-      userId: targetUserId,
-      kind: 'REVIEW_RECEIVED',
-      title:
-        authorRole === 'RENTER'
-          ? `New ${createReviewDto.rating}★ review on your listing`
-          : `${createReviewDto.rating}★ review on your booking`,
-      body: createReviewDto.comment?.slice(0, 200),
-      link: '/profile',
-      payload: { reviewId: review.id, bookingId: booking.id },
-    });
 
     return review;
   }
 
-  async findByUser(userId: string): Promise<Review[]> {
-    return this.prisma.review.findMany({
-      where: { targetUserId: userId },
-      include: {
-        author: true,
-        listing: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-  }
+  async findByListing(listingId: string) {
+    const listing = await this.prisma.listing.findUnique({ where: { id: listingId }, select: { id: true } });
+    if (!listing) throw new NotFoundException('Listing not found');
 
-  /** All reviews left on the given listing (renter→host only — host→renter has no listing context). */
-  async findByListing(listingId: string): Promise<Review[]> {
     return this.prisma.review.findMany({
-      where: { listingId, authorRole: 'RENTER' },
-      include: { author: true },
+      where: { listingId, type: 'RENTER_TO_HOST' as any },
+      include: {
+        author: { select: { id: true, name: true, avatarUrl: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findOne(id: string): Promise<Review> {
+  async findByUser(userId: string) {
+    return this.prisma.review.findMany({
+      where: { targetUserId: userId },
+      include: {
+        author: { select: { id: true, name: true, avatarUrl: true } },
+        listing: { select: { id: true, title: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findByBooking(bookingId: string) {
+    return this.prisma.review.findMany({
+      where: { bookingId },
+      include: {
+        author: { select: { id: true, name: true, avatarUrl: true } },
+      },
+    });
+  }
+
+  async findOne(id: string) {
     const review = await this.prisma.review.findUnique({
       where: { id },
       include: {
-        author: true,
-        targetUser: true,
-        listing: true,
-        booking: true,
+        author: { select: { id: true, name: true, avatarUrl: true } },
+        targetUser: { select: { id: true, name: true, avatarUrl: true } },
+        listing: { select: { id: true, title: true } },
+        booking: { select: { id: true, status: true } },
       },
     });
-    if (!review) {
-      throw new NotFoundException(`Review with ID ${id} not found`);
-    }
+    if (!review) throw new NotFoundException(`Review ${id} not found`);
     return review;
   }
 
-  /**
-   * Pending reviews for the current user — bookings they could review but
-   * haven't yet. UI uses this to prompt both sides after a booking completes.
-   */
-  async pendingForUser(userId: string) {
-    const bookings = await this.prisma.booking.findMany({
-      where: {
-        status: 'completed',
-        OR: [{ renterId: userId }, { hostId: userId }],
-      },
-      include: {
-        listing: { select: { id: true, title: true, images: true } },
-        renter: { select: { id: true, name: true } },
-        host: { select: { id: true, name: true } },
-        reviews: { select: { authorRole: true } },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 50,
+  private async recalcUserRating(userId: string) {
+    const result = await this.prisma.review.aggregate({
+      where: { targetUserId: userId },
+      _avg: { rating: true },
+      _count: { id: true },
     });
-
-    return bookings
-      .map((b) => {
-        const isRenter = b.renterId === userId;
-        const myRole: ReviewAuthorRole = isRenter ? 'RENTER' : 'HOST';
-        const alreadyDone = b.reviews.some((r) => r.authorRole === myRole);
-        if (alreadyDone) return null;
-        return {
-          bookingId: b.id,
-          listing: b.listing,
-          counterparty: isRenter ? b.host : b.renter,
-          myRole,
-        };
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ratingAvg: +(result._avg.rating ?? 0).toFixed(2),
+        ratingCount: result._count.id,
+      },
+    });
   }
 
-  private async updateUserRating(userId: string): Promise<void> {
-    const reviews = await this.prisma.review.findMany({
-      where: { targetUserId: userId },
+  private async recalcListingRating(listingId: string) {
+    const result = await this.prisma.review.aggregate({
+      where: { listingId, type: 'RENTER_TO_HOST' as any },
+      _avg: { rating: true },
     });
-
-    if (reviews.length > 0) {
-      const totalRating = reviews.reduce(
-        (sum, review) => sum + review.rating,
-        0,
-      );
-      const averageRating = totalRating / reviews.length;
-      const roundedRating = Math.round(averageRating * 100) / 100;
-
-      await this.usersService.update(userId, {
-        ratingAvg: roundedRating,
-        ratingCount: reviews.length,
-      } as any);
-    }
+    await this.prisma.listing.update({
+      where: { id: listingId },
+      data: { ratingAvg: +(result._avg.rating ?? 0).toFixed(2) },
+    });
   }
 }

@@ -16,6 +16,7 @@ import { LedgerService } from '../ledger/ledger.service';
 import { ConfigService } from '@nestjs/config';
 import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 import { ProviderKey } from './providers/payment-provider.interface';
+import { KonnectProvider } from './providers/konnect.provider';
 
 @Injectable()
 export class PaymentsService {
@@ -178,6 +179,142 @@ export class PaymentsService {
   /** Which real-money providers are usable in this deployment. */
   availableProviders(): ProviderKey[] {
     return this.providerRegistry.available();
+  }
+
+  /**
+   * Handles the Konnect server-side webhook: GET /api/payments/konnect/webhook?payment_ref=...
+   *
+   * Safe to call multiple times — fully idempotent.
+   * Never trusts payment_ref alone: always calls Konnect get-payment-details and
+   * verifies amount + currency before applying any financial changes.
+   */
+  async handleKonnectWebhook(
+    paymentRef: string,
+  ): Promise<{ received: true; status: 'processed' | 'already_processed' | 'skipped' }> {
+    // ── 1. Validate input ──────────────────────────────────────────────────
+    if (!paymentRef?.trim()) {
+      this.logger.warn('Konnect webhook: missing payment_ref — ignoring');
+      return { received: true, status: 'skipped' };
+    }
+
+    this.logger.log(`Konnect webhook received: payment_ref=${paymentRef}`);
+
+    // ── 2. Look up intent by providerRef + provider guard ─────────────────
+    const intent = await this.prisma.paymentIntent.findUnique({
+      where: { providerRef: paymentRef },
+    });
+
+    if (!intent) {
+      this.logger.warn(`Konnect webhook: no PaymentIntent for providerRef=${paymentRef}`);
+      return { received: true, status: 'skipped' };
+    }
+
+    if (intent.provider !== 'konnect') {
+      this.logger.warn(
+        `Konnect webhook: providerRef=${paymentRef} belongs to provider="${intent.provider}", not konnect`,
+      );
+      return { received: true, status: 'skipped' };
+    }
+
+    // ── 3. Idempotency: fully settled ──────────────────────────────────────
+    const fullySettled = intent.status === 'captured' && intent.paidAt !== null;
+    if (fullySettled) {
+      this.logger.log(
+        `Konnect webhook: booking=${intent.bookingId} already fully processed — skipping`,
+      );
+      return { received: true, status: 'already_processed' };
+    }
+
+    // ── 4. Get raw payment details from Konnect ───────────────────────────
+    const konnect = this.providerRegistry.get('konnect') as KonnectProvider;
+    const details = await konnect.getPaymentDetails(paymentRef);
+
+    if (!details) {
+      this.logger.warn(
+        `Konnect webhook: could not fetch payment details for ref=${paymentRef} — will retry on next webhook`,
+      );
+      return { received: true, status: 'skipped' };
+    }
+
+    // ── 5. Verify provider status ─────────────────────────────────────────
+    if (details.status.toLowerCase() !== 'completed') {
+      this.logger.log(
+        `Konnect webhook: payment_ref=${paymentRef} status="${details.status}" — no capture`,
+      );
+      return { received: true, status: 'skipped' };
+    }
+
+    // ── 6. Verify amount (TND → millimes) ────────────────────────────────
+    const expectedMillimes = Math.round(Number(intent.amount) * 1000);
+    if (details.amount !== expectedMillimes) {
+      this.logger.error(
+        `[SUSPICIOUS] Konnect amount mismatch: booking=${intent.bookingId} ` +
+        `expected=${expectedMillimes}mM got=${details.amount}mM — BLOCKING capture`,
+      );
+      return { received: true, status: 'skipped' };
+    }
+
+    // ── 7. Verify currency ────────────────────────────────────────────────
+    if (details.token && details.token.toUpperCase() !== 'TND') {
+      this.logger.error(
+        `[SUSPICIOUS] Konnect currency mismatch: booking=${intent.bookingId} ` +
+        `expected=TND got=${details.token} — BLOCKING capture`,
+      );
+      return { received: true, status: 'skipped' };
+    }
+
+    // ── 8. Verify booking is still payable ────────────────────────────────
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: intent.bookingId },
+    });
+    if (!booking) {
+      this.logger.error(
+        `Konnect webhook: booking ${intent.bookingId} not found — cannot capture`,
+      );
+      return { received: true, status: 'skipped' };
+    }
+
+    // Partial-state recovery: intent captured but booking not yet marked paid.
+    // capture() is idempotent so calling it again is safe.
+    const partialState = intent.status === 'captured' && !intent.paidAt;
+
+    if (!partialState && intent.status !== 'authorized') {
+      this.logger.warn(
+        `Konnect webhook: intent status="${intent.status}" for booking=${intent.bookingId} ` +
+        `— unexpected state, skipping capture`,
+      );
+      return { received: true, status: 'skipped' };
+    }
+
+    if (!partialState) {
+      // Booking must be confirmed (canPay) before we capture
+      if (booking.status !== 'confirmed' || booking.paid) {
+        this.logger.warn(
+          `Konnect webhook: booking ${intent.bookingId} status="${booking.status}" paid=${booking.paid} ` +
+          `— not payable, skipping`,
+        );
+        return { received: true, status: 'skipped' };
+      }
+
+      // ── 9. Capture: PaymentIntent + 3 ledger entries (atomic) ──────────
+      await this.capture(intent.bookingId);
+    }
+
+    // ── 10. Mark booking paid ────────────────────────────────────────────
+    await this.bookingsService.markPaidByProvider(intent.bookingId, 'konnect', intent.id);
+
+    // ── 11. Stamp paidAt on intent ────────────────────────────────────────
+    await this.prisma.paymentIntent.update({
+      where: { id: intent.id },
+      data: { paidAt: new Date() },
+    });
+
+    this.logger.log(
+      `Konnect webhook: booking=${intent.bookingId} captured and marked paid ` +
+      `(ref=${paymentRef} amount=${details.amount}mM)`,
+    );
+
+    return { received: true, status: 'processed' };
   }
 
   /**
@@ -471,6 +608,44 @@ export class PaymentsService {
         where: { id: paymentIntent.id },
         data: { status: 'cancelled' },
       });
+    });
+  }
+
+  /**
+   * Captures a wallet-paid booking with a discounted amount.
+   * walletDiscount = 50% of platform margin, so renters save when paying with wallet.
+   * Ledger: RENT_PAID(walletTotal), COMMISSION(walletDiscount), HOST_PAYOUT_DUE(hostAmount).
+   * Idempotent: safe to call twice.
+   */
+  async captureWalletPayment(
+    bookingId: string,
+    walletTotal: number,
+    commissionRate: number,
+  ): Promise<PaymentIntent> {
+    const intent = await this.prisma.paymentIntent.findUnique({ where: { bookingId } });
+    if (!intent) throw new NotFoundException(`Payment intent not found for booking ${bookingId}`);
+    if (intent.status === 'captured') return intent;
+
+    const publicTotal = Number(intent.amount);
+    const platformMargin = +(publicTotal * commissionRate).toFixed(2);
+    const walletDiscount = +(platformMargin * 0.5).toFixed(2);
+    // effectiveRate so postCapture produces: COMMISSION=walletDiscount, HOST_PAYOUT_DUE=hostAmount
+    const effectiveRate = walletTotal > 0 ? walletDiscount / walletTotal : 0;
+
+    await this.ledgerService.postCapture(intent.id, bookingId, walletTotal, effectiveRate);
+
+    return this.prisma.paymentIntent.update({
+      where: { id: intent.id },
+      data: {
+        status: 'captured',
+        metadata: {
+          ...((intent.metadata as Record<string, unknown>) ?? {}),
+          method: 'wallet',
+          walletDiscount,
+          walletTotal,
+          publicTotal,
+        },
+      },
     });
   }
 

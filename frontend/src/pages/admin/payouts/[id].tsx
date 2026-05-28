@@ -80,10 +80,13 @@ export default function AdminPayoutDetailPage() {
                         <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Entry Type</th>
                         <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Amount</th>
                         <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Booking Status</th>
+                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Payment Source</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {payout.items.map((item: any) => (
+                      {payout.items.map((item: any) => {
+                        const pi = item.ledgerEntry?.booking?.paymentIntent;
+                        return (
                         <tr key={item.id} className="text-sm">
                           <td className="px-6 py-4 font-mono text-xs text-gray-400">
                              {item.ledgerEntry?.bookingId.split('-').shift()}...
@@ -97,8 +100,22 @@ export default function AdminPayoutDetailPage() {
                           <td className="px-6 py-4">
                              <span className="text-xs text-gray-500">{item.ledgerEntry?.booking?.status}</span>
                           </td>
+                          <td className="px-6 py-4">
+                            {pi?.provider ? (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                pi.provider === 'konnect'
+                                  ? 'bg-purple-100 text-purple-700'
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {pi.provider.toUpperCase()}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">simulated</span>
+                            )}
+                          </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                </div>

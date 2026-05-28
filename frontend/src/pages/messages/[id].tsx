@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '@/components/layout/Layout';
 import { useMessages } from '@/lib/api/hooks/useMessages';
 import { useChatSocket } from '@/lib/chat/useChatSocket';
 import { markRead } from '@/lib/api/chat';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { api } from '@/lib/api/http';
+import { useWallet } from '@/lib/api/hooks/useWallet';
 import type { Message } from '@/lib/api/chat';
 import { API_URL } from '@/lib/api/env';
 import { detectContact } from '@/lib/anti-leak/detectContact';
@@ -23,6 +26,490 @@ function formatDateLabel(iso: string) {
   if (d.toDateString() === today.toDateString()) return 'Today';
   if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
   return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+// ─── Wallet-first payment panel (renter, confirmed booking) ──────────
+function RenterPayActions({
+  bookingId,
+  publicTotal,
+  walletTotal,
+  walletDiscount,
+}: {
+  bookingId: string;
+  publicTotal: number;
+  walletTotal: number;
+  walletDiscount: number;
+}) {
+  const qc = useQueryClient();
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  const { data: walletData } = useWallet();
+  const balance = Number((walletData as any)?.balance ?? 0);
+  const canPayWithWallet = balance >= walletTotal;
+  const missing = walletTotal - balance;
+
+  const payWithWallet = async () => {
+    setPaying(true);
+    setPayError(null);
+    try {
+      await api.post(`/bookings/${bookingId}/pay`, { useWallet: true });
+      void qc.invalidateQueries({ queryKey: ['booking-chat', bookingId] });
+      void qc.invalidateQueries({ queryKey: ['wallet', 'me'] });
+    } catch (e: any) {
+      setPayError(e?.response?.data?.message ?? 'Payment failed. Try again.');
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const rowStyle: React.CSSProperties = {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    fontSize: 12, marginBottom: 3,
+  };
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      {/* Pricing breakdown */}
+      <div style={{ marginBottom: 8, borderBottom: '1px solid #e2e8f0', paddingBottom: 6 }}>
+        <div style={{ ...rowStyle, color: '#64748b' }}>
+          <span>Total price</span>
+          <span>TND {publicTotal.toFixed(2)}</span>
+        </div>
+        <div style={{ ...rowStyle, color: '#16a34a' }}>
+          <span>Wallet discount</span>
+          <span>−TND {walletDiscount.toFixed(2)}</span>
+        </div>
+        <div style={{ ...rowStyle, color: '#0f172a', fontWeight: 700 }}>
+          <span>Wallet price</span>
+          <span>TND {walletTotal.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* Wallet balance row */}
+      <div style={{ ...rowStyle, color: '#64748b', marginBottom: 6 }}>
+        <span>Wallet balance</span>
+        <span style={{ fontWeight: 700, color: canPayWithWallet ? '#16a34a' : '#ef4444' }}>
+          TND {balance.toFixed(2)}
+        </span>
+      </div>
+
+      {canPayWithWallet ? (
+        <button
+          onClick={payWithWallet}
+          disabled={paying}
+          style={{
+            width: '100%', padding: '9px 0', borderRadius: 10, border: 'none',
+            background: paying ? '#15803d99' : '#16a34a',
+            color: '#fff', fontWeight: 700, fontSize: 14,
+            cursor: paying ? 'wait' : 'pointer', marginBottom: 6, display: 'block',
+          }}
+        >
+          {paying ? '⏳ Processing…' : `💰 Pay TND ${walletTotal.toFixed(2)} — Save TND ${walletDiscount.toFixed(2)}`}
+        </button>
+      ) : (
+        <Link
+          href="/client/wallet"
+          style={{
+            display: 'block', padding: '9px 0', borderRadius: 10, marginBottom: 6,
+            background: '#f59e0b', color: '#fff', fontWeight: 700, fontSize: 13,
+            textAlign: 'center', textDecoration: 'none',
+          }}
+        >
+          ⬆ Top up wallet (TND {missing.toFixed(2)} short)
+        </Link>
+      )}
+
+      <Link
+        href={`/booking/${bookingId}/pay`}
+        style={{
+          display: 'block', padding: '8px 0', borderRadius: 10,
+          border: '1.5px solid #3b82f6', color: '#3b82f6', fontWeight: 600, fontSize: 13,
+          textAlign: 'center', textDecoration: 'none',
+        }}
+      >
+        💳 Pay TND {publicTotal.toFixed(2)} with Konnect
+      </Link>
+
+      {payError && (
+        <div style={{ marginTop: 6, fontSize: 12, color: '#ef4444', textAlign: 'center' }}>
+          {payError}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Booking details modal (host-only) ───────────────────────────────
+interface HostDetails {
+  bookingId: string;
+  status: string;
+  displayStatus: string;
+  startDate: string;
+  endDate: string;
+  startTime: string | null;
+  endTime: string | null;
+  publicTotal: number;
+  hostAmount: number;
+  listing: { id: string; title: string | null; category: string | null; bookingType: string | null };
+  renter: {
+    id: string; name: string; avatarUrl: string | null;
+    verifiedEmail: boolean; verifiedPhone: boolean;
+    ratingAvg: number; ratingCount: number;
+    createdAt: string; completedBookings: number;
+  };
+}
+
+function BookingDetailsModal({
+  bookingId,
+  onClose,
+  onAccept,
+  onDecline,
+  canAct,
+  acting,
+}: {
+  bookingId: string;
+  onClose: () => void;
+  onAccept?: () => void;
+  onDecline?: () => void;
+  canAct: boolean;
+  acting: 'accept' | 'decline' | null;
+}) {
+  const { data, isLoading, isError } = useQuery<HostDetails>({
+    queryKey: ['host-details', bookingId],
+    queryFn: async () => {
+      const res = await api.get(`/bookings/${bookingId}/host-details`);
+      return res.data?.data ?? res.data;
+    },
+    staleTime: 30_000,
+  });
+
+  const overlay: React.CSSProperties = {
+    position: 'fixed', inset: 0, zIndex: 1000,
+    background: 'rgba(0,0,0,0.45)', display: 'flex',
+    alignItems: 'flex-end', justifyContent: 'center',
+  };
+  const sheet: React.CSSProperties = {
+    background: '#fff', width: '100%', maxWidth: 480,
+    maxHeight: '90vh', overflowY: 'auto',
+    borderRadius: '20px 20px 0 0', padding: '20px 20px 32px',
+  };
+  const row: React.CSSProperties = {
+    display: 'flex', justifyContent: 'space-between',
+    fontSize: 13, marginBottom: 5, color: '#475569',
+  };
+  const label: React.CSSProperties = { fontWeight: 600, color: '#64748b' };
+
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={sheet} onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <span style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>Booking details</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
+        </div>
+
+        {isLoading && <p style={{ textAlign: 'center', color: '#94a3b8', padding: '24px 0' }}>Loading…</p>}
+        {isError && <p style={{ textAlign: 'center', color: '#ef4444', padding: '24px 0' }}>Could not load details.</p>}
+
+        {data && (
+          <>
+            {/* Renter profile */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '12px 14px', background: '#f8fafc', borderRadius: 12 }}>
+              {data.renter.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={data.renter.avatarUrl} alt={data.renter.name} style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 18 }}>
+                  {data.renter.name[0]?.toUpperCase()}
+                </div>
+              )}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>{data.renter.name}</div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+                  {data.renter.verifiedEmail && (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#16a34a', background: '#f0fdf4', borderRadius: 10, padding: '1px 7px' }}>✓ Email</span>
+                  )}
+                  {data.renter.verifiedPhone && (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#16a34a', background: '#f0fdf4', borderRadius: 10, padding: '1px 7px' }}>✓ Phone</span>
+                  )}
+                  {!data.renter.verifiedEmail && !data.renter.verifiedPhone && (
+                    <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>⚠ Unverified account</span>
+                  )}
+                </div>
+              </div>
+              {data.renter.ratingCount > 0 && (
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>⭐ {data.renter.ratingAvg.toFixed(1)}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{data.renter.ratingCount} review{data.renter.ratingCount !== 1 ? 's' : ''}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Renter stats */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <div style={{ flex: 1, background: '#f8fafc', borderRadius: 10, padding: '8px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>{data.renter.completedBookings}</div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>completed bookings</div>
+              </div>
+              <div style={{ flex: 1, background: '#f8fafc', borderRadius: 10, padding: '8px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
+                  {new Date(data.renter.createdAt).toLocaleDateString([], { month: 'short', year: 'numeric' })}
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>member since</div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: '#e2e8f0', marginBottom: 14 }} />
+
+            {/* Listing & dates */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#0f172a', marginBottom: 8 }}>{data.listing.title}</div>
+              {data.listing.category && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#3b82f6', background: '#eff6ff', borderRadius: 20, padding: '2px 8px', display: 'inline-block', marginBottom: 8 }}>
+                  {data.listing.category}
+                </span>
+              )}
+              <div style={row}><span style={label}>Check-in</span><span>{fmtDate(data.startDate)}{data.startTime ? ` · ${data.startTime}` : ''}</span></div>
+              <div style={row}><span style={label}>Check-out</span><span>{fmtDate(data.endDate)}{data.endTime ? ` · ${data.endTime}` : ''}</span></div>
+              <div style={row}><span style={label}>Status</span><span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{data.displayStatus}</span></div>
+            </div>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: '#e2e8f0', marginBottom: 14 }} />
+
+            {/* Amounts */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={row}><span style={label}>Total charged to renter</span><span style={{ fontWeight: 700 }}>TND {data.publicTotal.toFixed(2)}</span></div>
+              <div style={row}><span style={label}>Your payout</span><span style={{ fontWeight: 700, color: '#16a34a' }}>TND {data.hostAmount.toFixed(2)}</span></div>
+            </div>
+
+            {/* Accept / Decline from modal */}
+            {canAct && onAccept && onDecline && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button
+                  onClick={() => { onAccept(); onClose(); }}
+                  disabled={acting !== null}
+                  style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: acting ? '#15803d99' : '#16a34a', color: '#fff', fontWeight: 700, fontSize: 14, cursor: acting ? 'wait' : 'pointer' }}
+                >
+                  {acting === 'accept' ? '⏳ Accepting…' : '✅ Accept'}
+                </button>
+                <button
+                  onClick={() => { onDecline(); onClose(); }}
+                  disabled={acting !== null}
+                  style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #ef4444', background: '#fff', color: '#ef4444', fontWeight: 700, fontSize: 14, cursor: acting ? 'wait' : 'pointer' }}
+                >
+                  {acting === 'decline' ? '⏳ Declining…' : '✕ Decline'}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Booking card action buttons ─────────────────────────────────────
+function BookingCardActions({ bookingId, myId }: { bookingId: string; myId: string }) {
+  const qc = useQueryClient();
+  const [acting, setActing] = useState<'accept' | 'decline' | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
+
+  const { data: booking, isLoading } = useQuery({
+    queryKey: ['booking-chat', bookingId],
+    queryFn: async () => {
+      const res = await api.get(`/bookings/${bookingId}`);
+      return res.data as {
+        id: string; status: string; hostId: string; renterId: string;
+        totalPrice: number; snapshotCommissionRate?: number;
+      };
+    },
+    staleTime: 10_000,
+  });
+
+  if (isLoading || !booking) return null;
+
+  const isHost = booking.hostId === myId;
+  const isRenter = booking.renterId === myId;
+  const status = booking.status;
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['booking-chat', bookingId] });
+
+  const accept = async () => {
+    setActing('accept');
+    try {
+      await api.patch(`/bookings/${bookingId}/confirm`);
+      await invalidate();
+    } catch { /* system message will confirm */ } finally { setActing(null); }
+  };
+
+  const decline = async () => {
+    setActing('decline');
+    try {
+      await api.patch(`/bookings/${bookingId}/reject`);
+      await invalidate();
+    } catch { /* ignore */ } finally { setActing(null); }
+  };
+
+  const viewDetailsBtn = (
+    <button
+      onClick={() => setShowDetails(true)}
+      style={{
+        width: '100%', padding: '7px 0', borderRadius: 10,
+        border: '1.5px solid #cbd5e1', background: '#f8fafc',
+        color: '#475569', fontWeight: 600, fontSize: 13,
+        cursor: 'pointer', marginTop: 6,
+      }}
+    >
+      🔍 View details
+    </button>
+  );
+
+  if (isHost && status === 'pending') {
+    return (
+      <>
+        {showDetails && (
+          <BookingDetailsModal
+            bookingId={bookingId}
+            onClose={() => setShowDetails(false)}
+            onAccept={accept}
+            onDecline={decline}
+            canAct
+            acting={acting}
+          />
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button
+            onClick={accept}
+            disabled={acting !== null}
+            style={{
+              flex: 1, padding: '8px 0', borderRadius: 10, border: 'none',
+              background: acting === 'accept' ? '#15803d99' : '#16a34a',
+              color: '#fff', fontWeight: 700, fontSize: 14, cursor: acting ? 'wait' : 'pointer',
+              transition: 'background 0.15s',
+            }}
+          >
+            {acting === 'accept' ? '⏳ Accepting…' : '✅ Accept'}
+          </button>
+          <button
+            onClick={decline}
+            disabled={acting !== null}
+            style={{
+              flex: 1, padding: '8px 0', borderRadius: 10, border: '1.5px solid #ef4444',
+              background: '#fff', color: '#ef4444', fontWeight: 700, fontSize: 14,
+              cursor: acting ? 'wait' : 'pointer', transition: 'background 0.15s',
+            }}
+          >
+            {acting === 'decline' ? '⏳ Declining…' : '✕ Decline'}
+          </button>
+        </div>
+        {viewDetailsBtn}
+      </>
+    );
+  }
+
+  if (isHost && status === 'confirmed') {
+    return (
+      <>
+        {showDetails && (
+          <BookingDetailsModal
+            bookingId={bookingId}
+            onClose={() => setShowDetails(false)}
+            canAct={false}
+            acting={null}
+          />
+        )}
+        <div style={{ marginTop: 8, fontSize: 13, color: '#d97706', fontWeight: 600, textAlign: 'center', padding: '6px 0' }}>
+          ⏳ Waiting for renter payment
+        </div>
+        {viewDetailsBtn}
+      </>
+    );
+  }
+
+  if (isHost && (status === 'paid' || status === 'completed')) {
+    return (
+      <>
+        {showDetails && (
+          <BookingDetailsModal
+            bookingId={bookingId}
+            onClose={() => setShowDetails(false)}
+            canAct={false}
+            acting={null}
+          />
+        )}
+        <div style={{ marginTop: 8, fontSize: 13, color: '#16a34a', fontWeight: 600, textAlign: 'center', padding: '6px 0' }}>
+          ✅ Paid
+        </div>
+        {viewDetailsBtn}
+      </>
+    );
+  }
+
+  if (isHost && status === 'rejected') {
+    return (
+      <>
+        {showDetails && (
+          <BookingDetailsModal
+            bookingId={bookingId}
+            onClose={() => setShowDetails(false)}
+            canAct={false}
+            acting={null}
+          />
+        )}
+        <div style={{ marginTop: 8, fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '6px 0' }}>
+          Booking declined
+        </div>
+        {viewDetailsBtn}
+      </>
+    );
+  }
+
+  if (isRenter && status === 'pending') {
+    return (
+      <div style={{ marginTop: 8, fontSize: 13, color: '#d97706', fontWeight: 600, textAlign: 'center', padding: '6px 0' }}>
+        ⏳ Waiting for host approval
+      </div>
+    );
+  }
+
+  if (isRenter && status === 'confirmed') {
+    const publicTotal = Number(booking.totalPrice);
+    const commissionRate = Number(booking.snapshotCommissionRate ?? 0.10);
+    const platformMargin = +(publicTotal * commissionRate).toFixed(2);
+    const walletDiscount = +(platformMargin * 0.5).toFixed(2);
+    const walletTotal = +(publicTotal - walletDiscount).toFixed(2);
+    return (
+      <RenterPayActions
+        bookingId={bookingId}
+        publicTotal={publicTotal}
+        walletTotal={walletTotal}
+        walletDiscount={walletDiscount}
+      />
+    );
+  }
+
+  if (isRenter && (status === 'paid' || status === 'completed')) {
+    return (
+      <div style={{ marginTop: 8, fontSize: 13, color: '#16a34a', fontWeight: 600, textAlign: 'center', padding: '6px 0' }}>
+        ✅ Payment completed
+      </div>
+    );
+  }
+
+  if (isRenter && status === 'rejected') {
+    return (
+      <div style={{ marginTop: 8, fontSize: 13, color: '#ef4444', fontWeight: 600, textAlign: 'center', padding: '6px 0' }}>
+        ❌ Booking declined by host
+      </div>
+    );
+  }
+
+  return null;
 }
 
 // ─── page ────────────────────────────────────────────────────────────
@@ -352,6 +839,7 @@ export default function ChatThreadPage() {
 
                       {/* ── Rich booking card ── */}
                       {card ? (
+                        <div>
                         <Link href={`/listings/${card.listingId}`} style={{ textDecoration: 'none' }}>
                           <div style={{
                             borderRadius: 16, overflow: 'hidden',
@@ -430,6 +918,8 @@ export default function ChatThreadPage() {
                             </div>
                           </div>
                         </Link>
+                        <BookingCardActions bookingId={card.bookingId} myId={myId} />
+                        </div>
                       ) : (
                         /* ── Plain text bubble ── */
                         <div style={{

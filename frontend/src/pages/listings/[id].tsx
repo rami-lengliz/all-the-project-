@@ -4,7 +4,7 @@ import type { GetServerSideProps } from 'next';
 import { Layout } from '@/components/layout/Layout';
 import { useRouter } from 'next/router';
 import { useListing } from '@/lib/api/hooks/useListing';
-import { useReviewsByUser } from '@/lib/api/hooks/useReviewsByUser';
+import { useListingReviews } from '@/lib/api/hooks/useListingReviews';
 import { formatTnd } from '@/lib/utils/format';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { InlineError } from '@/components/ui/InlineError';
@@ -74,8 +74,8 @@ export default function ListingDetailsPage({ seo }: PageProps) {
   const id = router.query.id as string | undefined;
   const listingQuery = useListing(id);
   const listing = listingQuery.data as any;
-  const reviewsQuery = useReviewsByUser(listing?.host?.id);
-  const reviews = (reviewsQuery.data as any)?.data || [];
+  const reviewsQuery = useListingReviews(listing?.id);
+  const reviews: any[] = reviewsQuery.data ?? [];
   const [showAllPhotos, setShowAllPhotos] = useState(false);
 
   // ── booking state ───────────────────────────────────────────────────────────
@@ -253,16 +253,15 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                     {listing.title}
                   </h1>
                   <div className="flex items-center space-x-4 text-sm">
-                    {Number(listing.ratingCount ?? 0) > 0 ? (
+                    {reviews.length > 0 ? (
                       <div className="flex items-center">
                         <i className="fa-solid fa-star mr-1 text-yellow-400"></i>
                         <span className="font-semibold">
                           {Number(listing.ratingAvg ?? 0).toFixed(1)}
                         </span>
                         <span className="ml-1 text-gray-500">
-                          ({listing.ratingCount}{' '}
-                          {Number(listing.ratingCount) === 1 ? 'review' : 'reviews'}
-                          )
+                          ({reviews.length}{' '}
+                          {reviews.length === 1 ? 'review' : 'reviews'})
                         </span>
                       </div>
                     ) : (
@@ -647,78 +646,78 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                   </div>
 
                   {/* Reviews */}
-                  {reviews.length > 0 && (
-                    <div
-                      id="listing-reviews"
-                      className="rounded-2xl border border-gray-200 bg-white p-8"
-                    >
-                      <div className="mb-6 flex items-center justify-between">
-                        <h2 className="flex items-center text-xl font-bold text-gray-900">
-                          <i className="fa-solid fa-star mr-2 text-yellow-400"></i>
-                          {Number(listing.ratingCount ?? 0) > 0
-                            ? `${Number(listing.ratingAvg ?? 0).toFixed(1)} · ${listing.ratingCount} ${Number(listing.ratingCount) === 1 ? 'review' : 'reviews'}`
-                            : 'No reviews yet'}
-                        </h2>
-                      </div>
+                  <div
+                    id="listing-reviews"
+                    className="rounded-2xl border border-gray-200 bg-white p-8"
+                  >
+                    <div className="mb-6 flex items-center justify-between">
+                      <h2 className="flex items-center text-xl font-bold text-gray-900">
+                        <i className="fa-solid fa-star mr-2 text-yellow-400"></i>
+                        {reviews.length > 0
+                          ? `${Number(listing.ratingAvg ?? 0).toFixed(1)} · ${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'}`
+                          : 'No reviews yet'}
+                      </h2>
+                    </div>
 
-                      <div className="space-y-6">
-                        {reviews.slice(0, 3).map((review: any) => (
-                          <div
-                            key={review.id}
-                            className="border-b border-gray-200 pb-6 last:border-b-0"
-                          >
-                            <div className="flex items-start space-x-4">
-                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full">
-                                <img
-                                  src={
-                                    review.author?.avatarUrl ||
-                                    '/placeholder.png'
-                                  }
-                                  alt={review.author?.name}
-                                  className="h-full w-full object-cover"
-                                  onError={(e) => {
-                                    e.currentTarget.src = '/placeholder.png';
-                                    e.currentTarget.onerror = null;
-                                  }}
-                                />
-                              </div>
-                              <div className="flex-1">
-                                <div className="mb-1 flex items-center justify-between">
-                                  <h4 className="font-semibold text-gray-900">
-                                    {review.author?.name || 'Anonymous'}
-                                  </h4>
-                                  <span className="text-sm text-gray-500">
-                                    {new Date(
-                                      review.createdAt,
-                                    ).toLocaleDateString()}
-                                  </span>
+                    {reviews.length === 0 ? (
+                      <p className="text-sm text-gray-400">
+                        No reviews yet. Be the first to review this listing after your stay!
+                      </p>
+                    ) : (
+                      <>
+                        <div className="space-y-6">
+                          {reviews.slice(0, 3).map((review: any) => (
+                            <div
+                              key={review.id}
+                              className="border-b border-gray-200 pb-6 last:border-b-0"
+                            >
+                              <div className="flex items-start space-x-4">
+                                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full">
+                                  <img
+                                    src={review.author?.avatarUrl || '/placeholder.png'}
+                                    alt={review.author?.name}
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.src = '/placeholder.png';
+                                      e.currentTarget.onerror = null;
+                                    }}
+                                  />
                                 </div>
-                                <div className="mb-2 flex items-center">
-                                  {Array.from({ length: 5 }, (_, i) => (
-                                    <i
-                                      key={i}
-                                      className={`fa-solid fa-star text-xs ${
-                                        i < review.rating
-                                          ? 'text-yellow-400'
-                                          : 'text-gray-300'
-                                      }`}
-                                    ></i>
-                                  ))}
+                                <div className="flex-1">
+                                  <div className="mb-1 flex items-center justify-between">
+                                    <h4 className="font-semibold text-gray-900">
+                                      {review.author?.name || 'Anonymous'}
+                                    </h4>
+                                    <span className="text-sm text-gray-500">
+                                      {new Date(review.createdAt).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  <div className="mb-2 flex items-center">
+                                    {Array.from({ length: 5 }, (_, i) => (
+                                      <i
+                                        key={i}
+                                        className={`fa-solid fa-star text-xs ${
+                                          i < review.rating ? 'text-yellow-400' : 'text-gray-300'
+                                        }`}
+                                      ></i>
+                                    ))}
+                                  </div>
+                                  <p className="leading-relaxed text-sm text-gray-700">
+                                    {review.comment}
+                                  </p>
                                 </div>
-                                <p className="leading-relaxed text-sm text-gray-700">
-                                  {review.comment}
-                                </p>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <button className="mt-6 w-full rounded-lg border-2 border-gray-900 py-3 font-medium transition hover:bg-gray-50">
-                        Show all {reviews.length} reviews
-                      </button>
-                    </div>
-                  )}
+                          ))}
+                        </div>
+                        {reviews.length > 3 && (
+                          <button className="mt-6 w-full rounded-lg border-2 border-gray-900 py-3 font-medium transition hover:bg-gray-50">
+                            Show all {reviews.length} reviews
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
 
                   {/* Host Info */}
                   {listing.host && (

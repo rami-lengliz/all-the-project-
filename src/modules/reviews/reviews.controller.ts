@@ -21,33 +21,31 @@ export class ReviewsController {
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a review' })
-  create(@Body() createReviewDto: CreateReviewDto, @Request() req) {
-    return this.reviewsService.create(createReviewDto, req.user.sub);
-  }
-
-  @Get('user/:userId')
-  @Public()
-  @ApiOperation({ summary: 'Get reviews for a user' })
-  findByUser(@Param('userId') userId: string) {
-    return this.reviewsService.findByUser(userId);
+  @ApiOperation({ summary: 'Submit a review for a completed booking (renter→host or host→renter)' })
+  create(@Body() dto: CreateReviewDto, @Request() req) {
+    return this.reviewsService.create(dto, req.user.sub);
   }
 
   @Get('listing/:listingId')
   @Public()
-  @ApiOperation({ summary: 'Get renter-to-host reviews on a listing' })
+  @ApiOperation({ summary: 'Get renter reviews for a listing' })
   findByListing(@Param('listingId') listingId: string) {
     return this.reviewsService.findByListing(listingId);
   }
 
-  @Get('me/pending')
+  @Get('user/:userId')
+  @Public()
+  @ApiOperation({ summary: 'Get reviews received by a user' })
+  findByUser(@Param('userId') userId: string) {
+    return this.reviewsService.findByUser(userId);
+  }
+
+  @Get('booking/:bookingId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Completed bookings where the current user owes a review',
-  })
-  pending(@Request() req) {
-    return this.reviewsService.pendingForUser(req.user.sub);
+  @ApiOperation({ summary: 'Get reviews for a specific booking (to check if already reviewed)' })
+  findByBooking(@Param('bookingId') bookingId: string) {
+    return this.reviewsService.findByBooking(bookingId);
   }
 
   @Get(':id')

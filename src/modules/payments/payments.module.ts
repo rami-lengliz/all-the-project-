@@ -6,7 +6,7 @@ import { BookingsModule } from '../bookings/bookings.module';
 import { CancellationPolicyService } from '../../common/policies/cancellation-policy.service';
 import { LedgerModule } from '../ledger/ledger.module';
 import { FlouciProvider } from './providers/flouci.provider';
-import { D17Provider } from './providers/d17.provider';
+import { KonnectProvider } from './providers/konnect.provider';
 import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 
 @Module({
@@ -16,7 +16,7 @@ import { PaymentProviderRegistry } from './providers/payment-provider.registry';
     PaymentsService,
     CancellationPolicyService,
     FlouciProvider,
-    D17Provider,
+    KonnectProvider,
     PaymentProviderRegistry,
   ],
   exports: [PaymentsService],
