@@ -48,7 +48,7 @@ export default function HostDashboardPage() {
     >
       <section id="earnings-summary" className="py-8">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
             <div
               id="earnings-card-total"
               className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm"

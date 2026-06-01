@@ -9,6 +9,7 @@ import { randomBytes, createHash } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { UsersService } from '../users/users.service';
 import { NotificationService } from './notification.service';
+import { PASSWORD_BCRYPT_ROUNDS } from './auth.service';
 
 const TOKEN_TTL_MINUTES = 60;
 const TOKEN_BYTES = 32;
@@ -32,7 +33,7 @@ export class PasswordResetService {
     // the response time stays roughly the same.
     if (!user) {
       this.logger.log(`Password reset requested for unknown email: ${email}`);
-      await bcrypt.hash('decoy-to-equalize-timing', 10);
+      await bcrypt.hash('decoy-to-equalize-timing', PASSWORD_BCRYPT_ROUNDS);
       return { message: 'If that email is registered, a reset link has been sent.' };
     }
 
@@ -87,7 +88,7 @@ export class PasswordResetService {
       throw new BadRequestException('This reset link has expired. Request a new one.');
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await bcrypt.hash(newPassword, PASSWORD_BCRYPT_ROUNDS);
 
     await this.prisma.$transaction([
       this.prisma.user.update({

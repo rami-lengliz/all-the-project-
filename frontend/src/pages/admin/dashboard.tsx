@@ -24,13 +24,13 @@ export default function AdminDashboardPage() {
       <section id="earnings-summary" className="py-8">
         <div className="max-w-7xl mx-auto px-6">
           {usersQ.isLoading || listingsQ.isLoading || logsQ.isLoading ? (
-            <div className="grid grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
                 <LoadingCard key={i} />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
               <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -119,7 +119,7 @@ export default function AdminDashboardPage() {
 
       <section className="py-6">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <Link
               href="/admin/users"
               className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition"

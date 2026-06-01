@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import * as fs from 'fs';
+import { initSentry, captureException, flushSentry } from './common/monitoring/sentry';
 
 // ── Startup Environment Audit ────────────────────────────────────────────────
 const INSECURE_DEFAULTS: Record<string, string> = {
@@ -50,6 +51,10 @@ function auditEnv() {
 
 async function bootstrap() {
   try {
+    // Earliest possible — so even AppModule construction errors are captured.
+    // No-op unless SENTRY_DSN is set.
+    initSentry();
+
     auditEnv(); // fail fast before building the app if secrets are insecure
 
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -93,7 +98,16 @@ async function bootstrap() {
       new LoggingInterceptor(),
     );
 
-    // Global validation pipe
+    // Global validation pipe.
+    //   whitelist           — strip any property not in the DTO (blocks
+    //                          mass-assignment, e.g. a client trying to send
+    //                          isHost:true / roles:['ADMIN']).
+    //   forbidNonWhitelisted — left OFF deliberately: whitelist already removes
+    //                          unknown fields before they reach a service, so the
+    //                          security benefit of rejecting (vs stripping) is
+    //                          marginal, while flipping it to ON would turn any
+    //                          client that sends an extra field into a hard 400.
+    //                          Stripping is the safer production default here.
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -141,6 +155,8 @@ async function bootstrap() {
   } catch (error) {
     console.error('Bootstrap error:', error);
     fs.writeFileSync('crash.log', error.toString() + '\n' + error.stack);
+    captureException(error, { phase: 'bootstrap' });
+    await flushSentry(); // drain before the process dies
     process.exit(1);
   }
 }

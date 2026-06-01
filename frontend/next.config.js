@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: true,
+    poweredByHeader: false, // don't advertise the stack in response headers
 
     // Proxy /api/* → NestJS backend
     // In production (Vercel): set NEXT_PUBLIC_API_URL=https://your-railway-app.railway.app

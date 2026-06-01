@@ -75,8 +75,16 @@ export class AvailabilityService {
     const conflictingBooking = await this.prisma.booking.findFirst({
       where,
     });
+    if (conflictingBooking) return false;
 
-    return !conflictingBooking;
+    // Also reject if the host has blocked any day in the range.
+    const blocked = await this.hasBlockOverlap(
+      this.prisma,
+      listingId,
+      normalizedStart,
+      normalizedEnd,
+    );
+    return !blocked;
   }
 
   /**
@@ -114,8 +122,69 @@ export class AvailabilityService {
     `;
 
     const conflictingBookings = await tx.$queryRaw<Booking[]>(query);
+    if (conflictingBookings.length > 0) return false;
 
-    return conflictingBookings.length === 0;
+    // Also reject if the host has blocked any day in the range. Same tx so the
+    // check is consistent with the locked booking rows above.
+    const blocked = await this.hasBlockOverlap(
+      tx,
+      listingId,
+      normalizedStart,
+      normalizedEnd,
+    );
+    return !blocked;
+  }
+
+  /**
+   * True when the host has a manual availability block overlapping [start, end).
+   * Shared by the locking and non-locking availability checks so a renter can
+   * never book over a host-blocked window. endDate is exclusive, matching the
+   * booking-overlap convention.
+   */
+  private async hasBlockOverlap(
+    client: PrismaService | Prisma.TransactionClient,
+    listingId: string,
+    normalizedStart: Date,
+    normalizedEnd: Date,
+  ): Promise<boolean> {
+    const rows = await client.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT id FROM listing_availability_blocks
+      WHERE "listing_id"::text = ${listingId}
+        AND NOT ("end_date" <= ${normalizedStart} OR "start_date" >= ${normalizedEnd})
+      LIMIT 1
+    `);
+    return rows.length > 0;
+  }
+
+  /**
+   * Host-created blocked ranges for a listing within a window. Used by the
+   * calendar view (renter sees them greyed out; host sees them as removable).
+   */
+  async getBlockedRanges(
+    listingId: string,
+    fromDate?: Date,
+    toDate?: Date,
+  ): Promise<
+    Array<{ id: string; startDate: Date; endDate: Date; note: string | null }>
+  > {
+    const from = fromDate || new Date();
+    const to = toDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+    const blocks = await this.prisma.listingAvailabilityBlock.findMany({
+      where: {
+        listingId,
+        endDate: { gt: this.normalizeDate(from) },
+        startDate: { lt: this.normalizeDate(to) },
+      },
+      orderBy: { startDate: 'asc' },
+    });
+
+    return blocks.map((b) => ({
+      id: b.id,
+      startDate: new Date(b.startDate),
+      endDate: new Date(b.endDate),
+      note: b.note,
+    }));
   }
 
   /**

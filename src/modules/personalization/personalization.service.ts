@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { InteractionKind } from '@prisma/client';
+import { InteractionKind, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { EmbeddingService } from '../ai/embedding.service';
 
@@ -331,6 +331,14 @@ export class PersonalizationService implements OnModuleInit, OnModuleDestroy {
     // Category affinity from the user's recent interactions.
     const catAffinity = userId ? await this.computeCategoryAffinity(userId) : new Map<string, number>();
 
+    // Real coordinates per candidate. Prisma can't read the PostGIS `location`
+    // column, so without this every listing would score a flat 0.5 proximity
+    // and the user's lat/lng would be ignored. One raw query covers the pool.
+    const coordsById =
+      lat != null && lng != null
+        ? await this.fetchCoords(candidates.map((c) => c.id))
+        : new Map<string, { lat: number; lng: number }>();
+
     const scored: ScoredListing[] = candidates.map((l) => {
       const reasons: string[] = [];
       let simScore = 0;
@@ -340,9 +348,10 @@ export class PersonalizationService implements OnModuleInit, OnModuleDestroy {
         );
       }
       const qualityScore = clamp01((l.qualityScore ?? 0) / 100);
+      const c = coordsById.get(l.id);
       const proximityScore =
-        lat != null && lng != null && (l as any).location
-          ? this.proximityFromCoords(lat, lng, (l as any).location)
+        lat != null && lng != null && c
+          ? 1 / (1 + haversineKm(lat, lng, c.lat, c.lng) / 10)
           : 0.5;
       const catScore = catAffinity.get(l.categoryId) ?? 0;
       const freshnessScore = this.freshnessBoost(l.createdAt);
@@ -351,9 +360,12 @@ export class PersonalizationService implements OnModuleInit, OnModuleDestroy {
       if (isColdStart) {
         // Random jitter (±5%) so the order varies each visit for new users.
         score = 0.5 * qualityScore + 0.3 * proximityScore + 0.2 * freshnessScore + Math.random() * 0.05;
-        if (qualityScore > 0.7) reasons.push('Top-rated near you');
-        else if (proximityScore > 0.7) reasons.push('Nearby');
-        else reasons.push('Worth exploring');
+        // Pick the badge from whichever signal is this listing's strongest, so
+        // a row of cold-start cards shows varied, honest reasons instead of all
+        // reading the same thing. Order matters: location (when known) and the
+        // listing's own merits (rating, verified host) come before "just listed",
+        // otherwise a freshly-seeded catalog makes every card read "Just listed".
+        reasons.push(this.coldStartReason({ proximityScore, qualityScore, freshnessScore, verified: !!l.host?.idVerifiedAt, hasLoc: lat != null && lng != null }));
       } else {
         score =
           WEIGHTS.similarity * simScore +
@@ -362,10 +374,10 @@ export class PersonalizationService implements OnModuleInit, OnModuleDestroy {
           WEIGHTS.category * catScore +
           WEIGHTS.freshness * freshnessScore;
 
-        if (simScore > 0.7) reasons.push('Matches what you usually like');
+        if (simScore > 0.6) reasons.push('Matches what you usually like');
         else if (catScore > 0.4) reasons.push(`More ${l.category?.name ?? 'like this'}`);
-        else if (qualityScore > 0.7) reasons.push('Highly rated');
-        else if (proximityScore > 0.7) reasons.push('Nearby');
+        else if (proximityScore >= 0.6 && lat != null && lng != null) reasons.push('Near you');
+        else if (qualityScore >= 0.15) reasons.push('Highly rated');
         else reasons.push('Try something new');
       }
 
@@ -594,15 +606,54 @@ export class PersonalizationService implements OnModuleInit, OnModuleDestroy {
     return map;
   }
 
-  /** Approximate location proximity: 1 at 0km, ~0.5 at 10km, ~0 at 100km. */
-  private proximityFromCoords(lat: number, lng: number, geom: any): number {
-    // location is PostGIS Point: we can't read it directly via Prisma, so
-    // candidates fetched without lat/lng default to a neutral score elsewhere.
-    // This branch is only entered if we have raw coords on the listing.
-    if (!geom?.coordinates || geom.coordinates.length !== 2) return 0.5;
-    const [glng, glat] = geom.coordinates;
-    const km = haversineKm(lat, lng, glat, glng);
-    return 1 / (1 + km / 10);
+  /**
+   * Choose a single cold-start badge for a listing based on its strongest
+   * trait. Prioritises location and the listing's own merits over freshness so
+   * a brand-new catalogue doesn't make every card read "Just listed".
+   */
+  private coldStartReason(s: {
+    proximityScore: number;
+    qualityScore: number;
+    freshnessScore: number;
+    verified: boolean;
+    hasLoc: boolean;
+  }): string {
+    if (s.hasLoc && s.proximityScore >= 0.6) return 'Near you';
+    if (s.qualityScore >= 0.15) return 'Highly rated';
+    if (s.verified) return 'Verified host';
+    if (s.freshnessScore > 0.3) return 'Just listed';
+    return 'Popular pick';
+  }
+
+  /**
+   * Fetch real lat/lng for a set of listings. The PostGIS `location` column is
+   * an Unsupported type in Prisma and can't be read via findMany, so we pull
+   * it out with ST_Y/ST_X in one raw query. Rows with null geometry are skipped.
+   */
+  private async fetchCoords(
+    ids: string[],
+  ): Promise<Map<string, { lat: number; lng: number }>> {
+    const map = new Map<string, { lat: number; lng: number }>();
+    if (ids.length === 0) return map;
+    try {
+      const rows = await this.prisma.$queryRaw<
+        { id: string; lat: number | null; lng: number | null }[]
+      >`
+        SELECT id,
+               ST_Y(location::geometry) AS lat,
+               ST_X(location::geometry) AS lng
+        FROM listings
+        WHERE id IN (${Prisma.join(ids)}) AND location IS NOT NULL
+      `;
+      for (const r of rows) {
+        if (r.lat != null && r.lng != null) {
+          map.set(r.id, { lat: Number(r.lat), lng: Number(r.lng) });
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(`fetchCoords failed: ${err?.message}`);
+    }
+    return map;
   }
 
   /** Gentle boost for listings <14 days old (anti-cold-start for new hosts). */

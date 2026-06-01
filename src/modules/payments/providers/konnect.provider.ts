@@ -53,8 +53,20 @@ export class KonnectProvider implements PaymentProvider {
     );
   }
 
+  /**
+   * A value counts as configured only if it's set AND not one of the
+   * placeholders shipped in .env.example — otherwise Konnect would advertise
+   * itself as "available" and every checkout would 503 against the fake key.
+   */
+  private isReal(value?: string): boolean {
+    const t = value?.trim().toLowerCase();
+    if (!t) return false;
+    if (t.startsWith('your_') || t.startsWith('your-')) return false;
+    return !['changeme', 'placeholder', 'todo'].some((p) => t.includes(p));
+  }
+
   isConfigured(): boolean {
-    return Boolean(this.apiKey?.trim()) && Boolean(this.receiverWalletId?.trim());
+    return this.isReal(this.apiKey) && this.isReal(this.receiverWalletId);
   }
 
   private assertConfigured(): void {

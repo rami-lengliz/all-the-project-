@@ -16,6 +16,11 @@ import type { JwtPayload, Role } from '../../common/auth/jwt-payload';
 import { VerificationService } from './verification.service';
 import { RefreshTokenService } from './refresh-token.service';
 
+// OWASP (2024) recommends a bcrypt cost factor of at least 12 for password
+// hashes. Existing 10-round hashes keep working — bcrypt encodes the cost in
+// the hash itself, so compare() reads whatever cost the stored hash used.
+export const PASSWORD_BCRYPT_ROUNDS = 12;
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -38,7 +43,7 @@ export class AuthService {
         throw new BadRequestException('Either email or phone must be provided');
       }
 
-      const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+      const hashedPassword = await bcrypt.hash(registerDto.password, PASSWORD_BCRYPT_ROUNDS);
       this.logger.debug('Password hashed successfully');
 
       // Exclude password field, only send passwordHash
@@ -249,7 +254,7 @@ export class AuthService {
       throw new BadRequestException('New password must be different from the current one');
     }
 
-    const newHash = await bcrypt.hash(newPassword, 10);
+    const newHash = await bcrypt.hash(newPassword, PASSWORD_BCRYPT_ROUNDS);
     await this.usersService.update(userId, { passwordHash: newHash });
 
     // Invalidate everywhere — if the password was changed because something

@@ -141,11 +141,27 @@ export class BookingsService {
     const days = Math.ceil(
       (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
     );
+
+    // Minimum-nights rule (Airbnb-style)
+    const minNights = (listing as any).minNights ?? 1;
+    if (days < minNights) {
+      throw new BadRequestException(
+        `This listing requires a minimum stay of ${minNights} night${minNights > 1 ? 's' : ''}.`,
+      );
+    }
+
     const pricePerDay =
       typeof listing.pricePerDay === 'number'
         ? listing.pricePerDay
         : Number(listing.pricePerDay);
-    const totalPrice = pricePerDay * days;
+    // Sum each night's effective price (per-date override ?? base) so the total
+    // always matches what the renter saw on the calendar.
+    const totalPrice = await this.listingsService.computeDailyTotal(
+      createBookingDto.listingId,
+      pricePerDay,
+      startDate,
+      endDate,
+    );
     const commission = totalPrice * this.commissionPercentage;
 
     // Use transaction with row-level locking to prevent double booking

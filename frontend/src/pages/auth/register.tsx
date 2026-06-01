@@ -75,7 +75,7 @@ export default function RegisterPage() {
                 phone: values.phone || undefined,
                 password: values.password,
               });
-              // register() auto-logs in — route by intent unless ?next= is set
+              // register() auto-logs in — honor ?next= if present, else go home
               await router.push(destination());
             } catch (e: any) {
               form.setError('root', { message: friendlyRegisterError(e) });

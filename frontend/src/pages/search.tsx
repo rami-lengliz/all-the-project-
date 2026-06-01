@@ -5,6 +5,19 @@ import { ListingCard } from '@/components/shared/ListingCard';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { useUserLocation } from '@/lib/hooks/useUserLocation';
 import { CityPicker } from '@/components/shared/CityPicker';
+import { useAuth } from '@/lib/auth/AuthProvider';
+
+/**
+ * Claude-style time-of-day greeting. Returns "Bonjour" / "Bon après-midi" /
+ * "Bonsoir", with the user's first name when signed in. Computed client-side
+ * (see effect below) so it never causes an SSR hydration mismatch.
+ */
+function timeGreeting(name?: string | null): string {
+  const h = new Date().getHours();
+  const base = h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir';
+  const first = name?.trim().split(/\s+/)[0];
+  return first ? `${base}, ${first}` : base;
+}
 
 const HISTORY_KEY = 'rentai_search_history';
 const MAX_HISTORY = 5;
@@ -102,6 +115,66 @@ async function fetchListings(params: Record<string, string | number | undefined>
   return Array.isArray(raw) ? raw : (raw?.items ?? []);
 }
 
+// Showcase the AI's natural-language range (FR / darija / Arabic) in the idle
+// placeholder — cycles every few seconds so the empty search never feels dead.
+const SEARCH_EXAMPLES = [
+  'villa kelibia bord de mer ta7t 500',
+  'padel samedi après-midi',
+  'voiture pas chère cette semaine',
+  'jet ski hammamet demain',
+  'appartement Tunis Lac moins de 200',
+  'دار قريبة من البحر في قليبية',
+];
+
+/**
+ * Claude-style "thinking" stream shown while the AI parses a query. Steps reveal
+ * one at a time and tick off as the next begins — purely presentational, so it
+ * can never affect the real search. The known city is woven in for realism.
+ */
+function AiThinking({ city }: { city?: string }) {
+  const steps = [
+    'Je comprends votre demande',
+    'J’extrais les filtres — lieu, prix, dates',
+    city ? `Je cherche près de ${city}` : 'Je cherche les meilleures annonces',
+    'Je classe par pertinence',
+  ];
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setActive((a) => Math.min(a + 1, 3)), 700);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div className="mb-5 overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white px-5 py-4 shadow-sm">
+      <div className="mb-3 flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600">
+          <i className="fa-solid fa-robot text-sm text-white" />
+        </div>
+        <p className="text-sm font-semibold text-blue-900">L’IA réfléchit…</p>
+      </div>
+      <ul className="space-y-2">
+        {steps.slice(0, active + 1).map((label, i) => {
+          const done = i < active;
+          return (
+            <li key={i} className="re-fade-up flex items-center gap-2.5 text-sm">
+              <span
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] ${
+                  done ? 'bg-emerald-500 text-white' : 'bg-blue-100 text-blue-600'
+                }`}
+              >
+                <i className={`fa-solid ${done ? 'fa-check' : 'fa-spinner animate-spin'}`} />
+              </span>
+              <span className={done ? 'text-gray-500' : 'font-medium text-gray-800'}>
+                {label}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export default function SearchPage() {
   const router = useRouter();
 
@@ -123,6 +196,24 @@ export default function SearchPage() {
   // Display name for the active search city — defaults to user's detected city, overridden when picker chooses one
   const [cityDisplay, setCityDisplay] = useState(hookCityName);
   useEffect(() => { setCityDisplay(hookCityName); }, [hookCityName]);
+
+  // Claude-style greeting — computed on the client so the time-of-day text (and
+  // the auth-only name) never clashes with the server-rendered HTML on hydration.
+  const { user } = useAuth();
+  const [greeting, setGreeting] = useState('');
+  useEffect(() => {
+    setGreeting(timeGreeting(user?.name));
+  }, [user]);
+
+  // Rotating example query in the placeholder (idle delight).
+  const [phIdx, setPhIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(
+      () => setPhIdx((i) => (i + 1) % SEARCH_EXAMPLES.length),
+      3200,
+    );
+    return () => clearInterval(t);
+  }, []);
 
   function pushNewLocation(picked: { lat: number; lng: number; cityName: string }) {
     setCityDisplay(picked.cityName);
@@ -325,11 +416,13 @@ export default function SearchPage() {
         {/* ── Hero heading (idle only) ────────────────────────── */}
         {isIdle && (
           <div className="mb-8 text-center">
-            <h1 className="mb-2 text-3xl font-bold tracking-tight text-gray-900">
-              Que cherchez-vous ?
+            <h1 className="mb-2 text-3xl font-bold tracking-tight text-gray-900 transition-opacity duration-500 sm:text-4xl">
+              {greeting || 'Que cherchez-vous ?'}
             </h1>
             <p className="text-sm text-gray-500">
-              Cherchez en français, darija, arabe ou anglais — l&apos;IA comprend tout.
+              {greeting
+                ? 'Que cherchez-vous aujourd’hui ? L’IA comprend le français, la darija, l’arabe et l’anglais.'
+                : 'Cherchez en français, darija, arabe ou anglais — l’IA comprend tout.'}
             </p>
           </div>
         )}
@@ -364,8 +457,8 @@ export default function SearchPage() {
                 onChange={(e) => setInputQ(e.target.value)}
                 onFocus={() => { if (history.length > 0) setShowHistory(true); }}
                 onBlur={() => setTimeout(() => setShowHistory(false), 150)}
-                placeholder='Ex: "villa kelibia bord de mer ta7t 500" ou "padel samedi"'
-                className="w-full rounded-2xl bg-transparent py-4 pl-11 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
+                placeholder={`Ex : « ${SEARCH_EXAMPLES[phIdx]} »`}
+                className="w-full rounded-2xl bg-transparent py-4 pl-11 pr-4 text-sm text-gray-900 placeholder-gray-400 transition-all focus:outline-none"
                 disabled={isAiLoading}
               />
             </div>
@@ -445,23 +538,8 @@ export default function SearchPage() {
           </div>
         )}
 
-        {/* ── AI loading indicator ───────────────────────────── */}
-        {isAiLoading && (
-          <div className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600">
-              <i className="fa-solid fa-robot text-sm text-white" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-blue-900">L&apos;IA analyse votre recherche…</p>
-              <p className="text-xs text-blue-500">Extraction des filtres : lieu, prix, dates, type de bien</p>
-            </div>
-            <div className="flex gap-1">
-              {[0, 1, 2].map((i) => (
-                <span key={i} className="dot-bounce h-2 w-2 rounded-full bg-blue-400" style={{ animationDelay: `${i * 0.15}s` }} />
-              ))}
-            </div>
-          </div>
-        )}
+        {/* ── AI reasoning stream (Claude-style thinking) ─────── */}
+        {isAiLoading && <AiThinking city={cityDisplay} />}
 
         {/* ── "What I understood" chips ──────────────────────── */}
         {chips.length > 0 && !isAiLoading && (

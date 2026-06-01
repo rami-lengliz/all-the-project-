@@ -71,7 +71,7 @@ export default function ClientReviewsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="col-span-1">
                 <label className="text-xs font-semibold text-gray-700 block mb-2">
                   Booking
@@ -152,7 +152,7 @@ export default function ClientReviewsPage() {
             </div>
           ) : null}
 
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {reviewsQuery.isLoading ? (
               <>
                 <LoadingCard />

@@ -101,13 +101,13 @@ export default function ClientDashboardPage() {
       <section id="profile-stats" className="bg-gray-50 py-6">
         <div className="max-w-7xl mx-auto px-6">
           {profile.isLoading || bookings.isLoading ? (
-            <div className="grid grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
                 <LoadingCard key={i} />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
               <div className="bg-white rounded-xl p-6 border border-gray-200">
                 <div className="flex items-center justify-between mb-2">
                   <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -162,7 +162,7 @@ export default function ClientDashboardPage() {
 
       <section id="profile-navigation" className="bg-white py-8">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <Link
               href="/client/bookings"
               id="nav-rentals"

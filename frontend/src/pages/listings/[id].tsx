@@ -6,6 +6,8 @@ import { useRouter } from 'next/router';
 import { useListing } from '@/lib/api/hooks/useListing';
 import { useListingReviews } from '@/lib/api/hooks/useListingReviews';
 import { useSimilarListings } from '@/lib/api/hooks/useSimilarListings';
+import { useListingAvailability } from '@/lib/api/hooks/useListingAvailability';
+import { expandUnavailableDays, priceMap } from '@/lib/api/availability';
 import { ListingCard } from '@/components/shared/ListingCard';
 import { formatTnd } from '@/lib/utils/format';
 import { LoadingCard } from '@/components/ui/LoadingCard';
@@ -80,6 +82,43 @@ export default function ListingDetailsPage({ seo }: PageProps) {
   const reviewsQuery = useListingReviews(listing?.id);
   const reviews: any[] = reviewsQuery.data ?? [];
   const similarQuery = useSimilarListings(listing?.id, 4);
+  const availabilityQuery = useListingAvailability(listing?.id);
+  const unavailableDays = useMemo(
+    () =>
+      availabilityQuery.data
+        ? expandUnavailableDays(availabilityQuery.data)
+        : new Set<string>(),
+    [availabilityQuery.data],
+  );
+  const priceByDay = useMemo(
+    () =>
+      availabilityQuery.data
+        ? priceMap(availabilityQuery.data)
+        : new Map<string, number>(),
+    [availabilityQuery.data],
+  );
+  const minNights = availabilityQuery.data?.minNights ?? 1;
+
+  // Honest urgency — real recent-booking count, or real upcoming occupancy from
+  // the availability calendar. Never fabricated.
+  const bookings30d = Number((listing as any)?.bookingCount30d ?? 0);
+  const bookedSoon = useMemo(() => {
+    if (unavailableDays.size === 0) return 0;
+    const base = new Date();
+    let n = 0;
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() + i);
+      if (unavailableDays.has(d.toISOString().slice(0, 10))) n++;
+    }
+    return n;
+  }, [unavailableDays]);
+  const scarcityMsg =
+    bookings30d >= 2
+      ? `Réservé ${bookings30d}× ces 30 derniers jours`
+      : bookedSoon >= 5
+        ? `${bookedSoon} jours déjà réservés ce mois-ci`
+        : null;
   const [showAllPhotos, setShowAllPhotos] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
@@ -127,32 +166,68 @@ export default function ListingDetailsPage({ seo }: PageProps) {
     ? Number(listing?.slotConfiguration?.pricePerSlot ?? listing?.pricePerDay ?? 0)
     : Number(listing?.pricePerDay ?? 0);
 
-  const subtotal = nightsCount * basePrice;
+  // DAILY: sum each night's effective price (custom override ?? base) so the
+  // total matches the host's calendar. SLOT: flat price × 1.
+  const subtotal = useMemo(() => {
+    if (isSlot) return (selectedSlot ? 1 : 0) * basePrice;
+    if (!startDate || !endDate) return 0;
+    let sum = 0;
+    const cur = new Date(`${startDate}T00:00:00.000Z`);
+    const end = new Date(`${endDate}T00:00:00.000Z`);
+    while (cur < end) {
+      const ds = cur.toISOString().slice(0, 10);
+      sum += priceByDay.get(ds) ?? basePrice;
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return Math.round(sum * 100) / 100;
+  }, [isSlot, selectedSlot, basePrice, startDate, endDate, priceByDay]);
   const serviceFee = Math.round(subtotal * 0.10 * 100) / 100;
   const total = subtotal + serviceFee;
+  const minNightsMet =
+    isSlot || !startDate || !endDate || nightsCount >= minNights;
 
   // ── calendar helpers ────────────────────────────────────────────────────────
   const firstDay = firstDayOfMonth(calYear, calMonth);
   const totalDays = daysInMonth(calYear, calMonth);
   const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+  // True if any night in [lo, hi) is booked or host-blocked (hi = checkout, exclusive).
+  function rangeHasUnavailable(lo: string, hi: string): boolean {
+    if (unavailableDays.size === 0) return false;
+    const cur = new Date(`${lo}T00:00:00.000Z`);
+    const end = new Date(`${hi}T00:00:00.000Z`);
+    while (cur < end) {
+      if (unavailableDays.has(cur.toISOString().slice(0, 10))) return true;
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return false;
+  }
+
   function handleDayClick(dayStr: string) {
     if (dayStr < today) return;
+    if (unavailableDays.has(dayStr)) return; // can't start/end on an unavailable day
     if (!startDate || (startDate && endDate)) {
       setStartDate(dayStr);
       setEndDate('');
-    } else {
-      if (dayStr < startDate) {
-        setEndDate(startDate);
-        setStartDate(dayStr);
-      } else {
-        setEndDate(dayStr);
-      }
+      return;
     }
+    // We have a start but no end yet — order the two clicks.
+    const lo = dayStr < startDate ? dayStr : startDate;
+    const hi = dayStr < startDate ? startDate : dayStr;
+    // Reject a range that would span a booked/blocked night; restart instead.
+    if (rangeHasUnavailable(lo, hi)) {
+      setStartDate(dayStr);
+      setEndDate('');
+      return;
+    }
+    setStartDate(lo);
+    setEndDate(hi);
   }
 
   function dayClass(dayStr: string): string {
     if (dayStr < today) return 'text-gray-300 cursor-not-allowed';
+    if (unavailableDays.has(dayStr))
+      return 'text-gray-300 line-through cursor-not-allowed';
     if (dayStr === startDate || dayStr === endDate)
       return 'bg-blue-500 text-white rounded-full cursor-pointer';
     if (startDate && endDate && dayStr > startDate && dayStr < endDate)
@@ -169,6 +244,7 @@ export default function ListingDetailsPage({ seo }: PageProps) {
       );
     } else {
       if (!startDate || !endDate) return;
+      if (nightsCount < minNights) return;
       void router.push(`/booking/${id}?startDate=${startDate}&endDate=${endDate}`);
     }
   }
@@ -310,7 +386,7 @@ export default function ListingDetailsPage({ seo }: PageProps) {
           <section id="image-gallery" className="bg-white pb-8">
             <div className="mx-auto max-w-7xl px-6">
               {images.length > 0 ? (
-                <div className="grid h-[500px] grid-cols-4 gap-2 overflow-hidden rounded-2xl">
+                <div className="grid h-[280px] grid-cols-4 gap-2 overflow-hidden rounded-2xl sm:h-[380px] lg:h-[500px]">
                   {displayImages.map((img: string, idx: number) => (
                     <div
                       key={idx}
@@ -319,6 +395,9 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                     >
                       <img
                         className="h-full w-full object-cover"
+                        loading={idx === 0 ? 'eager' : 'lazy'}
+                        fetchPriority={idx === 0 ? 'high' : 'auto'}
+                        decoding="async"
                         src={
                           img.startsWith('http') || img.startsWith('/')
                             ? img
@@ -336,6 +415,8 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                     <div className="relative">
                       <img
                         className="h-full w-full object-cover"
+                        loading="lazy"
+                        decoding="async"
                         src={
                           images[5].startsWith('http') ||
                             images[5].startsWith('/')
@@ -371,8 +452,8 @@ export default function ListingDetailsPage({ seo }: PageProps) {
           {/* Main Content */}
           <section id="listing-content" className="bg-gray-50 py-8">
             <div className="mx-auto max-w-7xl px-6">
-              <div className="grid grid-cols-3 gap-8">
-                <div className="col-span-2 space-y-8">
+              <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+                <div className="space-y-8 lg:col-span-2">
                   {/* Host Overview */}
                   <div
                     id="listing-overview"
@@ -514,7 +595,9 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                       Availability
                     </h2>
                     <p className="mb-6 text-sm text-gray-500">
-                      {isDaily ? 'Select your check-in and check-out dates below.' : 'Pick a date then choose a time slot.'}
+                      {isDaily
+                        ? `Select your check-in and check-out dates below.${minNights > 1 ? ` Minimum stay: ${minNights} nights.` : ''}`
+                        : 'Pick a date then choose a time slot.'}
                     </p>
 
                     {isDaily ? (
@@ -575,6 +658,10 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                             <div className="h-4 w-4 rounded-full bg-blue-100" />
                             <span>In range</span>
                           </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-gray-300 line-through">15</span>
+                            <span>Unavailable</span>
+                          </div>
                           {startDate && endDate && (
                             <span className="ml-auto font-medium text-blue-600">
                               {daysBetween(startDate, endDate)} night{daysBetween(startDate, endDate) !== 1 ? 's' : ''} selected
@@ -603,7 +690,7 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                             ) : availableSlots.length === 0 ? (
                               <p className="text-sm text-gray-500">No slots available for this date.</p>
                             ) : (
-                              <div className="grid grid-cols-3 gap-2">
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                                 {availableSlots.map((slot: any) => (
                                   <button
                                     key={slot.startTime}
@@ -688,6 +775,8 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                                   <img
                                     src={review.author?.avatarUrl || '/placeholder.png'}
                                     alt={review.author?.name}
+                                    loading="lazy"
+                                    decoding="async"
                                     className="h-full w-full object-cover"
                                     onError={(e) => {
                                       e.currentTarget.src = '/placeholder.png';
@@ -821,7 +910,7 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                     <h2 className="mb-6 text-xl font-bold text-gray-900">
                       Things to know
                     </h2>
-                    <div className="grid grid-cols-3 gap-8">
+                    <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
                       <div>
                         <h3 className="mb-3 font-semibold text-gray-900">
                           Rental rules
@@ -891,6 +980,13 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                         <div className="text-xs text-gray-400">No reviews yet</div>
                       )}
                     </div>
+
+                    {scarcityMsg && (
+                      <div className="mb-4 inline-flex items-center gap-1.5 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">
+                        <i className="fa-solid fa-fire" />
+                        {scarcityMsg}
+                      </div>
+                    )}
 
                     <div className="mb-6 space-y-3">
                       {isDaily ? (
@@ -971,9 +1067,15 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                       )}
                     </div>
 
+                    {isDaily && startDate && endDate && !minNightsMet && (
+                      <p className="mb-3 text-center text-xs font-medium text-rose-600">
+                        Minimum stay is {minNights} nights — pick a longer range.
+                      </p>
+                    )}
+
                     <button
                       onClick={handleBook}
-                      disabled={isDaily ? (!startDate || !endDate) : (!slotDay || !selectedSlot)}
+                      disabled={isDaily ? (!startDate || !endDate || !minNightsMet) : (!slotDay || !selectedSlot)}
                       className="mb-4 w-full rounded-lg bg-blue-500 py-4 font-semibold text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Request to book
@@ -987,7 +1089,9 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                       <div className="space-y-3 border-b border-gray-200 pb-6 text-sm">
                         <div className="flex items-center justify-between">
                           <span className="text-gray-700">
-                            {formatTnd(basePrice)} × {nightsCount} {isSlot ? 'slot' : 'night'}{nightsCount !== 1 ? 's' : ''}
+                            {isSlot
+                              ? `${formatTnd(basePrice)} × ${nightsCount} slot${nightsCount !== 1 ? 's' : ''}`
+                              : `${nightsCount} night${nightsCount !== 1 ? 's' : ''}`}
                           </span>
                           <span className="text-gray-900">{formatTnd(subtotal)}</span>
                         </div>
@@ -1007,6 +1111,33 @@ export default function ListingDetailsPage({ seo }: PageProps) {
 
                     <div className="pt-6">
                       <BookingProtectionBadge variant="card" />
+                    </div>
+
+                    {/* Trust reassurance — reduces booking anxiety at the CTA */}
+                    <div className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-xs text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <i className="fa-solid fa-lock w-4 text-emerald-500" />
+                        <span>Paiement sécurisé — débité seulement après acceptation</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <i className="fa-solid fa-rotate-left w-4 text-emerald-500" />
+                        <span>
+                          Annulation{' '}
+                          {listing.cancellationPolicy === 'FLEXIBLE'
+                            ? 'flexible'
+                            : listing.cancellationPolicy === 'STRICT'
+                              ? 'stricte'
+                              : 'modérée'}
+                        </span>
+                      </div>
+                      {Number(listing.host?.ratingCount ?? 0) > 0 && (
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-circle-check w-4 text-emerald-500" />
+                          <span>
+                            Hôte noté {Number(listing.host.ratingAvg).toFixed(1)}/5
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

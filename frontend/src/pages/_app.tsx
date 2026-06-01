@@ -13,6 +13,8 @@ import { isAdminUser, isHostUser } from '@/lib/auth/roleUtils';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { EnvCheck } from '@/components/ui/EnvCheck';
 import { CompareProvider } from '@/lib/context/CompareContext';
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
+import { initMonitoring } from '@/lib/monitoring/sentry';
 
 function RouteGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -79,6 +81,7 @@ export default function App({ Component, pageProps }: AppProps) {
 
   useEffect(() => {
     configureOpenApi();
+    void initMonitoring(); // no-op (and no SDK fetch) unless NEXT_PUBLIC_SENTRY_DSN is set
   }, []);
 
   return (
@@ -88,6 +91,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content="#0284c7" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <title>RentEverything — Rent stays, cars, sports & beach gear in Tunisia</title>
@@ -102,14 +106,23 @@ export default function App({ Component, pageProps }: AppProps) {
           property="og:description"
           content="Find villas, cars, padel courts, jet skis and beach gear near you. Pay safely with Flouci or D17."
         />
+        <meta property="og:image" content="https://renteverything.tn/og-image.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:locale" content="fr_TN" />
         <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content="https://renteverything.tn/og-image.png" />
         <link rel="icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/og-image.png" />
+        <link rel="manifest" href="/site.webmanifest" />
       </Head>
       <EnvCheck />
       <AuthProvider>
         <RouteGuard>
           <CompareProvider>
-            <Component {...pageProps} />
+            <ErrorBoundary>
+              <Component {...pageProps} />
+            </ErrorBoundary>
           </CompareProvider>
         </RouteGuard>
         <Toaster />

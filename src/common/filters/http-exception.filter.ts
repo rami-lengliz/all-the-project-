@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
+import { captureException } from '../monitoring/sentry';
 
 /**
  * Error code mapping from HTTP status to machine-readable code.
@@ -74,6 +75,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
         `[${requestId}] ${status} ${request.method} ${request.url} — ${message}`,
         exception instanceof Error ? exception.stack : undefined,
       );
+      // Forward genuine server faults to Sentry (no-op until a DSN is set).
+      // 4xx are client/validation errors and stay out of the error tracker.
+      captureException(exception, {
+        requestId,
+        method: request.method,
+        url: request.url,
+        statusCode: status,
+      });
     } else {
       this.logger.warn(
         `[${requestId}] ${status} ${request.method} ${request.url} — ${message}`,

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 
 /**
@@ -55,10 +55,36 @@ interface ReviewAggregate {
 }
 
 @Injectable()
-export class QualityScoreService {
+export class QualityScoreService implements OnModuleInit {
   private readonly logger = new Logger(QualityScoreService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Self-heal on startup: scores are otherwise only written on booking/review
+   * events, so a freshly seeded or restored DB would leave every listing at
+   * qualityScore=0 — which silently zeroes out 25% of the recommendation
+   * formula and gives "Trending" nothing to rank by. If any active listing is
+   * unscored, recompute everything once (in the background, non-blocking).
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      const unscored = await this.prisma.listing.count({
+        where: { deletedAt: null, isActive: true, qualityUpdatedAt: null },
+      });
+      if (unscored > 0) {
+        this.logger.log(
+          `${unscored} listing(s) have never been scored — running initial quality recompute…`,
+        );
+        // Don't block app boot; let it run in the background.
+        void this.recomputeAll().catch((err) =>
+          this.logger.warn(`Initial quality recompute failed: ${err?.message ?? err}`),
+        );
+      }
+    } catch (err: any) {
+      this.logger.warn(`Quality startup check failed: ${err?.message ?? err}`);
+    }
+  }
 
   // ─── Listing ──────────────────────────────────────────────────────────
 

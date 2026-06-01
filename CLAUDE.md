@@ -185,20 +185,32 @@ A user can switch contexts via the header mode toggle. Logic in `frontend/src/li
 
 ---
 
-## Current state (as of late May 2026)
+## Current state (as of June 2026)
 
 Functionally complete for a soft launch. Recent re-engineering:
 - 5-step publishing wizard with AI integrations and draft autosave
-- Register intent picker (Rent vs Host) drives onboarding
+- Register flow simplified — no Rent/Host intent picker (users pick later)
 - Profile completeness card with actionable steps
 - Host/Renter mode toggle in header
 - Become-a-host modal with verification + terms checks
 - Google OAuth with smart account linking
 - All hardcoded review counts replaced with real ratings
 - Friendly auth error messages and `?next=` redirects everywhere
+- Listing edit page exposes slot config + a "Calendar & pricing" link
+- **Airbnb-style availability calendar**: host date-blocking, per-date custom
+  pricing, minimum-nights, occupancy stats, and two-way iCal sync
+  (export `.ics` + import external feeds). Bookings enforce blocks, per-day
+  totals, and min-nights. See `ListingsService` + `host/listings/[id]/calendar.tsx`.
+- Error monitoring (Sentry) wired but dormant until a DSN is set — `@sentry/node`
+  (backend) + dynamically-imported `@sentry/react` (frontend).
 
-Known gaps (mostly post-launch work):
-- Listing edit page doesn't expose slot config
-- Apple/Facebook OAuth not wired (visual only)
-- No host ID-upload verification
-- Real payment processor not integrated
+### Gotcha worth repeating
+- `req.user` is `{ sub, email, role }` — **use `req.user.sub`**, never
+  `req.user.id` (the latter is `undefined` and silently fails ownership checks).
+
+Known gaps (mostly post-launch / business decisions):
+- **Real payment processor not integrated** — Konnect/Flouci are wired in env
+  but the flow is simulated. The #1 launch blocker; it's a provider decision.
+- Apple/Facebook OAuth not wired (visual only — intentional).
+- No host ID-upload verification beyond the KYC status flag.
+- Leaked dev API keys in `.env` should be rotated before going public.

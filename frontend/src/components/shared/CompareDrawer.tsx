@@ -17,11 +17,13 @@ export function CompareDrawer() {
                  <div className="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center text-[10px] font-bold">
                     {id.slice(0, 2).toUpperCase()}
                  </div>
-                 <button 
+                 <button
+                  type="button"
                   onClick={() => toggleListing(id)}
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition shadow-sm"
+                  aria-label="Remove from comparison"
+                  className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                  >
-                   <X size={10} />
+                   <X size={10} aria-hidden="true" />
                  </button>
                </div>
              ))}

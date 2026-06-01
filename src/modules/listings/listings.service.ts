@@ -18,6 +18,8 @@ import { Logger } from '@nestjs/common';
 import { BLOCKING_BOOKING_STATUSES } from '../../common/constants/booking-status.constants';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { EmbeddingService } from '../ai/embedding.service';
+import { buildIcal, parseIcal } from '../../common/utils/ical.util';
+import axios from 'axios';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
@@ -865,6 +867,505 @@ export class ListingsService {
       date,
       bookings,
     );
+  }
+
+  // ── Availability calendar (Airbnb-style date blocking) ──────────────────────
+
+  /** Parse a 'YYYY-MM-DD' string to a UTC-midnight Date for @db.Date columns. */
+  private parseYmd(value: string): Date {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      throw new BadRequestException(`Invalid date "${value}" (expected YYYY-MM-DD)`);
+    }
+    const d = new Date(`${value}T00:00:00.000Z`);
+    if (Number.isNaN(d.getTime())) {
+      throw new BadRequestException(`Invalid date "${value}"`);
+    }
+    return d;
+  }
+
+  private toYmd(d: Date): string {
+    return d.toISOString().slice(0, 10);
+  }
+
+  /**
+   * Calendar view for a listing: real bookings (always unavailable) and
+   * host-created manual blocks (removable). endDate is exclusive in both lists.
+   * Public — Airbnb shows unavailable dates to everyone.
+   */
+  async getAvailabilityCalendar(
+    listingId: string,
+    fromStr?: string,
+    toStr?: string,
+  ): Promise<{
+    pricePerDay: number;
+    minNights: number;
+    booked: Array<{ startDate: string; endDate: string }>;
+    blocked: Array<{
+      id: string;
+      startDate: string;
+      endDate: string;
+      note: string | null;
+      source: string;
+    }>;
+    prices: Array<{ date: string; price: number }>;
+  }> {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { id: true, pricePerDay: true, minNights: true },
+    });
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    const from = fromStr ? this.parseYmd(fromStr) : undefined;
+    const to = toStr ? this.parseYmd(toStr) : undefined;
+
+    const { AvailabilityService } = await import(
+      '../../common/utils/availability.service'
+    );
+    const availabilityService = new AvailabilityService(this.prisma);
+
+    const [booked, blocks, prices] = await Promise.all([
+      availabilityService.getUnavailableRanges(listingId, from, to),
+      this.prisma.listingAvailabilityBlock.findMany({
+        where: {
+          listingId,
+          ...(from ? { endDate: { gt: from } } : {}),
+          ...(to ? { startDate: { lt: to } } : {}),
+        },
+        orderBy: { startDate: 'asc' },
+      }),
+      this.prisma.listingDatePrice.findMany({
+        where: {
+          listingId,
+          ...(from || to
+            ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lt: to } : {}) } }
+            : {}),
+        },
+        orderBy: { date: 'asc' },
+      }),
+    ]);
+
+    return {
+      pricePerDay: Number(listing.pricePerDay),
+      minNights: listing.minNights ?? 1,
+      booked: booked.map((r) => ({
+        startDate: this.toYmd(r.startDate),
+        endDate: this.toYmd(r.endDate),
+      })),
+      blocked: blocks.map((b) => ({
+        id: b.id,
+        startDate: this.toYmd(new Date(b.startDate)),
+        endDate: this.toYmd(new Date(b.endDate)),
+        note: b.note,
+        source: b.source,
+      })),
+      prices: prices.map((p) => ({
+        date: this.toYmd(new Date(p.date)),
+        price: Number(p.price),
+      })),
+    };
+  }
+
+  /**
+   * Host blocks a date range (endDate exclusive). DAILY listings only —
+   * SLOT availability is governed by operating hours, not the day calendar.
+   */
+  async createAvailabilityBlock(
+    listingId: string,
+    userId: string,
+    dto: { startDate: string; endDate: string; note?: string },
+  ): Promise<{ id: string; startDate: string; endDate: string; note: string | null }> {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { id: true, hostId: true, bookingType: true },
+    });
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+    if (listing.hostId !== userId) {
+      throw new ForbiddenException('You can only manage your own listings');
+    }
+    if (listing.bookingType !== 'DAILY') {
+      throw new BadRequestException(
+        'Date blocking applies to daily listings. Slot listings are managed through operating hours.',
+      );
+    }
+
+    const start = this.parseYmd(dto.startDate);
+    const end = this.parseYmd(dto.endDate);
+    if (start >= end) {
+      throw new BadRequestException('End date must be after start date');
+    }
+    const todayUtc = this.parseYmd(new Date().toISOString().slice(0, 10));
+    if (end <= todayUtc) {
+      throw new BadRequestException('Cannot block dates in the past');
+    }
+
+    // Can't block over a reservation a renter already holds.
+    const overlappingBooking = await this.prisma.booking.findFirst({
+      where: {
+        listingId,
+        status: { in: [...BLOCKING_BOOKING_STATUSES] },
+        NOT: {
+          OR: [{ endDate: { lte: start } }, { startDate: { gte: end } }],
+        },
+      },
+      select: { id: true },
+    });
+    if (overlappingBooking) {
+      throw new BadRequestException(
+        'Those dates include an active booking and cannot be blocked.',
+      );
+    }
+
+    const note = dto.note?.trim() ? dto.note.trim().slice(0, 255) : null;
+    const block = await this.prisma.listingAvailabilityBlock.create({
+      data: { listingId, startDate: start, endDate: end, note },
+    });
+
+    return {
+      id: block.id,
+      startDate: this.toYmd(block.startDate),
+      endDate: this.toYmd(block.endDate),
+      note: block.note,
+    };
+  }
+
+  /** Host removes a previously-created block. */
+  async deleteAvailabilityBlock(
+    listingId: string,
+    blockId: string,
+    userId: string,
+  ): Promise<{ success: true }> {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { id: true, hostId: true },
+    });
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+    if (listing.hostId !== userId) {
+      throw new ForbiddenException('You can only manage your own listings');
+    }
+
+    const block = await this.prisma.listingAvailabilityBlock.findUnique({
+      where: { id: blockId },
+      select: { id: true, listingId: true },
+    });
+    if (!block || block.listingId !== listingId) {
+      throw new NotFoundException('Block not found');
+    }
+
+    await this.prisma.listingAvailabilityBlock.delete({ where: { id: blockId } });
+    return { success: true };
+  }
+
+  // ── Per-date custom pricing ─────────────────────────────────────────────────
+
+  private async assertOwnerDaily(listingId: string, userId: string) {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      select: {
+        id: true,
+        title: true,
+        hostId: true,
+        bookingType: true,
+        minNights: true,
+        icalImportUrl: true,
+      },
+    });
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+    if (listing.hostId !== userId) {
+      throw new ForbiddenException('You can only manage your own listings');
+    }
+    if (listing.bookingType !== 'DAILY') {
+      throw new BadRequestException(
+        'Calendar pricing applies to daily listings only.',
+      );
+    }
+    return listing;
+  }
+
+  private eachDayUtc(start: Date, endExclusive: Date): Date[] {
+    const out: Date[] = [];
+    const cur = new Date(start);
+    while (cur < endExclusive) {
+      out.push(new Date(cur));
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return out;
+  }
+
+  /** Set a custom nightly price for every day in [startDate, endDate). */
+  async setDatePrices(
+    listingId: string,
+    userId: string,
+    dto: { startDate: string; endDate: string; price: number },
+  ): Promise<{ updated: number }> {
+    await this.assertOwnerDaily(listingId, userId);
+
+    const price = Number(dto.price);
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new BadRequestException('Price must be a positive number');
+    }
+    if (price > 1_000_000) {
+      throw new BadRequestException('Price is unrealistically high');
+    }
+
+    const start = this.parseYmd(dto.startDate);
+    const end = this.parseYmd(dto.endDate);
+    if (start >= end) {
+      throw new BadRequestException('End date must be after start date');
+    }
+
+    const days = this.eachDayUtc(start, end);
+    if (days.length > 366) {
+      throw new BadRequestException('Range too large (max 366 days at once)');
+    }
+
+    await this.prisma.$transaction(
+      days.map((d) =>
+        this.prisma.listingDatePrice.upsert({
+          where: { listingId_date: { listingId, date: d } },
+          create: { listingId, date: d, price },
+          update: { price },
+        }),
+      ),
+    );
+    return { updated: days.length };
+  }
+
+  /** Remove custom prices in [startDate, endDate) → those days fall back to base. */
+  async clearDatePrices(
+    listingId: string,
+    userId: string,
+    dto: { startDate: string; endDate: string },
+  ): Promise<{ cleared: number }> {
+    await this.assertOwnerDaily(listingId, userId);
+    const start = this.parseYmd(dto.startDate);
+    const end = this.parseYmd(dto.endDate);
+    if (start >= end) {
+      throw new BadRequestException('End date must be after start date');
+    }
+    const res = await this.prisma.listingDatePrice.deleteMany({
+      where: { listingId, date: { gte: start, lt: end } },
+    });
+    return { cleared: res.count };
+  }
+
+  /** Set the minimum-nights rule for a listing. */
+  async setMinNights(
+    listingId: string,
+    userId: string,
+    minNights: number,
+  ): Promise<{ minNights: number }> {
+    await this.assertOwnerDaily(listingId, userId);
+    const n = Math.floor(Number(minNights));
+    if (!Number.isFinite(n) || n < 1 || n > 365) {
+      throw new BadRequestException('Minimum nights must be between 1 and 365');
+    }
+    await this.prisma.listing.update({
+      where: { id: listingId },
+      data: { minNights: n },
+    });
+    return { minNights: n };
+  }
+
+  // ── iCal sync ───────────────────────────────────────────────────────────────
+
+  /** Build an .ics feed of this listing's booked + blocked dates. Public. */
+  async exportListingIcal(listingId: string): Promise<string> {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { id: true, title: true },
+    });
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    const [bookings, blocks] = await Promise.all([
+      this.prisma.booking.findMany({
+        where: { listingId, status: { in: [...BLOCKING_BOOKING_STATUSES] } },
+        select: { id: true, startDate: true, endDate: true },
+        orderBy: { startDate: 'asc' },
+      }),
+      this.prisma.listingAvailabilityBlock.findMany({
+        where: { listingId },
+        select: { id: true, startDate: true, endDate: true, note: true, source: true },
+        orderBy: { startDate: 'asc' },
+      }),
+    ]);
+
+    const events = [
+      ...bookings.map((b) => ({
+        uid: `booking-${b.id}@renteverything`,
+        start: new Date(b.startDate),
+        end: new Date(b.endDate),
+        summary: 'Booked',
+      })),
+      ...blocks.map((b) => ({
+        uid: `block-${b.id}@renteverything`,
+        start: new Date(b.startDate),
+        end: new Date(b.endDate),
+        summary: b.note || (b.source === 'ical' ? 'Blocked (synced)' : 'Blocked'),
+      })),
+    ];
+
+    return buildIcal({
+      calName: `${listing.title} — Availability`,
+      events,
+    });
+  }
+
+  private assertSafeIcalUrl(url: string): void {
+    let u: URL;
+    try {
+      u = new URL(url);
+    } catch {
+      throw new BadRequestException('Invalid iCal URL');
+    }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+      throw new BadRequestException('iCal URL must start with http:// or https://');
+    }
+    const host = u.hostname.toLowerCase();
+    const isPrivate =
+      host === 'localhost' ||
+      host === '0.0.0.0' ||
+      host === '::1' ||
+      host.endsWith('.local') ||
+      /^127\./.test(host) ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^169\.254\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+    if (isPrivate) {
+      throw new BadRequestException('That host is not allowed.');
+    }
+  }
+
+  /**
+   * Pull an external iCal feed (Airbnb/Booking.com export URL) and mirror its
+   * events as `source: 'ical'` blocks. Re-running replaces only the imported
+   * rows — manual blocks are never touched. Stores the URL for future syncs.
+   */
+  async importListingIcal(
+    listingId: string,
+    userId: string,
+    url?: string,
+  ): Promise<{ imported: number; url: string }> {
+    const listing = await this.assertOwnerDaily(listingId, userId);
+    // webcal:// is the same as https:// — many platforms hand out webcal links.
+    const feedUrl = (url ?? listing.icalImportUrl ?? '')
+      .trim()
+      .replace(/^webcal:\/\//i, 'https://');
+    if (!feedUrl) {
+      throw new BadRequestException('No iCal URL provided');
+    }
+    this.assertSafeIcalUrl(feedUrl);
+
+    let text: string;
+    try {
+      const res = await axios.get(feedUrl, {
+        timeout: 10_000,
+        maxContentLength: 2 * 1024 * 1024,
+        responseType: 'text',
+        headers: {
+          'User-Agent': 'RentEverything-Calendar/1.0',
+          Accept: 'text/calendar, text/plain, */*',
+        },
+      });
+      text = typeof res.data === 'string' ? res.data : String(res.data);
+    } catch (e: any) {
+      throw new BadRequestException(
+        `Couldn't fetch the iCal feed: ${e?.message ?? 'request failed'}`,
+      );
+    }
+
+    if (!/BEGIN:VCALENDAR/i.test(text)) {
+      throw new BadRequestException('That URL did not return a valid iCal calendar.');
+    }
+
+    const events = parseIcal(text);
+    const todayUtc = this.parseYmd(new Date().toISOString().slice(0, 10));
+    const toDateOnly = (d: Date) =>
+      new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+
+    const rows = events
+      .map((ev) => {
+        const start = toDateOnly(ev.start);
+        let end = toDateOnly(ev.end);
+        if (end <= start) end = new Date(start.getTime() + 86400000);
+        return {
+          listingId,
+          startDate: start,
+          endDate: end,
+          note: ev.summary ? ev.summary.slice(0, 255) : null,
+          source: 'ical',
+          externalUid: ev.uid.slice(0, 255),
+        };
+      })
+      .filter((r) => r.endDate > todayUtc);
+
+    await this.prisma.$transaction([
+      this.prisma.listingAvailabilityBlock.deleteMany({
+        where: { listingId, source: 'ical' },
+      }),
+      ...(rows.length
+        ? [this.prisma.listingAvailabilityBlock.createMany({ data: rows })]
+        : []),
+      this.prisma.listing.update({
+        where: { id: listingId },
+        data: { icalImportUrl: feedUrl },
+      }),
+    ]);
+
+    return { imported: rows.length, url: feedUrl };
+  }
+
+  /** Stop syncing an external feed and drop its imported blocks. */
+  async removeIcalImport(
+    listingId: string,
+    userId: string,
+  ): Promise<{ success: true }> {
+    await this.assertOwnerDaily(listingId, userId);
+    await this.prisma.$transaction([
+      this.prisma.listingAvailabilityBlock.deleteMany({
+        where: { listingId, source: 'ical' },
+      }),
+      this.prisma.listing.update({
+        where: { id: listingId },
+        data: { icalImportUrl: null },
+      }),
+    ]);
+    return { success: true };
+  }
+
+  /**
+   * Effective nightly total for a DAILY booking: sum each night's price
+   * (per-date override ?? base pricePerDay). Used by the booking flow so the
+   * total always matches what the calendar shows.
+   */
+  async computeDailyTotal(
+    listingId: string,
+    basePricePerDay: number,
+    start: Date,
+    endExclusive: Date,
+  ): Promise<number> {
+    const overrides = await this.prisma.listingDatePrice.findMany({
+      where: { listingId, date: { gte: start, lt: endExclusive } },
+      select: { date: true, price: true },
+    });
+    const map = new Map(
+      overrides.map((o) => [this.toYmd(new Date(o.date)), Number(o.price)]),
+    );
+    let total = 0;
+    for (const d of this.eachDayUtc(start, endExclusive)) {
+      total += map.get(this.toYmd(d)) ?? basePricePerDay;
+    }
+    return Math.round(total * 100) / 100;
   }
 
   /**

@@ -115,8 +115,8 @@ export default function BookingPage() {
   return (
     <Layout>
       <div className="mx-auto max-w-7xl px-6 py-8">
-        <div className="grid grid-cols-3 gap-8">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          <div className="lg:col-span-2">
             <div className="mb-6">
               <Link
                 href={`/listings/${listingId}`}

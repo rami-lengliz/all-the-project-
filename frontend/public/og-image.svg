@@ -1,0 +1,30 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RentEverything — Tunisia's AI-first rental marketplace">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0284c7"/>
+      <stop offset="1" stop-color="#0369a1"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.04"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="1040" cy="120" r="320" fill="#ffffff" opacity="0.06"/>
+  <circle cx="120" cy="560" r="240" fill="#ffffff" opacity="0.05"/>
+  <g transform="translate(96, 150)">
+    <rect x="0" y="0" width="92" height="92" rx="22" fill="#ffffff"/>
+    <text x="46" y="62" font-family="Inter, Arial, sans-serif" font-size="50" font-weight="800" fill="#0284c7" text-anchor="middle">R</text>
+    <text x="120" y="64" font-family="Inter, Arial, sans-serif" font-size="46" font-weight="700" fill="#ffffff">RentEverything</text>
+  </g>
+  <text x="96" y="350" font-family="Inter, Arial, sans-serif" font-size="76" font-weight="800" fill="#ffffff">Rent anything in Tunisia</text>
+  <text x="96" y="424" font-family="Inter, Arial, sans-serif" font-size="40" font-weight="500" fill="#e0f2fe">Stays · Cars · Sports · Beach gear — near you</text>
+  <g font-family="Inter, Arial, sans-serif" font-size="28" font-weight="600" fill="#ffffff">
+    <rect x="96" y="486" width="250" height="64" rx="32" fill="url(#card)"/>
+    <text x="221" y="527" text-anchor="middle">AI-powered search</text>
+    <rect x="368" y="486" width="232" height="64" rx="32" fill="url(#card)"/>
+    <text x="484" y="527" text-anchor="middle">Secure payments</text>
+    <rect x="622" y="486" width="250" height="64" rx="32" fill="url(#card)"/>
+    <text x="747" y="527" text-anchor="middle">Verified hosts</text>
+  </g>
+</svg>

@@ -73,9 +73,14 @@ export function OpenDisputeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dispute-modal-title"
+        className="w-full max-w-lg rounded-2xl bg-white shadow-xl"
+      >
         <div className="border-b border-gray-200 px-6 py-4">
-          <h2 className="text-lg font-bold text-gray-900">Report an issue</h2>
+          <h2 id="dispute-modal-title" className="text-lg font-bold text-gray-900">Report an issue</h2>
           <p className="mt-1 text-xs text-gray-500">
             Opening a dispute holds the host payout until our team reviews the case.
           </p>

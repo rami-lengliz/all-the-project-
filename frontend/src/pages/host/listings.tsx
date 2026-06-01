@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { useState } from 'react';
 import { HostLayout } from '@/components/host/HostLayout';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { useListings } from '@/lib/api/hooks/useListings';
@@ -14,10 +15,20 @@ export default function HostListingsPage() {
   const listingsQuery = useListings({ limit: 100, page: 1, sortBy: 'date' });
   const bookingsQuery = useMyBookings();
 
+  const [search, setSearch] = useState('');
+
   const allListings = (listingsQuery.data as any)?.items ?? [];
   const myListings = meId
     ? allListings.filter((l: any) => l.host?.id === meId || l.hostId === meId)
     : [];
+  const q = search.trim().toLowerCase();
+  const visibleListings = q
+    ? myListings.filter(
+        (l: any) =>
+          (l.title ?? '').toLowerCase().includes(q) ||
+          (l.address ?? '').toLowerCase().includes(q),
+      )
+    : myListings;
   const allBookings = (bookingsQuery.data as any) ?? [];
   const hostBookings = meId
     ? allBookings.filter(
@@ -42,16 +53,13 @@ export default function HostListingsPage() {
               <div className="relative">
                 <input
                   type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search listings..."
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  disabled
                 />
                 <i className="fa-solid fa-search absolute left-3 top-3 text-gray-400 text-sm" />
               </div>
-              <button className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium">
-                <i className="fa-solid fa-filter text-gray-600" />
-                <span>Filter</span>
-              </button>
             </div>
           </div>
 
@@ -68,6 +76,12 @@ export default function HostListingsPage() {
               title="No listings yet"
               message="Create your first listing to start hosting."
               cta={{ label: 'Create new listing', href: '/host/create' }}
+            />
+          ) : visibleListings.length === 0 ? (
+            <EmptyState
+              icon="fa-solid fa-magnifying-glass"
+              title="No matches"
+              message={`No listings match “${search}”.`}
             />
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -99,7 +113,7 @@ export default function HostListingsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {myListings.map((l: any) => {
+                    {visibleListings.map((l: any) => {
                       const statusActive = l.isActive !== false;
                       const bookingsCount = hostBookings.filter(
                         (b: any) => (b.listing?.id ?? b.listingId) === l.id,
@@ -132,6 +146,8 @@ export default function HostListingsPage() {
                                         : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${l.images[0]}`
                                     }
                                     alt={l.title}
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
                                       e.currentTarget.src = '/placeholder.png';
@@ -192,23 +208,28 @@ export default function HostListingsPage() {
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-end space-x-2">
                               <Link
-                                href={`/listings/${l.id}`}
+                                href={`/host/listings/${l.id}/edit`}
                                 className="p-2 hover:bg-gray-100 rounded-lg transition"
+                                title="Edit listing"
                               >
                                 <i className="fa-solid fa-pen text-gray-600 text-sm" />
                               </Link>
-                              <button
+                              {l.bookingType !== 'SLOT' && (
+                                <Link
+                                  href={`/host/listings/${l.id}/calendar`}
+                                  className="p-2 hover:bg-gray-100 rounded-lg transition"
+                                  title="Manage availability calendar"
+                                >
+                                  <i className="fa-solid fa-calendar-days text-gray-600 text-sm" />
+                                </Link>
+                              )}
+                              <Link
+                                href={`/listings/${l.id}`}
                                 className="p-2 hover:bg-gray-100 rounded-lg transition"
-                                type="button"
+                                title="View public page"
                               >
-                                <i className="fa-solid fa-pause text-gray-600 text-sm" />
-                              </button>
-                              <button
-                                className="p-2 hover:bg-gray-100 rounded-lg transition"
-                                type="button"
-                              >
-                                <i className="fa-solid fa-ellipsis-vertical text-gray-600 text-sm" />
-                              </button>
+                                <i className="fa-solid fa-eye text-gray-600 text-sm" />
+                              </Link>
                             </div>
                           </td>
                         </tr>

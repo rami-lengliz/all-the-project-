@@ -222,7 +222,7 @@ export class CategoriesService implements OnModuleDestroy {
   async reviewRequest(id: string, adminId: string, dto: any) {
     const req = await this.getRequestById(id);
 
-    // Audit log placeholder
+    // Record the admin action in the audit log.
     await this.prisma.adminLog.create({
       data: {
         actorId: adminId,

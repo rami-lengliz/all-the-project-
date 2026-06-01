@@ -292,6 +292,10 @@ model Listing {
   isActive     Boolean                              @default(true)
   status       ListingStatus                        @default(PENDING_REVIEW)
   bookingType  BookingType                          @default(DAILY)
+  // Calendar: minimum nights per booking (Airbnb-style) and an optional
+  // external iCal feed URL the host syncs from (Airbnb/Booking.com export).
+  minNights     Int                                 @default(1) @map("min_nights")
+  icalImportUrl String?                             @map("ical_import_url") @db.VarChar(500)
   nearBeach       Boolean?                          @map("near_beach")
   propertyType    String?                           @map("property_type") @db.VarChar(50)
   guestsCapacity  Int?                              @map("guests_capacity")
@@ -332,6 +336,8 @@ model Listing {
   wishlistedBy      WishlistItem[]       @relation("ListingWishlist")
   priceAdjustments  PriceAdjustmentLog[]
   interactions      UserInteraction[]    @relation("ListingInteractions")
+  availabilityBlocks ListingAvailabilityBlock[]
+  datePrices         ListingDatePrice[]
 
   @@index([pricePerDay])
   @@index([categoryId])
@@ -340,6 +346,55 @@ model Listing {
   @@index([deletedAt])
   @@index([hostId])
   @@map("listings")
+}
+
+// ===========================
+// Host availability blocks (Airbnb-style calendar)
+// ===========================
+// A host-created "unavailable" window on a DAILY listing's calendar — e.g.
+// the host is using the apartment themselves, or it's under maintenance.
+// Distinct from bookings: blocks carry no money and no renter. The renter
+// calendar greys these out alongside real bookings, and the booking-conflict
+// check rejects any reservation overlapping a block. endDate is EXCLUSIVE,
+// matching the booking date convention (a block Jan 1→Jan 5 covers Jan 1-4).
+model ListingAvailabilityBlock {
+  id        String   @id @default(uuid())
+  listingId String   @map("listing_id")
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  note      String?  @db.VarChar(255)
+  // "manual" = host blocked it here; "ical" = imported from an external feed
+  // (re-sync wipes & recreates only the ical rows, never manual ones).
+  source      String  @default("manual") @map("source") @db.VarChar(16)
+  externalUid String? @map("external_uid") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, startDate, endDate])
+  @@index([listingId, source])
+  @@map("listing_availability_blocks")
+}
+
+// ===========================
+// Per-date price overrides (Airbnb-style custom nightly pricing)
+// ===========================
+// One row per (listing, calendar day) where the host set a price different
+// from the listing's base pricePerDay — e.g. weekends or peak season. The
+// booking total sums each night's effective price (override ?? base).
+model ListingDatePrice {
+  id        String   @id @default(uuid())
+  listingId String   @map("listing_id")
+  date      DateTime @db.Date
+  price     Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, date])
+  @@index([listingId, date])
+  @@map("listing_date_prices")
 }
 
 // ===========================

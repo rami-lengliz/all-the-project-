@@ -30,9 +30,10 @@ const PROVIDERS: ProviderOption[] = [
   {
     key: 'konnect',
     label: 'Konnect',
-    blurb: 'Pay with any Tunisian bank card.',
+    blurb: 'Pay with any Tunisian bank card, wallet, or e-DINAR.',
     icon: 'fa-solid fa-wallet',
-    comingSoon: true,
+    // No longer "coming soon" — gated purely by backend availability
+    // (the server only lists Konnect once real KONNECT_* credentials are set).
   },
   {
     key: 'd17',

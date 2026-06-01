@@ -617,7 +617,7 @@ export default function ProfilePage() {
       {/* Profile Stats Section */}
       <section id="profile-stats" className="bg-gray-50 py-6">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="grid grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
             <div className="rounded-xl border border-gray-200 bg-white p-6">
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
@@ -670,7 +670,7 @@ export default function ProfilePage() {
       {/* Profile Navigation Section */}
       <section id="profile-navigation" className="bg-white py-8">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <Link
               href="/client/bookings"
               className="group cursor-pointer rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-8 transition hover:shadow-lg"
@@ -793,7 +793,7 @@ export default function ProfilePage() {
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
               {reviews.slice(0, 3).map((review: any) => (
                 <div
                   key={review.id}
@@ -1079,17 +1079,17 @@ export default function ProfilePage() {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <div className="mr-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-200">
-                      <i className="fa-solid fa-times text-gray-400"></i>
+                    <div className="mr-3 flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100">
+                      <i className="fa-solid fa-wallet text-indigo-500"></i>
                     </div>
-                    <span className="text-gray-700">Payment method</span>
+                    <span className="text-gray-700">Wallet &amp; payments</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => toast({ title: 'Coming soon', message: 'Payment method management will be available soon.', variant: 'info' })}
+                    onClick={() => router.push('/client/wallet')}
                     className="text-sm font-medium text-blue-500 transition hover:text-blue-600"
                   >
-                    Add
+                    Manage
                   </button>
                 </div>
               </div>

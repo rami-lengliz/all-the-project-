@@ -1,0 +1,19 @@
+{
+  "name": "RentEverything",
+  "short_name": "RentEverything",
+  "description": "Tunisia's AI-first rental marketplace — stays, cars, sports & beach gear near you.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0284c7",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["travel", "shopping", "lifestyle"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

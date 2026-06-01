@@ -124,6 +124,8 @@ erDiagram
   Boolean isActive
   ListingStatus status
   BookingType bookingType
+  Int min_nights
+  String ical_import_url "nullable"
   Boolean near_beach "nullable"
   String property_type "nullable"
   Int guests_capacity "nullable"
@@ -141,6 +143,24 @@ erDiagram
   DateTime deletedAt "nullable"
   DateTime createdAt
   DateTime updatedAt
+}
+"listing_availability_blocks" {
+  String id PK
+  String listing_id FK
+  DateTime start_date
+  DateTime end_date
+  String note "nullable"
+  String source
+  String external_uid "nullable"
+  DateTime created_at
+}
+"listing_date_prices" {
+  String id PK
+  String listing_id FK
+  DateTime date
+  Decimal price
+  DateTime created_at
+  DateTime updated_at
 }
 "user_interactions" {
   String id PK
@@ -451,6 +471,8 @@ erDiagram
 "category_requests" }o--o| "categories" : resolvedCategory
 "listings" }o--|| "users" : host
 "listings" }o--|| "categories" : category
+"listing_availability_blocks" }o--|| "listings" : listing
+"listing_date_prices" }o--|| "listings" : listing
 "user_interactions" }o--|| "users" : user
 "user_interactions" }o--|| "listings" : listing
 "bookings" }o--|| "listings" : listing
@@ -639,6 +661,8 @@ Properties as follows:
 - `isActive`:
 - `status`:
 - `bookingType`:
+- `min_nights`:
+- `ical_import_url`:
 - `near_beach`:
 - `property_type`:
 - `guests_capacity`:
@@ -656,6 +680,30 @@ Properties as follows:
 - `deletedAt`:
 - `createdAt`:
 - `updatedAt`:
+
+### `listing_availability_blocks`
+
+Properties as follows:
+
+- `id`:
+- `listing_id`:
+- `start_date`:
+- `end_date`:
+- `note`:
+- `source`:
+- `external_uid`:
+- `created_at`:
+
+### `listing_date_prices`
+
+Properties as follows:
+
+- `id`:
+- `listing_id`:
+- `date`:
+- `price`:
+- `created_at`:
+- `updated_at`:
 
 ### `user_interactions`
 

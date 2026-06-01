@@ -45,15 +45,22 @@ export function ReviewModal({ bookingId, targetName, role, onClose, onSuccess }:
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md p-6 shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="review-modal-title"
+        className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md p-6 shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200"
+      >
         <button
+          type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"
+          aria-label="Close review dialog"
+          className="absolute top-4 right-4 rounded-lg text-gray-400 transition hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
         >
-          <i className="fa-solid fa-xmark text-lg" />
+          <i className="fa-solid fa-xmark text-lg" aria-hidden="true" />
         </button>
 
-        <h2 className="text-lg font-bold text-gray-900 mb-1">{label}</h2>
+        <h2 id="review-modal-title" className="text-lg font-bold text-gray-900 mb-1">{label}</h2>
         <p className="text-sm text-gray-500 mb-5">
           Reviewing <span className="font-semibold text-gray-700">{targetName}</span>
         </p>
@@ -63,12 +70,16 @@ export function ReviewModal({ bookingId, targetName, role, onClose, onSuccess }:
           {[1, 2, 3, 4, 5].map((star) => (
             <button
               key={star}
+              type="button"
+              aria-label={`Rate ${star} star${star === 1 ? '' : 's'}`}
+              aria-pressed={star <= rating}
               onMouseEnter={() => setHovered(star)}
               onMouseLeave={() => setHovered(0)}
               onClick={() => setRating(star)}
-              className="text-3xl transition-transform hover:scale-110 focus:outline-none"
+              className="rounded text-3xl transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
             >
               <i
+                aria-hidden="true"
                 className={`fa-star ${
                   star <= (hovered || rating) ? 'fa-solid text-yellow-400' : 'fa-regular text-gray-300'
                 }`}

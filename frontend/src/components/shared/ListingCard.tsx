@@ -48,7 +48,7 @@ function iconForMatch(label: string): { icon: string; color: string } {
   return { icon: 'fa-check', color: 'text-slate-700 bg-slate-50 border-slate-200' };
 }
 
-export function ListingCard({ listing, matchFilters, reason }: { listing: Listing & { matches?: string[] }; matchFilters?: MatchFilters; reason?: string }) {
+export function ListingCard({ listing, matchFilters, reason }: { listing: Listing & { matches?: string[]; ratingAvg?: number; bookingCount30d?: number }; matchFilters?: MatchFilters; reason?: string }) {
   const { selectedIds, toggleListing, isMaxSelected } = useCompare();
   const isSelected = selectedIds.includes(listing.id);
   const viewRef = useViewTracker(listing.id);
@@ -69,10 +69,15 @@ export function ListingCard({ listing, matchFilters, reason }: { listing: Listin
       : `${(listing.distance / 1000).toFixed(1)} km away`
     : null;
 
+  // Honest social proof only — real average, or a "New" badge when there are
+  // genuinely no reviews yet (never a fabricated rating/count).
+  const rating = Number(listing.ratingAvg ?? 0);
+  const isPopular = Number(listing.bookingCount30d ?? 0) >= 3;
+
   return (
     <div
       ref={viewRef}
-      className="relative group overflow-hidden rounded-2xl border border-border bg-white shadow-sm transition hover:shadow-md"
+      className="re-card relative group overflow-hidden rounded-2xl border border-border bg-white shadow-sm"
     >
       {/* "Why we showed this" badge — surfaced by the recommendation engine */}
       {reason && (
@@ -116,6 +121,8 @@ export function ListingCard({ listing, matchFilters, reason }: { listing: Listin
                 : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${listing.images[0]}`
             }
             alt={listing.title}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover transition group-hover:scale-105"
             onError={(e) => {
               e.currentTarget.src = '/placeholder.png';
@@ -147,7 +154,17 @@ export function ListingCard({ listing, matchFilters, reason }: { listing: Listin
               )}
             </div>
           </div>
-          <div className="text-right">
+          <div className="shrink-0 text-right">
+            {rating > 0 ? (
+              <div className="mb-0.5 flex items-center justify-end gap-1 text-xs font-semibold text-slate-700">
+                <i className="fa-solid fa-star text-[10px] text-yellow-400" />
+                {rating.toFixed(1)}
+              </div>
+            ) : (
+              <div className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600">
+                Nouveau
+              </div>
+            )}
             <div className="text-sm font-bold text-slate-900">
               {formatTnd(listing.pricePerDay)}
             </div>
@@ -155,6 +172,12 @@ export function ListingCard({ listing, matchFilters, reason }: { listing: Listin
           </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
+          {isPopular && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-[11px] font-medium text-orange-700">
+              <i className="fa-solid fa-fire text-[9px]" />
+              Populaire
+            </span>
+          )}
           {listing.category?.name && (
             <span className="inline-flex rounded-full border border-border bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
               {listing.category.name}

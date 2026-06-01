@@ -85,7 +85,7 @@ export default function HomePage() {
       {/* Hero Search Section */}
       <section id="hero-search" className="bg-white">
         <div className="mx-auto max-w-7xl px-6 py-12">
-          <div className="mx-auto mb-8 max-w-3xl text-center">
+          <div className="re-fade-up mx-auto mb-8 max-w-3xl text-center">
             <h1 className="mb-4 text-5xl font-bold text-gray-900">
               Rent anything, locally
             </h1>
@@ -95,7 +95,11 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div id="search-bar" className="mx-auto max-w-4xl">
+          <div
+            id="search-bar"
+            className="re-fade-up mx-auto max-w-4xl"
+            style={{ animationDelay: '120ms' }}
+          >
             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
               <div className="flex items-stretch">
                 <div className="flex-1 border-r border-gray-200 p-5">
@@ -462,7 +466,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-12">
+          <div className="grid grid-cols-1 gap-12 md:grid-cols-3">
             <div className="text-center">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
                 <i className="fa-solid fa-search text-2xl text-blue-500"></i>

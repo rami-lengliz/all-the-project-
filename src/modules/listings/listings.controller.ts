@@ -9,9 +9,11 @@ import {
   Query,
   UseGuards,
   Request,
+  Res,
   UseInterceptors,
   UploadedFiles,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -27,6 +29,12 @@ import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { FilterListingsDto } from './dto/filter-listings.dto';
 import { CompareListingsDto } from './dto/compare-listings.dto';
+import {
+  CreateAvailabilityBlockDto,
+  SetDatePricesDto,
+  SetMinNightsDto,
+  ImportIcalDto,
+} from './dto/availability-block.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { HostGuard } from '../../common/guards/host.guard';
 import { Public } from '../../common/decorators/public.decorator';
@@ -188,7 +196,7 @@ export class ListingsController {
     summary: 'Delete a listing (soft delete for hosts, hard delete for admins)',
   })
   async remove(@Param('id') id: string, @Request() req) {
-    return this.listingsService.remove(id, req.user.id, req.user.role);
+    return this.listingsService.remove(id, req.user.sub, req.user.role);
   }
 
   @Post(':id/slot-configuration')
@@ -200,7 +208,7 @@ export class ListingsController {
     @Body() dto: any, // CreateSlotConfigurationDto
     @Request() req,
   ) {
-    return this.listingsService.createSlotConfiguration(id, dto, req.user.id);
+    return this.listingsService.createSlotConfiguration(id, dto, req.user.sub);
   }
 
   @Patch(':id/slot-configuration')
@@ -212,7 +220,7 @@ export class ListingsController {
     @Body() dto: any,
     @Request() req,
   ) {
-    return this.listingsService.updateSlotConfiguration(id, dto, req.user.id);
+    return this.listingsService.updateSlotConfiguration(id, dto, req.user.sub);
   }
 
   @Get(':id/available-slots')
@@ -224,5 +232,128 @@ export class ListingsController {
   ) {
     const date = new Date(dateStr);
     return this.listingsService.getAvailableSlots(id, date);
+  }
+
+  // ── Availability calendar (Airbnb-style date blocking) ──────────────────────
+
+  @Get(':id/availability')
+  @Public()
+  @ApiOperation({
+    summary: 'Booked + host-blocked date ranges for a listing (calendar view)',
+  })
+  async getAvailability(
+    @Param('id') id: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.listingsService.getAvailabilityCalendar(id, from, to);
+  }
+
+  @Post(':id/blocks')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Block a date range on the calendar (host only)' })
+  async createBlock(
+    @Param('id') id: string,
+    @Body() dto: CreateAvailabilityBlockDto,
+    @Request() req,
+  ) {
+    return this.listingsService.createAvailabilityBlock(id, req.user.sub, dto);
+  }
+
+  @Delete(':id/blocks/:blockId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove a calendar block (host only)' })
+  async deleteBlock(
+    @Param('id') id: string,
+    @Param('blockId') blockId: string,
+    @Request() req,
+  ) {
+    return this.listingsService.deleteAvailabilityBlock(
+      id,
+      blockId,
+      req.user.sub,
+    );
+  }
+
+  // ── Per-date pricing ────────────────────────────────────────────────────────
+
+  @Post(':id/prices')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Set a custom nightly price for a date range (host)' })
+  async setPrices(
+    @Param('id') id: string,
+    @Body() dto: SetDatePricesDto,
+    @Request() req,
+  ) {
+    return this.listingsService.setDatePrices(id, req.user.sub, dto);
+  }
+
+  @Delete(':id/prices')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Clear custom prices in a date range (host)' })
+  async clearPrices(
+    @Param('id') id: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Request() req,
+  ) {
+    return this.listingsService.clearDatePrices(id, req.user.sub, {
+      startDate: from,
+      endDate: to,
+    });
+  }
+
+  @Patch(':id/min-nights')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Set the minimum-nights rule for a listing (host)' })
+  async setMinNights(
+    @Param('id') id: string,
+    @Body() dto: SetMinNightsDto,
+    @Request() req,
+  ) {
+    return this.listingsService.setMinNights(id, req.user.sub, dto.minNights);
+  }
+
+  // ── iCal sync ─────────────────────────────────────────────────────────────
+
+  @Get(':id/calendar.ics')
+  @Public()
+  @ApiOperation({ summary: 'Export this listing’s availability as an iCal feed' })
+  async exportIcal(@Param('id') id: string, @Res() res: Response) {
+    const ics = await this.listingsService.exportListingIcal(id);
+    res.set({
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': `inline; filename="listing-${id}.ics"`,
+      'Cache-Control': 'public, max-age=300',
+    });
+    res.send(ics);
+  }
+
+  @Post(':id/ical/import')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Import/sync an external iCal feed (host)' })
+  async importIcal(
+    @Param('id') id: string,
+    @Body() dto: ImportIcalDto,
+    @Request() req,
+  ) {
+    return this.listingsService.importListingIcal(id, req.user.sub, dto.url);
+  }
+
+  @Delete(':id/ical/import')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Stop syncing the external iCal feed (host)' })
+  async removeIcal(@Param('id') id: string, @Request() req) {
+    return this.listingsService.removeIcalImport(id, req.user.sub);
   }
 }
