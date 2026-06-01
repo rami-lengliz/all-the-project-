@@ -48,12 +48,24 @@ const YOU_ARE_HERE_ICON = L.divIcon({
   popupAnchor: [0, -14],
 });
 
+function InvalidateSize() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(container);
+    map.invalidateSize();
+    return () => ro.disconnect();
+  }, [map]);
+  return null;
+}
+
 function MapFlyTo({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
     const [lat, lng] = center;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    map.flyTo(center, map.getZoom(), { animate: true, duration: 1.2 });
+    map.setView(center, map.getZoom(), { animate: false });
   // only re-fly when the coords actually change
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center[0], center[1]]);
@@ -97,6 +109,7 @@ export default function ListingMapLeaflet({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
+      <InvalidateSize />
       {/* Fly to user location once it resolves */}
       <MapFlyTo center={flyTarget} />
 

@@ -1,8 +1,6 @@
 // Geo helpers — call the backend proxy so we can apply User-Agent + cache + rate-limit
 // on the server side, instead of leaking each user's IP to Nominatim.
-import { API_URL } from './env';
-
-const API = API_URL;
+import { api } from './http';
 
 export interface GeoSearchResult {
   place_id: number;
@@ -25,13 +23,16 @@ export async function geoSearch(
   query: string,
   opts: { limit?: number; countryCode?: string } = {},
 ): Promise<GeoSearchResult[]> {
-  const qs = new URLSearchParams({ q: query });
-  if (opts.limit) qs.set('limit', String(opts.limit));
-  if (opts.countryCode) qs.set('countrycodes', opts.countryCode);
-  const res = await fetch(`${API}/api/geo/search?${qs}`);
-  if (!res.ok) return [];
-  const data = await res.json();
-  return Array.isArray(data) ? data : (data?.data ?? []);
+  try {
+    const params: Record<string, string> = { q: query };
+    if (opts.limit) params.limit = String(opts.limit);
+    if (opts.countryCode) params.countrycodes = opts.countryCode;
+    const res = await api.get<GeoSearchResult[]>('/geo/search', { params });
+    const data = res.data;
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function geoReverse(
@@ -39,9 +40,12 @@ export async function geoReverse(
   lng: number,
   zoom = 10,
 ): Promise<GeoReverseResult | null> {
-  const qs = new URLSearchParams({ lat: String(lat), lng: String(lng), zoom: String(zoom) });
-  const res = await fetch(`${API}/api/geo/reverse?${qs}`);
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data?.data ?? data;
+  try {
+    const res = await api.get<GeoReverseResult>('/geo/reverse', {
+      params: { lat, lng, zoom },
+    });
+    return res.data ?? null;
+  } catch {
+    return null;
+  }
 }

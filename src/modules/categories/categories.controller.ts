@@ -9,6 +9,7 @@ import {
   UseGuards,
   Query,
   Request,
+  Header,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -44,6 +45,7 @@ export class CategoriesController {
 
   @Get()
   @Public()
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
   @ApiOperation({ summary: 'List active categories' })
   findAll() {
     return this.categoriesService.findAll(false);
@@ -169,6 +171,7 @@ export class CategoriesController {
       },
     },
   })
+  @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=120')
   async findNearby(@Query() dto: NearbyCategoriesDto) {
     return this.categoriesService.findNearbyWithCounts(
       dto.lat,
@@ -180,6 +183,7 @@ export class CategoriesController {
 
   @Get(':id')
   @Public()
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
   @ApiOperation({ summary: 'Get category by ID' })
   findOne(@Param('id') id: string) {
     return this.categoriesService.findOne(id);

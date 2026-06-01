@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/lib/auth/AuthProvider';
 
-type AdminTab = 'dashboard' | 'users' | 'listings' | 'categories' | 'logs' | 'ledger' | 'wallets' | 'payouts' | 'trust';
+type AdminTab = 'dashboard' | 'users' | 'listings' | 'categories' | 'logs' | 'ledger' | 'wallets' | 'payouts' | 'trust' | 'kyc';
 
 export function AdminLayout({
   children,
@@ -99,6 +99,16 @@ export function AdminLayout({
                 }
               >
                 Trust
+              </Link>
+              <Link
+                href="/admin/kyc"
+                className={
+                  activeTab === 'kyc'
+                    ? 'text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-1'
+                    : 'text-sm font-medium text-gray-600 hover:text-gray-900'
+                }
+              >
+                KYC
               </Link>
               <Link
                 href="/admin/ledger"

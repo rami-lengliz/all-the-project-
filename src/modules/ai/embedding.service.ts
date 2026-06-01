@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { PrismaService } from '../../database/prisma.service';
 
-const EMBED_MODEL = 'text-embedding-004';      // Gemini's 768-d model, free tier
-const EMBED_URL   = `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:embedContent`;
+const EMBED_MODEL = 'gemini-embedding-2';      // Gemini's 3072-d model
+const EMBED_URL   = `https://generativelanguage.googleapis.com/v1/models/${EMBED_MODEL}:embedContent`;
 const INDEX_TTL_MS = 30 * 60 * 1_000;          // refresh listing index every 30 min
 const TEXT_CACHE_TTL_MS = 60 * 60 * 1_000;     // cache query embeddings 1h
 
@@ -97,6 +97,68 @@ export class EmbeddingService {
     this.listingIndex = [];
     await this.ensureIndex();
     return { indexed: this.listingIndex.length };
+  }
+
+  /**
+   * Compute and persist a listing's embedding. Called from ListingsService on
+   * create + update so that the embedding is always fresh and survives restarts.
+   * Safe no-op when GEMINI_API_KEY is missing (returns null).
+   */
+  async upsertListingEmbedding(listingId: string): Promise<number[] | null> {
+    if (!this.apiKey) return null;
+    const l = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { id: true, title: true, description: true },
+    });
+    if (!l) return null;
+    const text = [l.title, l.description].filter(Boolean).join(' — ').slice(0, 1_500);
+    const vec = await this.embed(text);
+    if (!vec) return null;
+    await this.prisma.listing.update({
+      where: { id: listingId },
+      data: { embedding: vec, embeddingUpdatedAt: new Date() },
+    });
+    return vec;
+  }
+
+  /**
+   * Backfill embeddings for every listing missing one. Run on startup or via
+   * an admin endpoint after the personalization migration.
+   */
+  async backfillMissingEmbeddings(limit = 200): Promise<{ embedded: number; remaining: number }> {
+    if (!this.apiKey) return { embedded: 0, remaining: 0 };
+    const missing = await this.prisma.listing.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null,
+        embeddingUpdatedAt: null,
+      },
+      select: { id: true, title: true, description: true },
+      take: limit,
+    });
+    let embedded = 0;
+    for (const l of missing) {
+      const text = [l.title, l.description].filter(Boolean).join(' — ').slice(0, 1_500);
+      const vec = await this.embed(text);
+      if (vec) {
+        await this.prisma.listing.update({
+          where: { id: l.id },
+          data: { embedding: vec, embeddingUpdatedAt: new Date() },
+        });
+        embedded++;
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    const remaining = await this.prisma.listing.count({
+      where: { isActive: true, deletedAt: null, embeddingUpdatedAt: null },
+    });
+    this.logger.log(`Backfilled ${embedded} listing embeddings (${remaining} remaining)`);
+    return { embedded, remaining };
+  }
+
+  /** Public helper so PersonalizationService can score user-vs-listing similarity. */
+  cosineSimilarity(a: number[], b: number[]): number {
+    return cosineSim(a, b);
   }
 
   /** Diagnostic stats for /admin endpoints. */

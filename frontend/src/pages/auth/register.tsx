@@ -55,8 +55,6 @@ export default function RegisterPage() {
   });
   const next = safeNext(router.query.next);
 
-  // Every new account starts as a renter. Users can opt in to hosting later
-  // from their profile ("Become a host" flow) — keeps signup to a single decision.
   const destination = (): string => (next !== '/' ? next : '/');
 
   return (

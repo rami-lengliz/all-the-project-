@@ -203,6 +203,18 @@ export class ListingsController {
     return this.listingsService.createSlotConfiguration(id, dto, req.user.id);
   }
 
+  @Patch(':id/slot-configuration')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update slot configuration for a listing' })
+  async updateSlotConfiguration(
+    @Param('id') id: string,
+    @Body() dto: any,
+    @Request() req,
+  ) {
+    return this.listingsService.updateSlotConfiguration(id, dto, req.user.id);
+  }
+
   @Get(':id/available-slots')
   @Public()
   @ApiOperation({ summary: 'Get available time slots for a specific date' })

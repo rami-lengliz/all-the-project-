@@ -3,6 +3,7 @@ import type { Listing } from '@/lib/api/types';
 import { formatTnd } from '@/lib/utils/format';
 import { useCompare } from '@/lib/context/CompareContext';
 import { WishlistButton } from '@/components/shared/WishlistButton';
+import { useViewTracker } from '@/lib/hooks/useViewTracker';
 
 interface MatchFilters {
   nearSea?: boolean;
@@ -47,9 +48,10 @@ function iconForMatch(label: string): { icon: string; color: string } {
   return { icon: 'fa-check', color: 'text-slate-700 bg-slate-50 border-slate-200' };
 }
 
-export function ListingCard({ listing, matchFilters }: { listing: Listing & { matches?: string[] }; matchFilters?: MatchFilters }) {
+export function ListingCard({ listing, matchFilters, reason }: { listing: Listing & { matches?: string[] }; matchFilters?: MatchFilters; reason?: string }) {
   const { selectedIds, toggleListing, isMaxSelected } = useCompare();
   const isSelected = selectedIds.includes(listing.id);
+  const viewRef = useViewTracker(listing.id);
   // Prefer the server's match list (it's computed against synonyms + actual SQL match).
   // Fall back to client-side reconstruction for non-AI listings.
   const matchBadges = (listing.matches && listing.matches.length)
@@ -68,7 +70,17 @@ export function ListingCard({ listing, matchFilters }: { listing: Listing & { ma
     : null;
 
   return (
-    <div className="relative group overflow-hidden rounded-2xl border border-border bg-white shadow-sm transition hover:shadow-md">
+    <div
+      ref={viewRef}
+      className="relative group overflow-hidden rounded-2xl border border-border bg-white shadow-sm transition hover:shadow-md"
+    >
+      {/* "Why we showed this" badge — surfaced by the recommendation engine */}
+      {reason && (
+        <div className="absolute top-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-blue-500/95 px-2.5 py-0.5 text-[10px] font-semibold text-white shadow-md backdrop-blur-sm">
+          <i className="fa-solid fa-sparkles mr-1 text-[8px]" />
+          {reason}
+        </div>
+      )}
       {/* Wishlist heart — top-left so it doesn't fight the Compare checkbox */}
       <WishlistButton
         listingId={listing.id}

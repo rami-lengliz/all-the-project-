@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { ListingAssistantService } from './listing-assistant.service';
 import { AiSearchService } from './ai-search.service';
@@ -10,7 +10,7 @@ import { ListingsModule } from '../listings/listings.module';
 import { CategoriesModule } from '../categories/categories.module';
 
 @Module({
-  imports: [ListingsModule, CategoriesModule],
+  imports: [forwardRef(() => ListingsModule), CategoriesModule],
   controllers: [AiController],
   providers: [AiService, ListingAssistantService, AiSearchService, PriceSuggestionService, EmbeddingService, ImageClassifierService],
   exports: [AiService, ListingAssistantService, AiSearchService, PriceSuggestionService, EmbeddingService, ImageClassifierService],

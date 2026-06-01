@@ -41,12 +41,30 @@ export default function HostEditListingPage() {
     rules: '',
     cancellationPolicy: 'MODERATE' as 'FLEXIBLE' | 'MODERATE' | 'STRICT',
   });
-  // Read-only on edit: changing booking type / slot shape after a listing
-  // has bookings is dangerous. We surface the values + price-per-slot only.
+  // Booking type itself stays locked once the listing exists — flipping
+  // DAILY↔SLOT would invalidate any in-flight reservations. Slot config
+  // *fields* are editable, but shape-changing fields (hours, duration, buffer)
+  // are disabled when there are active bookings to avoid breaking them.
   const [bookingType, setBookingType] = useState<'DAILY' | 'SLOT'>('DAILY');
-  const [pricePerSlot, setPricePerSlot] = useState<string>('');
+  const [slotConfig, setSlotConfig] = useState({
+    pricePerSlot: '',
+    slotDurationMinutes: 60,
+    operatingStart: '08:00',
+    operatingEnd: '22:00',
+    minBookingSlots: 1,
+    bufferMinutes: 0,
+  });
   const [dynamicPricing, setDynamicPricing] = useState<boolean>(false);
   const [basePricePerDay, setBasePricePerDay] = useState<number | null>(null);
+
+  // Has any booking that holds availability — used to disable shape-changing
+  // slot config fields (hours / duration / buffer) since editing them under
+  // a confirmed reservation could leave the renter outside the new window.
+  const hasActiveBookings =
+    Array.isArray((listingQuery.data as any)?.bookings) &&
+    (listingQuery.data as any).bookings.some((b: any) =>
+      ['confirmed', 'paid', 'completed'].includes(b.status),
+    );
 
   // Load listing data
   useEffect(() => {
@@ -64,8 +82,22 @@ export default function HostEditListingPage() {
         cancellationPolicy: listing.cancellationPolicy ?? 'MODERATE',
       });
       setBookingType(listing.bookingType === 'SLOT' ? 'SLOT' : 'DAILY');
-      if (listing.slotConfiguration?.pricePerSlot != null) {
-        setPricePerSlot(String(listing.slotConfiguration.pricePerSlot));
+      const sc = listing.slotConfiguration;
+      if (sc) {
+        // operatingHours is JSON keyed by weekday — wizard writes the same
+        // window for every day, so reading Monday is representative.
+        const day =
+          sc.operatingHours?.monday ??
+          sc.operatingHours?.sunday ??
+          { start: '08:00', end: '22:00' };
+        setSlotConfig({
+          pricePerSlot: sc.pricePerSlot != null ? String(sc.pricePerSlot) : '',
+          slotDurationMinutes: sc.slotDurationMinutes ?? 60,
+          operatingStart: day.start ?? '08:00',
+          operatingEnd: day.end ?? '22:00',
+          minBookingSlots: sc.minBookingSlots ?? 1,
+          bufferMinutes: sc.bufferMinutes ?? 0,
+        });
       }
       setDynamicPricing(!!listing.dynamicPricing);
       setBasePricePerDay(
@@ -203,20 +235,41 @@ export default function HostEditListingPage() {
 
       await api.patch(`/listings/${id}`, submitData);
 
-      // SLOT-only: update slot price separately via the slot-configuration
-      // endpoint. We deliberately don't expose booking-type / operating-hour
-      // changes here — restructuring a SLOT listing with active bookings is
-      // risky. Hosts who need that should recreate the listing.
-      if (bookingType === 'SLOT' && pricePerSlot && Number(pricePerSlot) > 0) {
+      // SLOT: PATCH the slot configuration. Shape-changing fields (hours /
+      // duration / buffer) are only sent when there are no active bookings;
+      // pricePerSlot + minBookingSlots are always safe.
+      if (bookingType === 'SLOT' && slotConfig.pricePerSlot && Number(slotConfig.pricePerSlot) > 0) {
+        const everyday = {
+          start: slotConfig.operatingStart,
+          end: slotConfig.operatingEnd,
+        };
+        const slotPayload: Record<string, unknown> = {
+          pricePerSlot: Number(slotConfig.pricePerSlot),
+          minBookingSlots: slotConfig.minBookingSlots,
+        };
+        if (!hasActiveBookings) {
+          slotPayload.slotDurationMinutes = slotConfig.slotDurationMinutes;
+          slotPayload.bufferMinutes = slotConfig.bufferMinutes;
+          slotPayload.operatingHours = {
+            monday: everyday,
+            tuesday: everyday,
+            wednesday: everyday,
+            thursday: everyday,
+            friday: everyday,
+            saturday: everyday,
+            sunday: everyday,
+          };
+        }
         try {
-          await api.patch(`/listings/${id}/slot-configuration`, {
-            pricePerSlot: Number(pricePerSlot),
+          await api.patch(`/listings/${id}/slot-configuration`, slotPayload);
+        } catch (err: any) {
+          // Slot config is non-fatal — the main listing update already saved.
+          // Surface a friendlier secondary toast so hosts know to retry.
+          toast({
+            title: 'Slot settings not saved',
+            message: err?.response?.data?.message ?? 'Couldn\'t update slot config. Try again.',
+            variant: 'error',
           });
-        } catch {
-          // The PATCH endpoint may not exist yet — surfacing this would
-          // confuse hosts whose main update succeeded. Log instead.
-          // eslint-disable-next-line no-console
-          console.warn('Slot-configuration PATCH failed (endpoint may be missing)');
         }
       }
 
@@ -581,30 +634,123 @@ export default function HostEditListingPage() {
                 />
 
                 {bookingType === 'SLOT' ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                    <h4 className="font-semibold text-amber-900">
-                      Slot configuration
-                    </h4>
-                    <p className="mt-1 text-xs text-amber-800">
-                      This listing accepts time-slot bookings. You can update
-                      the price per slot here. Changing operating hours or slot
-                      duration on a listing with active bookings is risky, so
-                      those settings are locked — recreate the listing if you
-                      need to change them.
-                    </p>
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-amber-900 mb-1">
-                        Price per slot (TND)
-                      </label>
-                      <input
-                        type="number"
-                        value={pricePerSlot}
-                        onChange={(e) => setPricePerSlot(e.target.value)}
-                        min="0"
-                        step="0.5"
-                        placeholder="e.g. 50"
-                        className="w-full max-w-xs rounded-lg border border-amber-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      />
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="font-semibold text-amber-900">
+                          Slot configuration
+                        </h4>
+                        <p className="mt-1 text-xs text-amber-800">
+                          {hasActiveBookings
+                            ? 'This listing has active bookings — only price and minimum-slot fields can be edited. Hours, slot length, and buffer are locked to protect existing reservations.'
+                            : 'No active bookings — all slot settings are editable. Changes apply only to future bookings.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-amber-900">
+                          Price per slot (TND) *
+                        </label>
+                        <input
+                          type="number"
+                          value={slotConfig.pricePerSlot}
+                          onChange={(e) =>
+                            setSlotConfig({ ...slotConfig, pricePerSlot: e.target.value })
+                          }
+                          min="0"
+                          step="0.5"
+                          placeholder="e.g. 50"
+                          className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-amber-900">
+                          Minimum slots per booking
+                        </label>
+                        <input
+                          type="number"
+                          value={slotConfig.minBookingSlots}
+                          onChange={(e) =>
+                            setSlotConfig({
+                              ...slotConfig,
+                              minBookingSlots: Math.max(1, parseInt(e.target.value, 10) || 1),
+                            })
+                          }
+                          min={1}
+                          className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-amber-900">
+                          Opens at {hasActiveBookings && <span className="text-amber-600">(locked)</span>}
+                        </label>
+                        <input
+                          type="time"
+                          value={slotConfig.operatingStart}
+                          onChange={(e) =>
+                            setSlotConfig({ ...slotConfig, operatingStart: e.target.value })
+                          }
+                          disabled={hasActiveBookings}
+                          className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:cursor-not-allowed disabled:bg-amber-100/50 disabled:text-amber-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-amber-900">
+                          Closes at {hasActiveBookings && <span className="text-amber-600">(locked)</span>}
+                        </label>
+                        <input
+                          type="time"
+                          value={slotConfig.operatingEnd}
+                          onChange={(e) =>
+                            setSlotConfig({ ...slotConfig, operatingEnd: e.target.value })
+                          }
+                          disabled={hasActiveBookings}
+                          className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:cursor-not-allowed disabled:bg-amber-100/50 disabled:text-amber-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-amber-900">
+                          Slot length {hasActiveBookings && <span className="text-amber-600">(locked)</span>}
+                        </label>
+                        <select
+                          value={slotConfig.slotDurationMinutes}
+                          onChange={(e) =>
+                            setSlotConfig({
+                              ...slotConfig,
+                              slotDurationMinutes: parseInt(e.target.value, 10),
+                            })
+                          }
+                          disabled={hasActiveBookings}
+                          className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:cursor-not-allowed disabled:bg-amber-100/50 disabled:text-amber-700"
+                        >
+                          <option value={30}>30 minutes</option>
+                          <option value={45}>45 minutes</option>
+                          <option value={60}>1 hour</option>
+                          <option value={90}>1.5 hours</option>
+                          <option value={120}>2 hours</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-amber-900">
+                          Buffer between bookings (min) {hasActiveBookings && <span className="text-amber-600">(locked)</span>}
+                        </label>
+                        <input
+                          type="number"
+                          value={slotConfig.bufferMinutes}
+                          onChange={(e) =>
+                            setSlotConfig({
+                              ...slotConfig,
+                              bufferMinutes: Math.max(0, parseInt(e.target.value, 10) || 0),
+                            })
+                          }
+                          min={0}
+                          max={60}
+                          disabled={hasActiveBookings}
+                          className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:cursor-not-allowed disabled:bg-amber-100/50 disabled:text-amber-700"
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : null}

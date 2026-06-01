@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '@/components/layout/Layout';
-import { fetchConversations, fetchUnreadCount } from '@/lib/api/chat';
+import { fetchConversations, fetchUnreadCount, createConversation } from '@/lib/api/chat';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { useChatSocket } from '@/lib/chat/useChatSocket';
 import type { Conversation } from '@/lib/api/chat';
@@ -59,15 +60,15 @@ function formatPreview(content: string): string {
 
 // ── Conversation row ──────────────────────────────────────────────────
 function ConvRow({ conv, myId }: { conv: Conversation; myId: string }) {
-  const other   = conv.renterId === myId ? conv.host : conv.renter;
-  const name    = other?.name ?? conv.hostId ?? conv.renterId ?? 'Unknown';
+  const other = conv.renterId === myId ? conv.host : conv.renter;
+  const name = other?.name ?? conv.hostId ?? conv.renterId ?? 'Unknown';
   const initial = name[0]?.toUpperCase() ?? '?';
   const lastMsg = conv.messages?.[0];
   const preview = lastMsg
     ? (lastMsg.senderId === myId ? 'You: ' : '') + formatPreview(lastMsg.content)
     : 'No messages yet';
-  const ts      = conv.lastMessageAt ?? conv.updatedAt;
-  const unread  = (conv.unreadCount ?? 0) > 0;
+  const ts = conv.lastMessageAt ?? conv.updatedAt;
+  const unread = (conv.unreadCount ?? 0) > 0;
 
   return (
     <Link
@@ -116,20 +117,20 @@ function ConversationList({ myId }: { myId: string }) {
   // Conversations — 5s polling
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['conversations'],
-    queryFn:  fetchConversations,
-    refetchInterval:      5_000,
+    queryFn: fetchConversations,
+    refetchInterval: 5_000,
     refetchOnWindowFocus: true,   // re-fetches when user returns from thread page
-    staleTime:            4_000,
+    staleTime: 4_000,
     retry: 1,
   });
 
   // Global unread count — 5s polling (backend doesn't compute per-conversation unread)
   const { data: totalUnread = 0 } = useQuery({
     queryKey: ['chat', 'unread'],
-    queryFn:  fetchUnreadCount,
-    refetchInterval:      5_000,
+    queryFn: fetchUnreadCount,
+    refetchInterval: 5_000,
     refetchOnWindowFocus: true,   // badge updates immediately on tab/page focus
-    staleTime:            4_000,
+    staleTime: 4_000,
   });
 
   const queryClient = useQueryClient();
@@ -157,7 +158,7 @@ function ConversationList({ myId }: { myId: string }) {
           {/* Global unread badge — sourced from GET /api/chat/unread-count (5s poll) */}
           {totalUnread > 0 && (
             <span className="text-xs font-bold bg-red-500 text-white px-2 py-0.5 rounded-full"
-                  title={`${totalUnread} unread message${totalUnread === 1 ? '' : 's'}`}>
+              title={`${totalUnread} unread message${totalUnread === 1 ? '' : 's'}`}>
               {totalUnread > 99 ? '99+' : totalUnread}
             </span>
           )}
@@ -227,7 +228,28 @@ function EmptyPane() {
 // ── Page ─────────────────────────────────────────────────────────────
 export default function MessagesInboxPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const myId: string = (user as any)?.id ?? (user as any)?.sub ?? '';
+  const [redirecting, setRedirecting] = useState(false);
+
+  // Auto-create/find conversation when ?hostId= is in the URL
+  useEffect(() => {
+    if (!router.isReady || !user) return;
+    const hostId = router.query.hostId as string | undefined;
+    if (!hostId || redirecting) return;
+
+    setRedirecting(true);
+    createConversation(hostId)
+      .then((conv) => {
+        void router.replace(`/messages/${conv.id}`);
+      })
+      .catch(() => {
+        setRedirecting(false);
+        // Remove the hostId param so we don't loop
+        const { hostId: _, ...rest } = router.query;
+        void router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+      });
+  }, [router.isReady, user, router.query.hostId]);
 
   return (
     <Layout>

@@ -1,5 +1,6 @@
 import { Controller, Get, Query, BadRequestException } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 import { GeoService } from './geo.service';
 
 @ApiTags('geo')
@@ -7,6 +8,7 @@ import { GeoService } from './geo.service';
 export class GeoController {
   constructor(private readonly geo: GeoService) {}
 
+  @Public()
   @Get('search')
   @ApiOperation({ summary: 'Forward-geocode query → place candidates (Nominatim proxy + cache)' })
   async search(
@@ -21,6 +23,7 @@ export class GeoController {
     return this.geo.search(q.trim(), countrycodes ?? 'tn', n);
   }
 
+  @Public()
   @Get('reverse')
   @ApiOperation({ summary: 'Reverse-geocode lat/lng → address (Nominatim proxy + cache)' })
   async reverse(

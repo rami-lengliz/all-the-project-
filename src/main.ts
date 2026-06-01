@@ -1,5 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
+import compression from 'compression';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -11,19 +13,58 @@ import { join } from 'path';
 import * as fs from 'fs';
 
 // ── Startup Environment Audit ────────────────────────────────────────────────
+const INSECURE_DEFAULTS: Record<string, string> = {
+  JWT_SECRET: 'your-super-secret-jwt-key-change-in-production',
+  REFRESH_TOKEN_SECRET: 'your-super-secret-refresh-token-key-change-in-production',
+};
+
 function auditEnv() {
   const required = ['DATABASE_URL', 'JWT_SECRET', 'REFRESH_TOKEN_SECRET'];
   const missing = required.filter((k) => !process.env[k]);
+
+  // A secret that's missing OR still set to the published placeholder is forgeable.
+  const insecure = Object.entries(INSECURE_DEFAULTS)
+    .filter(([k, def]) => !process.env[k] || process.env[k] === def)
+    .map(([k]) => k);
+
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if (insecure.length > 0) {
+    const msg =
+      `Insecure secret(s): ${insecure.join(', ')} are missing or set to the ` +
+      `default placeholder. Generate strong values, e.g.:\n` +
+      `  node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`;
+    if (isProd) {
+      console.error(`🛑  REFUSING TO START — ${msg}`);
+      process.exit(1);
+    }
+    console.warn(`⚠️  ${msg}`);
+  }
+
   if (missing.length > 0) {
     console.warn(`⚠️  Missing env vars: ${missing.join(', ')}`);
-  } else {
-    console.log('✅  All required env vars present');
+  } else if (insecure.length === 0) {
+    console.log('✅  All required env vars present and secrets look strong');
   }
 }
 
 async function bootstrap() {
   try {
+    auditEnv(); // fail fast before building the app if secrets are insecure
+
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+    // Security headers. CSP is disabled because this process also serves the
+    // Swagger UI (which needs inline scripts); the Next.js frontend sets its own
+    // CSP. crossOriginResourcePolicy is relaxed so the frontend on :3000 can load
+    // images served from /uploads on :3001.
+    app.use(
+      helmet({
+        contentSecurityPolicy: false,
+        crossOriginResourcePolicy: { policy: 'cross-origin' },
+      }),
+    );
+    app.use(compression());
 
     const configService = app.get(ConfigService);
 
@@ -93,7 +134,6 @@ async function bootstrap() {
     });
 
     const port = configService.get<number>('port') || 3000;
-    auditEnv();
     await app.listen(port, '0.0.0.0');
     console.log(`Application running → ${appUrl}`);
     console.log(`Swagger UI          → ${appUrl}/api/docs`);

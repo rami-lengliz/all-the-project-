@@ -1,7 +1,14 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { ChatbotPanel } from '@/features/chatbot/components/ChatbotPanel';
 
 export default function HelpPage() {
+  const chatRef = useRef<HTMLInputElement | null>(null);
+
+  const scrollToChat = (prefill?: string) => {
+    const chatSection = document.getElementById('chat-assistant');
+    chatSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <div className="bg-gray-50 font-sans">
       <section
@@ -15,19 +22,29 @@ export default function HelpPage() {
               Get answers, guidance, and support for renting or hosting
             </p>
 
-            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+            <form
+              className="bg-white rounded-2xl shadow-xl overflow-hidden"
+              onSubmit={(e) => {
+                e.preventDefault();
+                scrollToChat();
+              }}
+            >
               <div className="flex items-center p-4">
                 <i className="fa-solid fa-search text-gray-400 text-xl ml-2" />
                 <input
+                  id="help-search-input"
                   type="text"
                   placeholder="Search for help articles, guides, or questions..."
                   className="flex-1 px-4 py-2 text-gray-900 placeholder-gray-400 focus:outline-none"
                 />
-                <button className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-medium transition">
+                <button
+                  type="submit"
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-medium transition"
+                >
                   Search
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       </section>
@@ -39,7 +56,11 @@ export default function HelpPage() {
           </h2>
 
           <div className="grid grid-cols-4 gap-6">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200 hover:shadow-lg transition cursor-pointer group">
+            <button
+              type="button"
+              onClick={() => scrollToChat()}
+              className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200 hover:shadow-lg transition cursor-pointer group text-left"
+            >
               <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition">
                 <i className="fa-solid fa-comments text-white text-xl" />
               </div>
@@ -47,9 +68,12 @@ export default function HelpPage() {
               <p className="text-sm text-gray-600">
                 Get instant help from our support team
               </p>
-            </div>
+            </button>
 
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200 hover:shadow-lg transition cursor-pointer group">
+            <a
+              href="#help-categories"
+              className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200 hover:shadow-lg transition cursor-pointer group text-left"
+            >
               <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition">
                 <i className="fa-solid fa-book-open text-white text-xl" />
               </div>
@@ -59,17 +83,24 @@ export default function HelpPage() {
               <p className="text-sm text-gray-600">
                 Step-by-step tutorials and tips
               </p>
-            </div>
+            </a>
 
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200 hover:shadow-lg transition cursor-pointer group">
+            <a
+              href="#help-categories"
+              className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200 hover:shadow-lg transition cursor-pointer group text-left"
+            >
               <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition">
                 <i className="fa-solid fa-circle-question text-white text-xl" />
               </div>
               <h3 className="font-semibold text-gray-900 mb-2">View FAQs</h3>
               <p className="text-sm text-gray-600">Common questions answered</p>
-            </div>
+            </a>
 
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200 hover:shadow-lg transition cursor-pointer group">
+            <button
+              type="button"
+              onClick={() => scrollToChat()}
+              className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200 hover:shadow-lg transition cursor-pointer group text-left"
+            >
               <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition">
                 <i className="fa-solid fa-envelope text-white text-xl" />
               </div>
@@ -79,7 +110,7 @@ export default function HelpPage() {
               <p className="text-sm text-gray-600">
                 Send us a detailed message
               </p>
-            </div>
+            </button>
           </div>
         </div>
       </section>
@@ -110,51 +141,25 @@ export default function HelpPage() {
               </div>
 
               <div className="space-y-3">
-                <a
-                  href="#chat-assistant"
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition group"
-                >
-                  <span className="text-gray-700 group-hover:text-blue-500">
-                    How to search and book items
-                  </span>
-                  <i className="fa-solid fa-chevron-right text-gray-400 group-hover:text-blue-500" />
-                </a>
-                <a
-                  href="#chat-assistant"
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition group"
-                >
-                  <span className="text-gray-700 group-hover:text-blue-500">
-                    Payment and pricing
-                  </span>
-                  <i className="fa-solid fa-chevron-right text-gray-400 group-hover:text-blue-500" />
-                </a>
-                <a
-                  href="#chat-assistant"
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition group"
-                >
-                  <span className="text-gray-700 group-hover:text-blue-500">
-                    Pickup and return process
-                  </span>
-                  <i className="fa-solid fa-chevron-right text-gray-400 group-hover:text-blue-500" />
-                </a>
-                <a
-                  href="#chat-assistant"
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition group"
-                >
-                  <span className="text-gray-700 group-hover:text-blue-500">
-                    Cancellation policy
-                  </span>
-                  <i className="fa-solid fa-chevron-right text-gray-400 group-hover:text-blue-500" />
-                </a>
-                <a
-                  href="#chat-assistant"
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition group"
-                >
-                  <span className="text-gray-700 group-hover:text-blue-500">
-                    Reporting issues
-                  </span>
-                  <i className="fa-solid fa-chevron-right text-gray-400 group-hover:text-blue-500" />
-                </a>
+                {[
+                  'How to search and book items',
+                  'Payment and pricing',
+                  'Pickup and return process',
+                  'Cancellation policy',
+                  'Reporting issues',
+                ].map((topic) => (
+                  <button
+                    key={topic}
+                    type="button"
+                    onClick={() => scrollToChat()}
+                    className="flex w-full items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition group text-left"
+                  >
+                    <span className="text-gray-700 group-hover:text-blue-500">
+                      {topic}
+                    </span>
+                    <i className="fa-solid fa-chevron-right text-gray-400 group-hover:text-blue-500" />
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -177,51 +182,25 @@ export default function HelpPage() {
               </div>
 
               <div className="space-y-3">
-                <a
-                  href="#chat-assistant"
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition group"
-                >
-                  <span className="text-gray-700 group-hover:text-green-500">
-                    Creating your first listing
-                  </span>
-                  <i className="fa-solid fa-chevron-right text-gray-400 group-hover:text-green-500" />
-                </a>
-                <a
-                  href="#chat-assistant"
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition group"
-                >
-                  <span className="text-gray-700 group-hover:text-green-500">
-                    Setting prices and availability
-                  </span>
-                  <i className="fa-solid fa-chevron-right text-gray-400 group-hover:text-green-500" />
-                </a>
-                <a
-                  href="#chat-assistant"
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition group"
-                >
-                  <span className="text-gray-700 group-hover:text-green-500">
-                    Managing bookings
-                  </span>
-                  <i className="fa-solid fa-chevron-right text-gray-400 group-hover:text-green-500" />
-                </a>
-                <a
-                  href="#chat-assistant"
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition group"
-                >
-                  <span className="text-gray-700 group-hover:text-green-500">
-                    Getting paid
-                  </span>
-                  <i className="fa-solid fa-chevron-right text-gray-400 group-hover:text-green-500" />
-                </a>
-                <a
-                  href="#chat-assistant"
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition group"
-                >
-                  <span className="text-gray-700 group-hover:text-green-500">
-                    Host protection and insurance
-                  </span>
-                  <i className="fa-solid fa-chevron-right text-gray-400 group-hover:text-green-500" />
-                </a>
+                {[
+                  'Creating your first listing',
+                  'Setting prices and availability',
+                  'Managing bookings',
+                  'Getting paid',
+                  'Host protection and insurance',
+                ].map((topic) => (
+                  <button
+                    key={topic}
+                    type="button"
+                    onClick={() => scrollToChat()}
+                    className="flex w-full items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition group text-left"
+                  >
+                    <span className="text-gray-700 group-hover:text-green-500">
+                      {topic}
+                    </span>
+                    <i className="fa-solid fa-chevron-right text-gray-400 group-hover:text-green-500" />
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -243,9 +222,9 @@ export default function HelpPage() {
           </div>
 
           <div className="flex justify-center">
-             <div className="w-full max-w-md">
-                <ChatbotPanel />
-             </div>
+            <div className="w-full max-w-md">
+              <ChatbotPanel />
+            </div>
           </div>
         </div>
       </section>

@@ -12,6 +12,7 @@ import { AuthModule } from '../auth/auth.module';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
 import { QualityModule } from '../quality/quality.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PersonalizationModule } from '../personalization/personalization.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     WhatsappModule,
     QualityModule,
     NotificationsModule,
+    PersonalizationModule,
   ],
   controllers: [BookingsController],
   providers: [

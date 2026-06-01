@@ -34,7 +34,7 @@ export default function AdminKycPage() {
 
   return (
     <AdminLayout
-      activeTab="dashboard"
+      activeTab="kyc"
       title="Host KYC"
       subtitle="Review identity documents submitted by hosts. Approve to grant the Verified host badge; reject with a clear reason so they can re-submit."
     >

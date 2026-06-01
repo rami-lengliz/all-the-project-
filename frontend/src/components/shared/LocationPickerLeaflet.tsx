@@ -32,12 +32,28 @@ interface Props {
   height?: string;
 }
 
+function InvalidateSize() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    // ResizeObserver fires whenever the container actually changes size,
+    // covering dynamic-import delays that rAF/setTimeout miss.
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(container);
+    map.invalidateSize(); // also call immediately
+    return () => ro.disconnect();
+  }, [map]);
+  return null;
+}
+
 function FlyTo({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
     const [lat, lng] = center;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    map.flyTo(center, Math.max(map.getZoom(), 14), { animate: true, duration: 0.8 });
+    // setView is synchronous — avoids the async animation-frame NaN crash
+    // that flyTo triggers when the map container hasn't fully laid out yet.
+    map.setView(center, Math.max(map.getZoom(), 14), { animate: false });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center[0], center[1]]);
   return null;
@@ -54,7 +70,9 @@ export default function LocationPickerLeaflet({
   defaultCenter = [36.8578, 11.092],
   height = '300px',
 }: Props) {
-  const hasPin = value.lat !== 0 && value.lng !== 0;
+  const hasPin =
+    Number.isFinite(value.lat) && Number.isFinite(value.lng) &&
+    value.lat !== 0 && value.lng !== 0;
   const center: [number, number] = hasPin ? [value.lat, value.lng] : defaultCenter;
 
   const [query, setQuery] = useState(value.address);
@@ -120,7 +138,7 @@ export default function LocationPickerLeaflet({
           />
         </div>
         {showSugg && suggestions.length > 0 && (
-          <ul className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+          <ul className="absolute left-0 top-full z-[2000] mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
             {suggestions.map((s) => {
               const parts = s.display_name.split(', ');
               return (
@@ -151,6 +169,7 @@ export default function LocationPickerLeaflet({
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          <InvalidateSize />
           {hasPin && <FlyTo center={[value.lat, value.lng]} />}
           {hasPin && (
             <Marker

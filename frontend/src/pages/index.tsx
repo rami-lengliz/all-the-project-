@@ -5,20 +5,24 @@ import { useState, useEffect } from 'react';
 import { useDebounce } from '@/lib/utils/useDebounce';
 import { useListings } from '@/lib/api/hooks/useListings';
 import { useCategoriesNearby } from '@/lib/api/hooks/useCategoriesNearby';
+import { useRecommendedListings } from '@/lib/api/hooks/useRecommendedListings';
+import { useTrendingListings } from '@/lib/api/hooks/useTrendingListings';
+import { useBecauseYouViewed } from '@/lib/api/hooks/useBecauseYouViewed';
 import { useUserLocation } from '@/lib/hooks/useUserLocation';
+import { useAuth } from '@/lib/auth/AuthProvider';
 import { ListingCard } from '@/components/shared/ListingCard';
+import { CategoryRow } from '@/components/shared/CategoryRow';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { InlineError } from '@/components/ui/InlineError';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { formatTnd } from '@/lib/utils/format';
 import ListingMap from '@/components/shared/ListingMap';
 import { CityPicker } from '@/components/shared/CityPicker';
 
 const CATEGORY_META: Record<string, { icon: string; colorBg: string; colorIcon: string; colorHover: string; subtitle: string }> = {
-  'stays':             { icon: 'fa-house',   colorBg: 'bg-blue-100',   colorIcon: 'text-blue-500',   colorHover: 'group-hover:bg-blue-500',   subtitle: 'Houses & Villas' },
-  'sports-facilities': { icon: 'fa-futbol',  colorBg: 'bg-purple-100', colorIcon: 'text-purple-500', colorHover: 'group-hover:bg-purple-500', subtitle: 'Football, Volleyball & Padel' },
-  'mobility':          { icon: 'fa-car',     colorBg: 'bg-green-100',  colorIcon: 'text-green-500',  colorHover: 'group-hover:bg-green-500',  subtitle: 'Vehicles & Scooters' },
-  'beach-gear':        { icon: 'fa-water',   colorBg: 'bg-orange-100', colorIcon: 'text-orange-500', colorHover: 'group-hover:bg-orange-500', subtitle: 'Paddle, Kayak & More' },
+  'stays': { icon: 'fa-house', colorBg: 'bg-blue-100', colorIcon: 'text-blue-500', colorHover: 'group-hover:bg-blue-500', subtitle: 'Houses & Villas' },
+  'sports-facilities': { icon: 'fa-futbol', colorBg: 'bg-purple-100', colorIcon: 'text-purple-500', colorHover: 'group-hover:bg-purple-500', subtitle: 'Football, Volleyball & Padel' },
+  'mobility': { icon: 'fa-car', colorBg: 'bg-green-100', colorIcon: 'text-green-500', colorHover: 'group-hover:bg-green-500', subtitle: 'Vehicles & Scooters' },
+  'beach-gear': { icon: 'fa-water', colorBg: 'bg-orange-100', colorIcon: 'text-orange-500', colorHover: 'group-hover:bg-orange-500', subtitle: 'Paddle, Kayak & More' },
 };
 
 const RADIUS_KM = 60;
@@ -26,6 +30,7 @@ const RADIUS_KM = 60;
 export default function HomePage() {
   const router = useRouter();
   const { push } = router;
+  const { user } = useAuth();
   const [q, setQ] = useState('');
   const dq = useDebounce(q, 350);
 
@@ -48,7 +53,8 @@ export default function HomePage() {
     enabled: !locLoading,
   });
 
-  const { data, isLoading, isError } = useListings({
+  // Map preview keeps the location-sorted feed
+  const { data } = useListings({
     q: dq || undefined,
     lat,
     lng,
@@ -57,7 +63,22 @@ export default function HomePage() {
     sortBy: 'distance',
   });
 
-  const featuredListings = data?.items?.slice(0, 4) || [];
+  // Personalized "for you" feed — backend handles cold-start fallback for
+  // anonymous visitors (quality + location + freshness), and ranks against
+  // the user's preference vector once they have a few interactions.
+  const recommended = useRecommendedListings({
+    limit: 8,
+    lat: locLoading || isDefault ? undefined : lat,
+    lng: locLoading || isDefault ? undefined : lng,
+    enabled: !locLoading,
+  });
+
+  // "Trending this week" — public, most-booked recently (quality fallback).
+  const trending = useTrendingListings({ limit: 8 });
+
+  // "Because you viewed X" — only meaningful for signed-in users with history.
+  const becauseYouViewed = useBecauseYouViewed({ limit: 8, enabled: !!user });
+  const byvData = becauseYouViewed.data;
 
   return (
     <Layout>
@@ -213,50 +234,50 @@ export default function HomePage() {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {catsLoading || locLoading
               ? Array.from({ length: 4 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="animate-pulse rounded-xl border border-gray-200 bg-white p-6"
-                  >
-                    <div className="mb-4 h-12 w-12 rounded-full bg-gray-200" />
-                    <div className="mb-2 h-4 w-24 rounded bg-gray-200" />
-                    <div className="h-3 w-32 rounded bg-gray-100" />
-                  </div>
-                ))
+                <div
+                  key={i}
+                  className="animate-pulse rounded-xl border border-gray-200 bg-white p-6"
+                >
+                  <div className="mb-4 h-12 w-12 rounded-full bg-gray-200" />
+                  <div className="mb-2 h-4 w-24 rounded bg-gray-200" />
+                  <div className="h-3 w-32 rounded bg-gray-100" />
+                </div>
+              ))
               : (nearbyCategories ?? []).map((cat) => {
-                  const meta = CATEGORY_META[cat.slug] ?? {
-                    icon: 'fa-tag',
-                    colorBg: 'bg-gray-100',
-                    colorIcon: 'text-gray-500',
-                    colorHover: 'group-hover:bg-gray-500',
-                    subtitle: cat.name,
-                  };
-                  return (
-                    <Link
-                      key={cat.id}
-                      href={`/search?categorySlug=${cat.slug}&lat=${lat}&lng=${lng}&radiusKm=${RADIUS_KM}`}
-                      className="group cursor-pointer rounded-xl border border-gray-200 bg-white p-6 transition hover:shadow-lg"
+                const meta = CATEGORY_META[cat.slug] ?? {
+                  icon: 'fa-tag',
+                  colorBg: 'bg-gray-100',
+                  colorIcon: 'text-gray-500',
+                  colorHover: 'group-hover:bg-gray-500',
+                  subtitle: cat.name,
+                };
+                return (
+                  <Link
+                    key={cat.id}
+                    href={`/search?categorySlug=${cat.slug}&lat=${lat}&lng=${lng}&radiusKm=${RADIUS_KM}`}
+                    className="group cursor-pointer rounded-xl border border-gray-200 bg-white p-6 transition hover:shadow-lg"
+                  >
+                    <div
+                      className={`mb-4 flex h-12 w-12 items-center justify-center rounded-full ${meta.colorBg} transition ${meta.colorHover}`}
                     >
-                      <div
-                        className={`mb-4 flex h-12 w-12 items-center justify-center rounded-full ${meta.colorBg} transition ${meta.colorHover}`}
-                      >
-                        <i
-                          className={`fa-solid ${meta.icon} text-xl ${meta.colorIcon} transition group-hover:text-white`}
-                        ></i>
-                      </div>
-                      <h3 className="text-sm font-semibold text-gray-900">
-                        {cat.name}
-                      </h3>
-                      <p className="mt-1 text-xs text-gray-500">
-                        {meta.subtitle}
+                      <i
+                        className={`fa-solid ${meta.icon} text-xl ${meta.colorIcon} transition group-hover:text-white`}
+                      ></i>
+                    </div>
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      {cat.name}
+                    </h3>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {meta.subtitle}
+                    </p>
+                    {cat.count > 0 && (
+                      <p className="mt-2 text-xs font-medium text-blue-500">
+                        {cat.count} available
                       </p>
-                      {cat.count > 0 && (
-                        <p className="mt-2 text-xs font-medium text-blue-500">
-                          {cat.count} available
-                        </p>
-                      )}
-                    </Link>
-                  );
-                })}
+                    )}
+                  </Link>
+                );
+              })}
           </div>
         </div>
       </section>
@@ -291,13 +312,20 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Featured Listings Section */}
+      {/* Recommended for you — personalized feed (cold-start fallback for anon) */}
       <section id="featured-listings" className="bg-gray-50 py-12">
         <div className="mx-auto max-w-7xl px-6">
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-gray-900">
-              {locLoading ? 'Recommended for you' : `Rentals near ${cityName}`}
-            </h2>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {user ? 'Recommended for you' : 'Popular near you'}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {user
+                  ? 'Ranked by what you usually like, plus top-rated listings nearby.'
+                  : 'Top-rated listings in your area — sign in to see picks tailored to you.'}
+              </p>
+            </div>
             <Link
               href={`/search?lat=${lat}&lng=${lng}&radiusKm=${RADIUS_KM}`}
               className="font-medium text-blue-500 transition hover:text-blue-600"
@@ -306,80 +334,25 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {isLoading || locLoading ? (
-            <div className="grid grid-cols-4 gap-6">
+          {recommended.isLoading || locLoading ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
                 <LoadingCard key={i} />
               ))}
             </div>
-          ) : isError ? (
+          ) : recommended.isError ? (
             <InlineError
-              message="Failed to load listings. Please check your connection and try again."
-              onRetry={() => void push(router.asPath)}
+              message="Failed to load recommendations. Please try again."
+              onRetry={() => void recommended.refetch()}
             />
-          ) : featuredListings.length > 0 ? (
-            <div className="grid grid-cols-4 gap-6">
-              {featuredListings.map((listing) => (
-                <Link
+          ) : (recommended.data ?? []).length > 0 ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {(recommended.data ?? []).map((listing) => (
+                <ListingCard
                   key={listing.id}
-                  href={`/listings/${listing.id}`}
-                  className="group cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white transition hover:shadow-lg"
-                >
-                  <div className="relative h-48 overflow-hidden">
-                    {listing.images?.[0] ? (
-                      <img
-                        className="h-full w-full object-cover"
-                        src={
-                          listing.images[0].startsWith('http') ||
-                          listing.images[0].startsWith('/')
-                            ? listing.images[0]
-                            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${listing.images[0]}`
-                        }
-                        alt={listing.title}
-                        onError={(e) => {
-                          e.currentTarget.src = '/placeholder.png';
-                          e.currentTarget.onerror = null;
-                        }}
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-gray-100 text-gray-400">
-                        <i className="fa-solid fa-image text-3xl"></i>
-                      </div>
-                    )}
-                    <button className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md transition hover:scale-110">
-                      <i className="fa-regular fa-heart text-gray-700"></i>
-                    </button>
-                  </div>
-                  <div className="p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <h3 className="font-semibold text-gray-900">
-                        {listing.title}
-                      </h3>
-                      {Number((listing as any).ratingCount ?? 0) > 0 ? (
-                        <div className="flex items-center">
-                          <i className="fa-solid fa-star text-xs text-yellow-400"></i>
-                          <span className="ml-1 text-sm font-medium">
-                            {Number((listing as any).ratingAvg ?? 0).toFixed(1)}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">New</span>
-                      )}
-                    </div>
-                    <p className="mb-2 text-sm text-gray-600">
-                      {listing.address?.split(',')[0] || cityName}
-                    </p>
-                    <p className="mb-3 text-sm text-gray-500">
-                      {listing.category?.name || 'Item'}
-                    </p>
-                    <div className="flex items-baseline">
-                      <span className="text-lg font-bold text-gray-900">
-                        {formatTnd(listing.pricePerDay)}
-                      </span>
-                      <span className="ml-1 text-sm text-gray-500">/day</span>
-                    </div>
-                  </div>
-                </Link>
+                  listing={listing as any}
+                  reason={listing._reasons?.[0]}
+                />
               ))}
             </div>
           ) : (
@@ -391,11 +364,91 @@ export default function HomePage() {
                   ? 'Set your location to see nearby rentals, or browse everything.'
                   : `No rentals found within ${RADIUS_KM}km of ${cityName}. Try browsing all listings.`
               }
-              cta={{ label: isDefault ? 'Browse all' : 'Browse all', href: '/search' }}
+              cta={{ label: 'Browse all', href: '/search' }}
             />
           )}
         </div>
       </section>
+
+      {/* Because you viewed — only for signed-in users with view history */}
+      {user && byvData && (
+        <section id="because-you-viewed" className="bg-white py-12">
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Because you viewed{' '}
+                <span className="text-blue-600">{byvData.seed.title}</span>
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                More like the last listing you checked out.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {byvData.items.slice(0, 4).map((listing) => (
+                <ListingCard key={listing.id} listing={listing as any} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Trending this week — public, most-booked recently (quality fallback) */}
+      <section id="trending" className="bg-gray-50 py-12">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
+                <i className="fa-solid fa-fire text-orange-500" />
+                Trending this week
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                The most-booked rentals across the platform right now.
+              </p>
+            </div>
+            <Link
+              href="/search?sortBy=popular"
+              className="font-medium text-blue-500 transition hover:text-blue-600"
+            >
+              View all
+            </Link>
+          </div>
+
+          {trending.isLoading ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <LoadingCard key={i} />
+              ))}
+            </div>
+          ) : (trending.data ?? []).length > 0 ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {(trending.data ?? []).slice(0, 4).map((listing) => (
+                <ListingCard key={listing.id} listing={listing as any} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      {/* Browse by category — one row of listings per stocked category */}
+      {!locLoading && (nearbyCategories ?? []).filter((c) => c.count > 0).length > 0 && (
+        <section id="browse-by-category" className="bg-white py-12">
+          <div className="mx-auto max-w-7xl px-6">
+            <h2 className="mb-8 text-2xl font-bold text-gray-900">Browse by category</h2>
+            {(nearbyCategories ?? [])
+              .filter((c) => c.count > 0)
+              .slice(0, 3)
+              .map((cat) => (
+                <CategoryRow
+                  key={cat.id}
+                  category={{ id: cat.id, name: cat.name, slug: cat.slug }}
+                  lat={lat}
+                  lng={lng}
+                  radiusKm={RADIUS_KM}
+                />
+              ))}
+          </div>
+        </section>
+      )}
 
       {/* How It Works Section */}
       <section id="how-it-works" className="bg-white py-16">

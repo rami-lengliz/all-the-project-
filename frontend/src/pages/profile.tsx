@@ -7,6 +7,7 @@ import { useProfile } from '@/lib/api/hooks/useProfile';
 import { useBecomeHost } from '@/lib/api/hooks/useBecomeHost';
 import { useMyBookings } from '@/lib/api/hooks/useMyBookings';
 import { useReviewsByUser } from '@/lib/api/hooks/useReviewsByUser';
+import { useWishlistIds } from '@/lib/api/hooks/useWishlist';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { InlineError } from '@/components/ui/InlineError';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -31,6 +32,7 @@ export default function ProfilePage() {
   const [becomeHostError, setBecomeHostError] = useState<string | null>(null);
   const bookingsQuery = useMyBookings();
   const reviewsQuery = useReviewsByUser(user?.id || query.data?.id);
+  const wishlistQuery = useWishlistIds();
 
   // ── Saved home location ─────────────────────────────────────
   const userLocation = useUserLocation();
@@ -91,6 +93,18 @@ export default function ProfilePage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  // Auto-open the become-host modal when arriving from the register page with
+  // ?promptHost=1. Strip the param afterwards so a refresh doesn't re-open it.
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (router.query.promptHost !== '1') return;
+    if ((user as any)?.isHost) return;
+    setBecomeHostError(null);
+    setBecomeHostModalOpen(true);
+    const { promptHost: _drop, ...rest } = router.query;
+    void router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+  }, [router.isReady, router.query.promptHost, user]);
+
   useEffect(() => {
     if (dHome.length < 2 || homeSelected) { setHomeSuggestions([]); return; }
     let cancelled = false;
@@ -98,7 +112,7 @@ export default function ProfilePage() {
       .then((data) => {
         if (!cancelled) { setHomeSuggestions(data as PlaceSuggestion[]); setHomeShowSugg(data.length > 0); }
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => { cancelled = true; };
   }, [dHome, homeSelected]);
 
@@ -248,8 +262,8 @@ export default function ProfilePage() {
       setBecomeHostError(null);
       setBecomeHostModalOpen(true);
     }
-  // We deliberately only react to the URL flag — opening the modal once per landing.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // We deliberately only react to the URL flag — opening the modal once per landing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady, onboardingMode]);
   const hasHome = Boolean((user as any)?.homeLat && (user as any)?.homeLng);
   const isHostFlag = Boolean(profileData?.isHost ?? user?.isHost);
@@ -316,9 +330,9 @@ export default function ProfilePage() {
 
   const memberSince = profileData?.createdAt
     ? new Date(profileData.createdAt).toLocaleDateString('en-US', {
-        month: 'short',
-        year: 'numeric',
-      })
+      month: 'short',
+      year: 'numeric',
+    })
     : 'Jan 2024';
 
   if (query.isLoading) {
@@ -414,11 +428,10 @@ export default function ProfilePage() {
                     className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50/60 p-3"
                   >
                     <span
-                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                        s.done
-                          ? 'bg-emerald-100 text-emerald-600'
-                          : 'bg-gray-200 text-gray-400'
-                      }`}
+                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${s.done
+                        ? 'bg-emerald-100 text-emerald-600'
+                        : 'bg-gray-200 text-gray-400'
+                        }`}
                     >
                       <i className={`fa-solid ${s.done ? 'fa-check' : 'fa-circle'} text-xs`} />
                     </span>
@@ -647,7 +660,7 @@ export default function ProfilePage() {
                   <i className="fa-solid fa-heart text-xl text-orange-500"></i>
                 </div>
               </div>
-              <h3 className="mb-1 text-2xl font-bold text-gray-900">0</h3>
+              <h3 className="mb-1 text-2xl font-bold text-gray-900">{wishlistQuery.size}</h3>
               <p className="text-sm text-gray-600">Saved Items</p>
             </div>
           </div>
@@ -729,7 +742,11 @@ export default function ProfilePage() {
               </div>
             )}
 
-            <div className="group cursor-pointer rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-8 transition hover:shadow-lg">
+            <button
+              type="button"
+              onClick={() => document.getElementById('verification-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="group cursor-pointer rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-8 transition hover:shadow-lg text-left w-full"
+            >
               <div className="mb-4 flex items-start justify-between">
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-500 transition group-hover:scale-110">
                   <i className="fa-solid fa-gear text-2xl text-white"></i>
@@ -747,7 +764,7 @@ export default function ProfilePage() {
                   Account · Privacy · Notifications
                 </span>
               </div>
-            </div>
+            </button>
           </div>
         </div>
       </section>
@@ -765,14 +782,15 @@ export default function ProfilePage() {
                   What others say about {displayName}
                 </p>
               </div>
-              <div className="flex items-center space-x-2">
-                <button className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 transition hover:bg-white">
-                  <i className="fa-solid fa-chevron-left text-gray-600"></i>
-                </button>
-                <button className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 transition hover:bg-white">
-                  <i className="fa-solid fa-chevron-right text-gray-600"></i>
-                </button>
-              </div>
+              {reviews.length > 3 && (
+                <Link
+                  href="/client/reviews"
+                  className="flex items-center font-medium text-blue-500 transition hover:text-blue-600"
+                >
+                  View all {reviews.length} reviews
+                  <i className="fa-solid fa-arrow-right ml-2"></i>
+                </Link>
+              )}
             </div>
 
             <div className="grid grid-cols-3 gap-6">
@@ -998,9 +1016,8 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div
-                      className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full ${
-                        isVerified ? 'bg-green-100' : 'bg-gray-200'
-                      }`}
+                      className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full ${isVerified ? 'bg-green-100' : 'bg-gray-200'
+                        }`}
                     >
                       <i
                         className={`fa-solid ${isVerified ? 'fa-check text-green-500' : 'fa-times text-gray-400'}`}
@@ -1025,9 +1042,8 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div
-                      className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full ${
-                        isVerified ? 'bg-green-100' : 'bg-gray-200'
-                      }`}
+                      className={`mr-3 flex h-10 w-10 items-center justify-center rounded-full ${isVerified ? 'bg-green-100' : 'bg-gray-200'
+                        }`}
                     >
                       <i
                         className={`fa-solid ${isVerified ? 'fa-check text-green-500' : 'fa-times text-gray-400'}`}
@@ -1068,7 +1084,11 @@ export default function ProfilePage() {
                     </div>
                     <span className="text-gray-700">Payment method</span>
                   </div>
-                  <button className="text-sm font-medium text-blue-500 transition hover:text-blue-600">
+                  <button
+                    type="button"
+                    onClick={() => toast({ title: 'Coming soon', message: 'Payment method management will be available soon.', variant: 'info' })}
+                    className="text-sm font-medium text-blue-500 transition hover:text-blue-600"
+                  >
                     Add
                   </button>
                 </div>

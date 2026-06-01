@@ -6,10 +6,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
+import { PersonalizationService } from '../personalization/personalization.service';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private personalization: PersonalizationService,
+  ) {}
 
   async create(dto: CreateReviewDto, authorId: string) {
     const booking = await this.prisma.booking.findUnique({
@@ -73,6 +77,8 @@ export class ReviewsService {
 
     if (isRenter) {
       await this.recalcListingRating(booking.listingId);
+      // Renter rated this listing = strong personalization signal
+      void this.personalization.recordInteraction(authorId, booking.listingId, 'REVIEW');
     }
 
     return review;

@@ -13,6 +13,59 @@ import type { Message } from '@/lib/api/chat';
 import { API_URL } from '@/lib/api/env';
 import { detectContact } from '@/lib/anti-leak/detectContact';
 
+// ─── BookingCardImage ────────────────────────────────────────────────
+// Shows the snapshot image from the BOOKING_CARD message. If that path is
+// broken (demo listings, stale uploads), falls back to the listing's live
+// first image fetched from the API.
+function BookingCardImage({ listingId, storedImage, title }: {
+  listingId: string;
+  storedImage: string | null;
+  title: string;
+}) {
+  const [useLive, setUseLive] = useState(!storedImage);
+
+  const { data: liveImages } = useQuery<string[]>({
+    queryKey: ['listing-images', listingId],
+    queryFn: async () => {
+      const res = await api.get(`/listings/${listingId}`);
+      return (res.data?.images ?? []) as string[];
+    },
+    enabled: useLive,
+    staleTime: 5 * 60_000,
+  });
+
+  const resolveUrl = (path: string) =>
+    path.startsWith('http') ? path : `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+
+  const liveFirst = liveImages?.[0] ?? null;
+  const src = useLive ? (liveFirst ? resolveUrl(liveFirst) : null) : (storedImage ? resolveUrl(storedImage) : null);
+
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={title}
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        onError={(e) => {
+          e.currentTarget.onerror = null;
+          if (!useLive) {
+            setUseLive(true);
+          } else {
+            e.currentTarget.src = '/placeholder.png';
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ fontSize: 40 }}>🏠</span>
+    </div>
+  );
+}
+
 // ─── helpers ────────────────────────────────────────────────────────
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -853,30 +906,11 @@ export default function ChatThreadPage() {
                           >
                             {/* Image */}
                             <div style={{ width: '100%', height: 160, background: '#f1f5f9', position: 'relative', overflow: 'hidden' }}>
-                              {card.listingImage ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={
-                                    card.listingImage.startsWith('http')
-                                      ? card.listingImage
-                                      : card.listingImage.startsWith('/')
-                                        ? `${API_URL}${card.listingImage}`
-                                        : `${API_URL}/${card.listingImage}`
-                                  }
-                                  alt={card.listingTitle}
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                  onError={(e) => {
-                                    // Swap broken image for the placeholder rather than
-                                    // leaving a blank gray box.
-                                    e.currentTarget.src = '/placeholder.png';
-                                    e.currentTarget.onerror = null;
-                                  }}
-                                />
-                              ) : (
-                                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <span style={{ fontSize: 40 }}>🏠</span>
-                                </div>
-                              )}
+                              <BookingCardImage
+                                listingId={card.listingId}
+                                storedImage={card.listingImage}
+                                title={card.listingTitle}
+                              />
                               {/* Booking request badge */}
                               <div style={{
                                 position: 'absolute', top: 10, left: 10,

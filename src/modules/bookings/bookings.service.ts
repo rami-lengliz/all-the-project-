@@ -22,6 +22,7 @@ import { ChatService } from '../../chat/chat.service';
 import { WalletService } from '../wallet/wallet.service';
 import { QualityScoreService } from '../quality/quality-score.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PersonalizationService } from '../personalization/personalization.service';
 
 /**
  * Maps internal DB booking statuses to stable MVP-facing vocabulary.
@@ -82,6 +83,7 @@ export class BookingsService {
     private walletService: WalletService,
     private qualityScore: QualityScoreService,
     private notifications: NotificationsService,
+    private personalization: PersonalizationService,
   ) {
     this.commissionPercentage =
       this.configService.get<number>('commission.percentage') || 0.1;
@@ -240,6 +242,9 @@ export class BookingsService {
       payload: { bookingId: booking.id },
     });
 
+    // Strongest personalization signal — renter took action and committed money.
+    void this.personalization.recordInteraction(renterId, listing.id, 'BOOKING');
+
     return { ...withDisplay(booking), conversationId };
   }
 
@@ -278,18 +283,31 @@ export class BookingsService {
             qualityScore: true,
           },
         },
-        Conversation: {
-          select: { id: true },
-          take: 1,
-        },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
+
+    // One batched query for all conversations (was: per-row include with take:1,
+    // which Prisma can fan out to N subqueries).
+    const bookingIds = bookings.map((b) => b.id);
+    const conversations = bookingIds.length
+      ? await this.prisma.conversation.findMany({
+          where: { bookingId: { in: bookingIds } },
+          select: { id: true, bookingId: true },
+        })
+      : [];
+    const convByBooking = new Map<string, string>();
+    for (const c of conversations) {
+      if (c.bookingId && !convByBooking.has(c.bookingId)) {
+        convByBooking.set(c.bookingId, c.id);
+      }
+    }
+
     return bookings.map((b) => ({
       ...withDisplay(b),
-      conversationId: b.Conversation?.[0]?.id ?? null,
+      conversationId: convByBooking.get(b.id) ?? null,
     }));
   }
 
@@ -1062,6 +1080,9 @@ export class BookingsService {
     } catch (_e) {
       // Non-fatal
     }
+
+    // Strongest personalization signal — renter took action and committed money.
+    void this.personalization.recordInteraction(renterId, listing.id, 'BOOKING');
 
     return { ...withDisplay(booking), conversationId };
   }

@@ -31,6 +31,7 @@ import { KycModule } from './modules/kyc/kyc.module';
 import { DisputesModule } from './modules/disputes/disputes.module';
 import { DynamicPricingModule } from './modules/dynamic-pricing/dynamic-pricing.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { PersonalizationModule } from './modules/personalization/personalization.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     DisputesModule,
     DynamicPricingModule,
     NotificationsModule,
+    PersonalizationModule,
   ],
   controllers: [AppController],
   providers: [

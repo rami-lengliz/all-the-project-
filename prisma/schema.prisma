@@ -5,6 +5,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
+generator markdown {
+  provider = "prisma-markdown"
+  output   = "ERD.md"
+  title    = "RentAI ERD"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -60,6 +66,13 @@ model User {
   idRejectedAt    DateTime? @map("id_rejected_at")
   idRejectionReason String? @map("id_rejection_reason") @db.VarChar(500)
 
+  // Personalization: 768-d Gemini embedding averaged from listings this user
+  // has interacted with (booked / wishlisted / messaged / reviewed / viewed),
+  // weighted by signal strength and recency. Recomputed by PersonalizationService
+  // on strong signals (booking, wishlist, review) and nightly for the rest.
+  preferenceVector          Float[]   @default([]) @map("preference_vector")
+  preferenceVectorUpdatedAt DateTime? @map("preference_vector_updated_at")
+
   // Relations
   listings               Listing[]
   bookingsAsRenter       Booking[]       @relation("RenterBookings")
@@ -88,6 +101,7 @@ model User {
   disputeMessages            DisputeMessage[]            @relation("DisputeMessageAuthor")
   notifications              Notification[]              @relation("UserNotifications")
   topUpIntents               TopUpIntent[]               @relation("UserTopUpIntents")
+  interactions               UserInteraction[]           @relation("UserInteractions")
 
   @@index([email])
   @@index([phone])
@@ -298,6 +312,12 @@ model Listing {
   basePricePerDay  Decimal?  @map("base_price_per_day") @db.Decimal(10, 2)
   dynamicPricingAt DateTime? @map("dynamic_pricing_at")
 
+  // Personalization: 768-d Gemini embedding of title + description, used to
+  // score similarity against user preference vectors. Persisted (not in-memory)
+  // so it survives restarts and avoids re-embedding on every recommend call.
+  embedding          Float[]   @default([])
+  embeddingUpdatedAt DateTime? @map("embedding_updated_at")
+
   deletedAt     DateTime?
   createdAt     DateTime                            @default(now())
   updatedAt     DateTime                            @updatedAt
@@ -311,13 +331,48 @@ model Listing {
   slotConfiguration SlotConfiguration?
   wishlistedBy      WishlistItem[]       @relation("ListingWishlist")
   priceAdjustments  PriceAdjustmentLog[]
+  interactions      UserInteraction[]    @relation("ListingInteractions")
 
   @@index([pricePerDay])
   @@index([categoryId])
   @@index([isActive])
   @@index([status])
   @@index([deletedAt])
+  @@index([hostId])
   @@map("listings")
+}
+
+// ===========================
+// User-Listing Interactions
+// ===========================
+// Tracks every signal of intent (view → wishlist → message → booking → review)
+// per user-listing pair. The PersonalizationService averages embeddings of
+// recently-interacted listings — weighted by signal strength and recency — to
+// build each user's preference vector. Old rows (>90 days) are pruned nightly.
+enum InteractionKind {
+  VIEW
+  WISHLIST_ADD
+  WISHLIST_REMOVE
+  MESSAGE
+  BOOKING
+  REVIEW
+}
+
+model UserInteraction {
+  id        String          @id @default(uuid())
+  userId    String          @map("user_id")
+  listingId String          @map("listing_id")
+  kind      InteractionKind
+  weight    Float           @default(1)
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  user    User    @relation("UserInteractions", fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation("ListingInteractions", fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([listingId, createdAt])
+  @@index([userId, kind])
+  @@map("user_interactions")
 }
 
 // ===========================

@@ -1,5 +1,7 @@
 import {
   Injectable,
+  Inject,
+  forwardRef,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
@@ -15,6 +17,7 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { BLOCKING_BOOKING_STATUSES } from '../../common/constants/booking-status.constants';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { EmbeddingService } from '../ai/embedding.service';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
@@ -37,6 +40,8 @@ export class ListingsService {
     private mlService: MlService,
     private configService: ConfigService,
     private cloudinaryService: CloudinaryService,
+    @Inject(forwardRef(() => EmbeddingService))
+    private embeddingService: EmbeddingService,
   ) {}
 
   async create(
@@ -169,6 +174,10 @@ export class ListingsService {
           images: imageUrls,
         }),
       };
+
+      // Fire-and-forget: embed the new listing so it appears in semantic search
+      // immediately without blocking the HTTP response.
+      void this.embeddingService.upsertListingEmbedding(listing.id);
 
       return { listing: finalListing!, mlSuggestions };
     } catch (error) {
@@ -451,8 +460,16 @@ export class ListingsService {
             ratingCount: true,
           },
         },
-        bookings: true,
-        reviews: true,
+        // Bound both relations — a popular listing can accumulate thousands of
+        // each, and we never render more than ~20 on the detail page anyway.
+        bookings: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        },
+        reviews: {
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+        },
       },
     });
 
@@ -671,10 +688,17 @@ export class ListingsService {
 
     updateData.images = currentImages;
 
-    return this.prisma.listing.update({
+    const updated = await this.prisma.listing.update({
       where: { id },
       data: updateData,
     });
+
+    // Re-embed when title or description changed so similarity stays accurate.
+    if (updateListingDto.title || updateListingDto.description) {
+      void this.embeddingService.upsertListingEmbedding(id);
+    }
+
+    return updated;
   }
 
   async remove(
@@ -760,6 +784,43 @@ export class ListingsService {
         bufferMinutes: dto.bufferMinutes,
         pricePerSlot: dto.pricePerSlot,
       },
+    });
+  }
+
+  async updateSlotConfiguration(
+    listingId: string,
+    dto: {
+      pricePerSlot?: number;
+      slotDurationMinutes?: number;
+      operatingHours?: unknown;
+      minBookingSlots?: number;
+      maxBookingSlots?: number | null;
+      bufferMinutes?: number;
+    },
+    userId: string,
+  ): Promise<any> {
+    const listing = await this.findOne(listingId);
+    if (listing.hostId !== userId) {
+      throw new ForbiddenException('You can only configure your own listings');
+    }
+    const existing = await this.prisma.slotConfiguration.findUnique({
+      where: { listingId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Slot configuration not found for this listing');
+    }
+
+    const data: Record<string, unknown> = {};
+    if (dto.pricePerSlot != null) data.pricePerSlot = dto.pricePerSlot;
+    if (dto.slotDurationMinutes != null) data.slotDurationMinutes = dto.slotDurationMinutes;
+    if (dto.operatingHours != null) data.operatingHours = dto.operatingHours;
+    if (dto.minBookingSlots != null) data.minBookingSlots = dto.minBookingSlots;
+    if ('maxBookingSlots' in dto) data.maxBookingSlots = dto.maxBookingSlots;
+    if (dto.bufferMinutes != null) data.bufferMinutes = dto.bufferMinutes;
+
+    return this.prisma.slotConfiguration.update({
+      where: { listingId },
+      data,
     });
   }
 

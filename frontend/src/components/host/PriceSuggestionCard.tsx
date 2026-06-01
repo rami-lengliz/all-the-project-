@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   fetchPriceSuggestion,
   PriceSuggestionResponse,
@@ -16,6 +16,10 @@ interface Props {
   lat?: string;
   lng?: string;
   onAccept: (price: number) => void;
+  /** Automatically trigger the fetch when city/coords are ready — no button press needed. */
+  autoFetch?: boolean;
+  /** Automatically call onAccept with the suggested price when the result arrives. */
+  autoAccept?: boolean;
 }
 
 const CONFIDENCE_CONFIG = {
@@ -62,6 +66,8 @@ export default function PriceSuggestionCard({
   lat,
   lng,
   onAccept,
+  autoFetch = false,
+  autoAccept = false,
 }: Props) {
   const [result, setResult]         = useState<PriceSuggestionResponse | null>(null);
   const [loading, setLoading]       = useState(false);
@@ -76,6 +82,15 @@ export default function PriceSuggestionCard({
 
   const cityName = extractCity(city);
   const canFetch = cityName.length >= 2 && categorySlug !== '';
+
+  // Auto-fetch once when city/coords are ready (parent mounts this component only after address is set)
+  const autoFetchedRef = useRef(false);
+  useEffect(() => {
+    if (!autoFetch || !canFetch || loading || result !== null || error !== null || autoFetchedRef.current) return;
+    autoFetchedRef.current = true;
+    void handleFetch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFetch, canFetch]);
 
   async function handleFetch() {
     if (!canFetch) return;
@@ -97,6 +112,9 @@ export default function PriceSuggestionCard({
         ...(isAccomm && distanceToSea  ? { distanceToSeaKm: parseFloat(distanceToSea) } : {}),
       });
       setResult(suggestion);
+      if (autoAccept) {
+        onAccept(suggestion.recommended);
+      }
     } catch (err: any) {
       const rawMsg = err?.response?.data?.message;
       const msg =
@@ -257,13 +275,21 @@ export default function PriceSuggestionCard({
 
           {/* Actions */}
           <div className="flex flex-col gap-2 pt-1">
-            <button
-              type="button"
-              onClick={handleAcceptSuggested}
-              className="w-full py-2.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold transition"
-            >
-              Use {result.recommended.toFixed(2)} TND
-            </button>
+            {autoAccept && (
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2.5 text-sm text-emerald-700">
+                <i className="fa-solid fa-check-circle" />
+                <span>Price set to <strong>{result.recommended.toFixed(2)} TND</strong> automatically</span>
+              </div>
+            )}
+            {!autoAccept && (
+              <button
+                type="button"
+                onClick={handleAcceptSuggested}
+                className="w-full py-2.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold transition"
+              >
+                Use {result.recommended.toFixed(2)} TND
+              </button>
+            )}
 
             {!showOverride ? (
               <button

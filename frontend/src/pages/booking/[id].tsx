@@ -292,7 +292,11 @@ export default function BookingPage() {
                         <h3 className="font-semibold text-gray-900">
                           {listing.host.name}
                         </h3>
-                        <p className="text-sm text-gray-500">Joined in 2023</p>
+                        <p className="text-sm text-gray-500">
+                          {listing.host?.createdAt
+                            ? `Joined in ${new Date(listing.host.createdAt).getFullYear()}`
+                            : 'New host'}
+                        </p>
                       </div>
                       {Number(listing.host?.ratingCount ?? 0) > 0 ? (
                         <div className="flex items-center">
@@ -327,9 +331,12 @@ export default function BookingPage() {
                       consistently receives excellent reviews for communication
                       and property quality.
                     </p>
-                    <button className="mt-3 text-sm font-medium text-blue-500 transition hover:text-blue-600">
+                    <Link
+                      href={`/messages?hostId=${listing.host?.id}`}
+                      className="mt-3 inline-block text-sm font-medium text-blue-500 transition hover:text-blue-600"
+                    >
                       Contact host
-                    </button>
+                    </Link>
                   </div>
                 </div>
               </section>
@@ -528,7 +535,7 @@ export default function BookingPage() {
                       <img
                         src={
                           listing.images[0].startsWith('http') ||
-                          listing.images[0].startsWith('/')
+                            listing.images[0].startsWith('/')
                             ? listing.images[0]
                             : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${listing.images[0]}`
                         }

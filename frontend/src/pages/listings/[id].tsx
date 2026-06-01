@@ -5,6 +5,8 @@ import { Layout } from '@/components/layout/Layout';
 import { useRouter } from 'next/router';
 import { useListing } from '@/lib/api/hooks/useListing';
 import { useListingReviews } from '@/lib/api/hooks/useListingReviews';
+import { useSimilarListings } from '@/lib/api/hooks/useSimilarListings';
+import { ListingCard } from '@/components/shared/ListingCard';
 import { formatTnd } from '@/lib/utils/format';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { InlineError } from '@/components/ui/InlineError';
@@ -12,6 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useState, useEffect, useMemo } from 'react';
 import { BookingProtectionBadge } from '@/components/shared/BookingProtectionBadge';
 import { WishlistButton } from '@/components/shared/WishlistButton';
+import ListingMap from '@/components/shared/ListingMap';
 
 interface SeoData {
   title: string;
@@ -76,7 +79,10 @@ export default function ListingDetailsPage({ seo }: PageProps) {
   const listing = listingQuery.data as any;
   const reviewsQuery = useListingReviews(listing?.id);
   const reviews: any[] = reviewsQuery.data ?? [];
+  const similarQuery = useSimilarListings(listing?.id, 4);
   const [showAllPhotos, setShowAllPhotos] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
 
   // ── booking state ───────────────────────────────────────────────────────────
   const today = toYMD(new Date());
@@ -85,16 +91,16 @@ export default function ListingDetailsPage({ seo }: PageProps) {
 
   // ── calendar navigation ─────────────────────────────────────────────────────
   const [calDate, setCalDate] = useState(() => new Date());
-  const calYear  = calDate.getFullYear();
+  const calYear = calDate.getFullYear();
   const calMonth = calDate.getMonth();
 
   // ── slot state (SLOT booking type) ──────────────────────────────────────────
-  const [slotDay, setSlotDay]             = useState('');
+  const [slotDay, setSlotDay] = useState('');
   const [availableSlots, setAvailableSlots] = useState<any[]>([]);
-  const [slotsLoading, setSlotsLoading]   = useState(false);
-  const [selectedSlot, setSelectedSlot]   = useState<{startTime: string; endTime: string} | null>(null);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<{ startTime: string; endTime: string } | null>(null);
 
-  const isSlot  = listing?.bookingType === 'SLOT';
+  const isSlot = listing?.bookingType === 'SLOT';
   const isDaily = !isSlot;
 
   // fetch time slots when slotDay changes
@@ -121,14 +127,14 @@ export default function ListingDetailsPage({ seo }: PageProps) {
     ? Number(listing?.slotConfiguration?.pricePerSlot ?? listing?.pricePerDay ?? 0)
     : Number(listing?.pricePerDay ?? 0);
 
-  const subtotal   = nightsCount * basePrice;
+  const subtotal = nightsCount * basePrice;
   const serviceFee = Math.round(subtotal * 0.10 * 100) / 100;
-  const total      = subtotal + serviceFee;
+  const total = subtotal + serviceFee;
 
   // ── calendar helpers ────────────────────────────────────────────────────────
   const firstDay = firstDayOfMonth(calYear, calMonth);
   const totalDays = daysInMonth(calYear, calMonth);
-  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   function handleDayClick(dayStr: string) {
     if (dayStr < today) return;
@@ -308,9 +314,8 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                   {displayImages.map((img: string, idx: number) => (
                     <div
                       key={idx}
-                      className={`${
-                        idx === 0 ? 'col-span-2 row-span-2' : ''
-                      } cursor-pointer overflow-hidden transition hover:brightness-95`}
+                      className={`${idx === 0 ? 'col-span-2 row-span-2' : ''
+                        } cursor-pointer overflow-hidden transition hover:brightness-95`}
                     >
                       <img
                         className="h-full w-full object-cover"
@@ -333,7 +338,7 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                         className="h-full w-full object-cover"
                         src={
                           images[5].startsWith('http') ||
-                          images[5].startsWith('/')
+                            images[5].startsWith('/')
                             ? images[5]
                             : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${images[5]}`
                         }
@@ -452,12 +457,18 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                       About this{' '}
                       {listing.category?.name?.toLowerCase() || 'item'}
                     </h2>
-                    <p className="mb-4 leading-relaxed text-gray-700">
+                    <p className={`mb-4 leading-relaxed text-gray-700 ${!descExpanded && (listing.description?.length ?? 0) > 300 ? 'line-clamp-4' : ''}`}>
                       {listing.description || 'No description available.'}
                     </p>
-                    <button className="mt-3 font-medium text-blue-500 transition hover:underline">
-                      Show more
-                    </button>
+                    {(listing.description?.length ?? 0) > 300 && (
+                      <button
+                        type="button"
+                        onClick={() => setDescExpanded(v => !v)}
+                        className="mt-3 font-medium text-blue-500 transition hover:underline"
+                      >
+                        {descExpanded ? 'Show less' : 'Show more'}
+                      </button>
+                    )}
                   </div>
 
                   {/* Features */}
@@ -529,7 +540,7 @@ export default function ListingDetailsPage({ seo }: PageProps) {
 
                         {/* Day headers */}
                         <div className="grid grid-cols-7 gap-1 text-center">
-                          {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d) => (
+                          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
                             <div key={d} className="py-2 text-xs font-medium text-gray-500">{d}</div>
                           ))}
 
@@ -597,11 +608,10 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                                   <button
                                     key={slot.startTime}
                                     onClick={() => setSelectedSlot(slot)}
-                                    className={`rounded-lg border px-3 py-2 text-sm transition ${
-                                      selectedSlot?.startTime === slot.startTime
+                                    className={`rounded-lg border px-3 py-2 text-sm transition ${selectedSlot?.startTime === slot.startTime
                                         ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
                                         : 'border-gray-300 hover:border-blue-300'
-                                    }`}
+                                      }`}
                                   >
                                     {slot.startTime}–{slot.endTime}
                                   </button>
@@ -629,16 +639,18 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                       className="relative overflow-hidden rounded-xl border border-gray-200"
                       style={{ height: '350px' }}
                     >
-                      <img
-                        className="h-full w-full object-cover"
-                        src="https://storage.googleapis.com/uxpilot-auth.appspot.com/e61652dc21-cab20e8e19405eef87bb.png"
-                        alt="map view showing location"
-                      />
-                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 shadow-lg">
-                          <i className="fa-solid fa-location-dot text-2xl text-white"></i>
+                      {listing.lat && listing.lng ? (
+                        <ListingMap
+                          listings={[listing]}
+                          center={[Number(listing.lat), Number(listing.lng)]}
+                          zoom={14}
+                          height="350px"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gray-100">
+                          <i className="fa-solid fa-map text-4xl text-gray-300"></i>
                         </div>
-                      </div>
+                      )}
                     </div>
                     <p className="mt-4 text-sm text-gray-600">
                       Exact location will be provided after booking confirmation
@@ -666,7 +678,7 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                     ) : (
                       <>
                         <div className="space-y-6">
-                          {reviews.slice(0, 3).map((review: any) => (
+                          {(showAllReviews ? reviews : reviews.slice(0, 3)).map((review: any) => (
                             <div
                               key={review.id}
                               className="border-b border-gray-200 pb-6 last:border-b-0"
@@ -696,9 +708,8 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                                     {Array.from({ length: 5 }, (_, i) => (
                                       <i
                                         key={i}
-                                        className={`fa-solid fa-star text-xs ${
-                                          i < review.rating ? 'text-yellow-400' : 'text-gray-300'
-                                        }`}
+                                        className={`fa-solid fa-star text-xs ${i < review.rating ? 'text-yellow-400' : 'text-gray-300'
+                                          }`}
                                       ></i>
                                     ))}
                                   </div>
@@ -711,8 +722,12 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                           ))}
                         </div>
                         {reviews.length > 3 && (
-                          <button className="mt-6 w-full rounded-lg border-2 border-gray-900 py-3 font-medium transition hover:bg-gray-50">
-                            Show all {reviews.length} reviews
+                          <button
+                            type="button"
+                            onClick={() => setShowAllReviews(v => !v)}
+                            className="mt-6 w-full rounded-lg border-2 border-gray-900 py-3 font-medium transition hover:bg-gray-50"
+                          >
+                            {showAllReviews ? 'Show fewer reviews' : `Show all ${reviews.length} reviews`}
                           </button>
                         )}
                       </>
@@ -764,7 +779,11 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                           <h3 className="mb-2 text-2xl font-bold text-gray-900">
                             {listing.host.name}
                           </h3>
-                          <p className="mb-4 text-gray-600">Joined in 2022</p>
+                          <p className="mb-4 text-gray-600">
+                            {listing.host.createdAt
+                              ? `Joined in ${new Date(listing.host.createdAt).getFullYear()}`
+                              : 'Host'}
+                          </p>
                           <div className="mb-6 space-y-3 text-sm text-gray-700">
                             <div className="flex items-center">
                               <i className="fa-solid fa-shield-halved mr-3 text-gray-400"></i>
@@ -783,9 +802,12 @@ export default function ListingDetailsPage({ seo }: PageProps) {
                               <span>Response time: within an hour</span>
                             </div>
                           </div>
-                          <button className="rounded-lg border-2 border-gray-900 px-6 py-3 font-medium transition hover:bg-gray-50">
+                          <Link
+                            href={`/messages?hostId=${listing.host.id}`}
+                            className="rounded-lg border-2 border-gray-900 px-6 py-3 font-medium transition hover:bg-gray-50 inline-block"
+                          >
                             Contact host
-                          </button>
+                          </Link>
                         </div>
                       </div>
                     </div>
@@ -991,6 +1013,25 @@ export default function ListingDetailsPage({ seo }: PageProps) {
               </div>
             </div>
           </section>
+
+          {/* "You might also like" — content similarity from listing embeddings */}
+          {(similarQuery.data ?? []).length > 0 && (
+            <section id="similar-listings" className="bg-gray-50 py-12">
+              <div className="mx-auto max-w-7xl px-6">
+                <div className="mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">You might also like</h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Listings similar to this one, picked by our recommendation engine.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                  {(similarQuery.data ?? []).map((l) => (
+                    <ListingCard key={l.id} listing={l as any} />
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
         </>
       ) : (
         <div className="mx-auto max-w-7xl px-6 py-8">
@@ -1046,8 +1087,8 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => 
     const url = `${siteBase}/listings/${listing.id}`;
     const image = Array.isArray(listing.images) && listing.images[0]
       ? (String(listing.images[0]).startsWith('http')
-          ? listing.images[0]
-          : `${apiBase}${listing.images[0]}`)
+        ? listing.images[0]
+        : `${apiBase}${listing.images[0]}`)
       : null;
 
     const jsonLd = JSON.stringify({
@@ -1059,22 +1100,22 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => 
       url,
       offers: listing.pricePerDay
         ? {
-            '@type': 'Offer',
-            priceCurrency: 'TND',
-            price: Number(listing.pricePerDay),
-            availability: listing.isActive
-              ? 'https://schema.org/InStock'
-              : 'https://schema.org/OutOfStock',
-            url,
-          }
+          '@type': 'Offer',
+          priceCurrency: 'TND',
+          price: Number(listing.pricePerDay),
+          availability: listing.isActive
+            ? 'https://schema.org/InStock'
+            : 'https://schema.org/OutOfStock',
+          url,
+        }
         : undefined,
       aggregateRating:
         Number(listing.ratingAvg) > 0 && Number(listing.ratingCount ?? 0) > 0
           ? {
-              '@type': 'AggregateRating',
-              ratingValue: Number(listing.ratingAvg),
-              reviewCount: Number(listing.ratingCount),
-            }
+            '@type': 'AggregateRating',
+            ratingValue: Number(listing.ratingAvg),
+            reviewCount: Number(listing.ratingCount),
+          }
           : undefined,
     });
 

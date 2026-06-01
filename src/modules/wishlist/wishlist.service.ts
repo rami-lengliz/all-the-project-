@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { PersonalizationService } from '../personalization/personalization.service';
 
 @Injectable()
 export class WishlistService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly personalization: PersonalizationService,
+  ) {}
 
   /** All wishlisted listings for the current user, newest first. */
   async list(userId: string) {
@@ -46,6 +50,7 @@ export class WishlistService {
       await this.prisma.wishlistItem.create({
         data: { userId, listingId },
       });
+      void this.personalization.recordInteraction(userId, listingId, 'WISHLIST_ADD');
       return { added: true };
     } catch (err: any) {
       // Unique constraint = already in wishlist; treat as no-op success.
@@ -59,6 +64,9 @@ export class WishlistService {
     const result = await this.prisma.wishlistItem.deleteMany({
       where: { userId, listingId },
     });
+    if (result.count > 0) {
+      void this.personalization.recordInteraction(userId, listingId, 'WISHLIST_REMOVE');
+    }
     return { removed: result.count };
   }
 

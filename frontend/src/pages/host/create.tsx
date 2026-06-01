@@ -149,7 +149,10 @@ export default function HostCreatePage() {
       return null;
     }
     if (step === 'pricing') {
-      if (!formData.pricePerDay || parseFloat(formData.pricePerDay) <= 0) return 'Set a price before continuing.';
+      const pricingCat = categories.find((c) => c.id === formData.categoryId);
+      if (pricingCat?.slug !== 'stays' && (!formData.pricePerDay || parseFloat(formData.pricePerDay) <= 0)) {
+        return 'Set a price before continuing.';
+      }
       if (formData.bookingType === 'SLOT') {
         if (!slotConfig.pricePerSlot || parseFloat(slotConfig.pricePerSlot) <= 0) {
           return 'Set a price per slot for slot-based bookings.';
@@ -961,32 +964,50 @@ export default function HostCreatePage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    {formData.bookingType === 'SLOT'
-                      ? 'Reference daily rate (TND) *'
-                      : categories.find((c) => c.id === formData.categoryId)?.slug === 'stays'
-                        ? 'Price per night (TND) *'
-                        : 'Price per day (TND) *'}
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.pricePerDay}
-                    onChange={(e) =>
-                      setFormData({ ...formData, pricePerDay: e.target.value })
-                    }
-                    placeholder="0.00"
-                    min="0"
-                    step="0.01"
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                  {formData.bookingType === 'SLOT' && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Used for search ranking. Renters pay the per-slot price below.
-                    </p>
-                  )}
-                </div>
+                {(() => {
+                  const isStays = categories.find((c) => c.id === formData.categoryId)?.slug === 'stays';
+                  if (isStays) {
+                    return (
+                      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                          <i className="fa-solid fa-robot text-blue-500 text-sm" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">Price set automatically by AI</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            On the next step, AI will analyze comparable listings near your location and suggest an optimal nightly rate — no manual entry needed.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        {formData.bookingType === 'SLOT'
+                          ? 'Reference daily rate (TND) *'
+                          : 'Price per day (TND) *'}
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.pricePerDay}
+                        onChange={(e) =>
+                          setFormData({ ...formData, pricePerDay: e.target.value })
+                        }
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                      {formData.bookingType === 'SLOT' && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Used for search ranking. Renters pay the per-slot price below.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {formData.bookingType === 'SLOT' && (
                   <div className="rounded-xl border-2 border-blue-100 bg-blue-50/40 p-5">
@@ -1153,6 +1174,8 @@ export default function HostCreatePage() {
                       categorySlug="stays"
                       lat={formData.latitude || undefined}
                       lng={formData.longitude || undefined}
+                      autoFetch
+                      autoAccept
                       onAccept={(price) =>
                         setFormData((prev) => ({ ...prev, pricePerDay: String(price) }))
                       }
