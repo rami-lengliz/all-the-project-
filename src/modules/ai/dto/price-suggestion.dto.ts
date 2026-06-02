@@ -214,6 +214,15 @@ export class PriceSuggestionResponseDto {
       'ID of the PriceSuggestionLog row. Pass this back when publishing the listing so finalPrice can be linked.',
   })
   logId?: string;
+
+  @ApiProperty({
+    enum: ['ai', 'fallback'],
+    example: 'ai',
+    description:
+      "Which engine produced this suggestion: 'ai' = Gemini RAG over the comps; " +
+      "'fallback' = deterministic math pipeline (used when the model is unavailable or returns invalid output).",
+  })
+  source: 'ai' | 'fallback';
 }
 
 /**

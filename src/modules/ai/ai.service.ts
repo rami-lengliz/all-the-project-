@@ -12,6 +12,14 @@ export interface CompletionOptions {
   maxRetries?: number;
   /** Request timeout in ms (default 15000) */
   timeoutMs?: number;
+  /**
+   * Gemini 2.5 "thinking" budget control. These models spend hidden reasoning
+   * tokens BEFORE the visible answer, and those tokens count against max_tokens —
+   * so a small budget truncates the real output to nothing. For short structured
+   * (JSON) replies, pass 'none' to skip thinking entirely: the answer fits in a
+   * tiny budget and latency drops ~5x. Only applied when the provider is Gemini.
+   */
+  reasoningEffort?: 'none' | 'low' | 'medium' | 'high';
 }
 
 export interface ModerationResult {
@@ -20,54 +28,80 @@ export interface ModerationResult {
   scores: Record<string, number>;
 }
 
+type EngineName = 'gemini' | 'groq' | 'openai';
+
+/** One configured AI backend. The first is primary; the rest are automatic
+ *  fallbacks tried in order when the primary rate-limits (429) or errors. */
+interface AiEngine {
+  name: EngineName;
+  client: OpenAI;
+  model: string;
+}
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private client: OpenAI | null = null;
-  private model: string = 'gpt-4o-mini';
+  /** Ordered engines: [0] is primary, the rest are automatic fallbacks. */
+  private readonly engines: AiEngine[] = [];
+  // "Primary" accessors kept for embeddings / moderation / vision below.
+  private readonly client: OpenAI | null;
+  private readonly model: string;
+  private readonly provider: string;
   private readonly isEnabled: boolean;
 
   constructor(private configService: ConfigService) {
-    const provider = this.configService.get<string>('AI_PROVIDER', 'openai').toLowerCase();
+    const cfg = this.configService;
+    const primary = (cfg.get<string>('AI_PROVIDER', 'openai') || 'openai').toLowerCase();
 
-    if (provider === 'groq') {
-      const apiKey = this.configService.get<string>('GROQ_API_KEY');
-      if (apiKey?.trim()) {
-        this.client = new OpenAI({ apiKey, baseURL: 'https://api.groq.com/openai/v1' });
-        this.model = this.configService.get<string>('GROQ_MODEL', 'llama-3.3-70b-versatile');
-        this.isEnabled = true;
-        this.logger.log(`AiService using Groq (model: ${this.model})`);
-      } else {
-        this.logger.warn('AI_PROVIDER=groq but GROQ_API_KEY is not set. AI features disabled.');
-        this.isEnabled = false;
-      }
-    } else if (provider === 'gemini') {
-      const apiKey = this.configService.get<string>('GEMINI_API_KEY');
-      if (apiKey?.trim()) {
-        const geminiModel = this.configService.get<string>('GEMINI_MODEL', 'gemini-2.5-flash');
-        this.client = new OpenAI({
-          apiKey,
-          baseURL: `https://generativelanguage.googleapis.com/v1beta/openai/`,
-        });
-        this.model = geminiModel;
-        this.isEnabled = true;
-        this.logger.log(`AiService using Gemini (model: ${this.model})`);
-      } else {
-        this.logger.warn('AI_PROVIDER=gemini but GEMINI_API_KEY is not set. AI features disabled.');
-        this.isEnabled = false;
-      }
+    const builders: Record<EngineName, () => AiEngine | null> = {
+      gemini: () => {
+        const apiKey = cfg.get<string>('GEMINI_API_KEY');
+        if (!apiKey?.trim()) return null;
+        return {
+          name: 'gemini',
+          // maxRetries: 0 — the SDK otherwise waits on the 429 Retry-After header
+          // before throwing, which delays our own fallback by many seconds.
+          client: new OpenAI({ apiKey, baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/', maxRetries: 0 }),
+          model: cfg.get<string>('GEMINI_MODEL', 'gemini-2.5-flash') ?? 'gemini-2.5-flash',
+        };
+      },
+      groq: () => {
+        const apiKey = cfg.get<string>('GROQ_API_KEY');
+        if (!apiKey?.trim()) return null;
+        return {
+          name: 'groq',
+          client: new OpenAI({ apiKey, baseURL: 'https://api.groq.com/openai/v1', maxRetries: 0 }),
+          model: cfg.get<string>('GROQ_MODEL', 'llama-3.3-70b-versatile') ?? 'llama-3.3-70b-versatile',
+        };
+      },
+      openai: () => {
+        const apiKey = cfg.get<string>('OPENAI_API_KEY');
+        if (!apiKey?.trim()) return null;
+        return { name: 'openai', client: new OpenAI({ apiKey, maxRetries: 0 }), model: cfg.get<string>('AI_MODEL', 'gpt-4o-mini') ?? 'gpt-4o-mini' };
+      },
+    };
+
+    // Primary provider first, then the remaining providers that have a key — so
+    // when the primary rate-limits (429) or its key dies, the next one takes over
+    // automatically (e.g. AI_PROVIDER=gemini + a valid GROQ_API_KEY → Gemini→Groq).
+    const order = ([primary, 'gemini', 'groq', 'openai'])
+      .filter((n, i, a) => a.indexOf(n) === i)
+      .filter((n): n is EngineName => n === 'gemini' || n === 'groq' || n === 'openai');
+
+    for (const name of order) {
+      const engine = builders[name]();
+      if (engine) this.engines.push(engine);
+    }
+
+    this.isEnabled = this.engines.length > 0;
+    this.client    = this.engines[0]?.client ?? null;
+    this.model     = this.engines[0]?.model ?? 'gpt-4o-mini';
+    this.provider  = this.engines[0]?.name ?? primary;
+
+    if (this.isEnabled) {
+      this.logger.log(`AiService ready — fallback chain: ${this.engines.map((e) => `${e.name}(${e.model})`).join(' → ')}`);
     } else {
-      // Default: OpenAI
-      const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-      if (apiKey?.trim()) {
-        this.client = new OpenAI({ apiKey });
-        this.model = this.configService.get<string>('AI_MODEL', 'gpt-4o-mini');
-        this.isEnabled = true;
-        this.logger.log(`AiService using OpenAI (model: ${this.model})`);
-      } else {
-        this.logger.warn('OPENAI_API_KEY not configured. AI features disabled.');
-        this.isEnabled = false;
-      }
+      this.logger.warn('No AI provider key configured (GEMINI/GROQ/OPENAI). AI features disabled.');
     }
   }
 
@@ -75,14 +109,48 @@ export class AiService {
     return this.isEnabled;
   }
 
+  /**
+   * Generate a completion, automatically falling back through the configured
+   * engine chain (e.g. Gemini → Groq) when one rate-limits (429), errors, or
+   * returns empty output. Callers don't need to know which engine answered.
+   */
   async generateCompletion(
     prompt: string,
     options: CompletionOptions = {},
   ): Promise<string> {
-    if (!this.isEnabled || !this.client) {
+    if (!this.isEnabled || this.engines.length === 0) {
       throw new Error('AI features are not enabled. Please configure an AI provider key.');
     }
 
+    let lastError: unknown;
+    for (let i = 0; i < this.engines.length; i++) {
+      const engine = this.engines[i];
+      try {
+        return await this.completeWithEngine(engine, prompt, options);
+      } catch (error: any) {
+        lastError = error;
+        const next = this.engines[i + 1];
+        this.logger.warn(
+          `[AI] ${engine.name} failed (${error?.status ?? String(error?.message ?? 'error').slice(0, 60)})` +
+          (next ? ` — falling back to ${next.name}` : ' — no fallback left'),
+        );
+      }
+    }
+
+    this.logger.error('All AI engines failed', lastError);
+    throw new Error('Failed to generate AI completion (all providers exhausted)');
+  }
+
+  /**
+   * Single-engine attempt with in-provider retry on transient (5xx/network)
+   * errors. Rate-limit / auth / timeout errors break immediately so the caller
+   * can fall back to the next engine fast (those never recover on a quick retry).
+   */
+  private async completeWithEngine(
+    engine: AiEngine,
+    prompt: string,
+    options: CompletionOptions,
+  ): Promise<string> {
     const {
       maxTokens = 500,
       temperature = 0.7,
@@ -90,6 +158,7 @@ export class AiService {
       jsonMode = false,
       maxRetries = 2,
       timeoutMs = 15_000,
+      reasoningEffort,
     } = options;
 
     let lastError: unknown;
@@ -97,7 +166,7 @@ export class AiService {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) {
         const delay = Math.min(1000 * 2 ** (attempt - 1), 4000); // 1s, 2s, 4s
-        this.logger.warn(`AI retry ${attempt}/${maxRetries} after ${delay}ms`);
+        this.logger.warn(`AI retry ${attempt}/${maxRetries} on ${engine.name} after ${delay}ms`);
         await new Promise((r) => setTimeout(r, delay));
       }
 
@@ -106,7 +175,7 @@ export class AiService {
         const timer = setTimeout(() => abortController.abort(), timeoutMs);
 
         const requestParams: any = {
-          model: this.model,
+          model: engine.model,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: prompt },
@@ -120,7 +189,14 @@ export class AiService {
           requestParams.response_format = { type: 'json_object' };
         }
 
-        const response = await this.client.chat.completions.create(requestParams, {
+        // `reasoning_effort` is a Gemini-only knob on the OpenAI-compatible endpoint
+        // (would 400 on OpenAI/Groq). 'none' skips Gemini 2.5 "thinking" so short
+        // JSON replies aren't eaten by hidden reasoning tokens.
+        if (reasoningEffort && engine.name === 'gemini') {
+          requestParams.reasoning_effort = reasoningEffort;
+        }
+
+        const response = await engine.client.chat.completions.create(requestParams, {
           signal: abortController.signal,
         });
 
@@ -132,7 +208,8 @@ export class AiService {
       } catch (error: any) {
         lastError = error;
         const msg = String(error?.message ?? error).toLowerCase();
-        // Don't retry on abort/timeout, auth errors, or rate limits
+        // Rate-limit / auth / timeout won't recover on a quick same-provider retry —
+        // break so generateCompletion() falls back to the next engine.
         if (
           error?.name === 'AbortError' ||
           msg.includes('abort') ||
@@ -142,12 +219,11 @@ export class AiService {
         ) {
           break;
         }
-        this.logger.warn(`AI attempt ${attempt + 1} failed: ${String(error?.message ?? error)}`);
+        this.logger.warn(`AI attempt ${attempt + 1} on ${engine.name} failed: ${String(error?.message ?? error)}`);
       }
     }
 
-    this.logger.error('All AI attempts failed', lastError);
-    throw new Error('Failed to generate AI completion after retries');
+    throw lastError ?? new Error(`AI completion failed on ${engine.name}`);
   }
 
   async generateEmbedding(text: string): Promise<number[]> {

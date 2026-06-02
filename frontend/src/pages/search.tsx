@@ -255,20 +255,25 @@ export default function SearchPage() {
   // Load search history on mount
   useEffect(() => { setHistory(loadHistory()); }, []);
 
-  // Category browse fallback
+  // Category browse fallback.
+  // NOTE: we deliberately do NOT pass radiusKm here. Browsing a whole category
+  // should surface every listing in it, sorted nearest-first — not hard-cap to
+  // the "nearby" radius. Otherwise a host in Tunis can't find their own Kelibia
+  // listing under "Stays" (Tunis→Kelibia is ~80 km, beyond the 60 km cap). The
+  // location is still used for distance ranking, just not as an exclusion fence.
   useEffect(() => {
     if (!router.isReady || urlQ) return;
     setFallbackLoading(true);
     fetchListings({
       categorySlug: urlCategorySlug || undefined,
       category:     urlCategory     || undefined,
-      lat: searchLat, lng: searchLng, radiusKm: searchRadius, limit: 30,
+      lat: searchLat, lng: searchLng, sortBy: 'distance', limit: 30,
     })
       .then(setFallbackResults)
       .catch(() => setFallbackResults([]))
       .finally(() => setFallbackLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router.isReady, urlCategorySlug, urlCategory, searchLat, searchLng, searchRadius]);
+  }, [router.isReady, urlCategorySlug, urlCategory, searchLat, searchLng]);
 
   // Auto-run on ?q=
   useEffect(() => {
@@ -408,6 +413,9 @@ export default function SearchPage() {
   const isLoading    = isAiLoading || (aiMode === 'idle' && fallbackLoading);
   const isIdle       = aiMode === 'idle' && !urlCategorySlug && !urlQ && !fallbackLoading;
   const resultCount  = displayItems.length;
+  // The radius only fences keyword/AI searches. A pure category browse shows the
+  // whole category sorted by distance, so don't claim a "within X km" cap there.
+  const isCategoryBrowse = !!urlCategorySlug && !urlQ && !showAi;
 
   return (
     <Layout>
@@ -442,7 +450,9 @@ export default function SearchPage() {
               inputClassName="py-1"
             />
           </div>
-          <span className="shrink-0 text-xs text-gray-400">within {searchRadius} km</span>
+          {!isCategoryBrowse && (
+            <span className="shrink-0 text-xs text-gray-400">within {searchRadius} km</span>
+          )}
         </div>
 
         {/* ── Search box ─────────────────────────────────────── */}

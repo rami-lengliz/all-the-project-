@@ -93,7 +93,7 @@ scripts/
 
 1. **Gemini `max_tokens` must be ≥ 1500** for any non-trivial completion. Gemini 2.5-flash spends "thinking" tokens before output — low budgets cause mid-sentence truncation. Don't optimize this down.
 2. **PostGIS must be enabled** on the DB. Init migration handles it; if you restore a fresh DB, run `CREATE EXTENSION IF NOT EXISTS postgis;`
-3. **Seed users use Tunisian-name emails** (`ahmed.bensalah@rentai.tn`) — older docs reference `user1@example.com` which doesn't exist by default. Use `node scripts/promote-user.mjs <email>` to make any user host + admin + verified.
+3. **Seed users use Tunisian-name emails** (`fadi@gmail.com`) — older docs reference `user1@example.com` which doesn't exist by default. Use `node scripts/promote-user.mjs <email>` to make any user host + admin + verified.
 4. **Pre-existing frontend type errors** in `frontend/src/features/chatbot/tests/*.test.ts` — ignore with `| grep -v "features/chatbot/tests"` when type-checking.
 5. **OAuth-only users have `passwordHash: null`** — login service now checks this and returns a clear "Use Continue with Google" message. Don't `bcrypt.compare` against a null hash.
 6. **The `next` query param** is honored by login, register, and Google OAuth — always preserve it through redirects. `safeNext()` helper rejects external URLs.

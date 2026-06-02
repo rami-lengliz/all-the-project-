@@ -36,6 +36,9 @@ export class ListingAssistantService {
       maxTokens: 600,
       temperature: 0.8,
       systemPrompt: `You are an expert at creating compelling rental listings. Generate attractive, honest, and detailed listings that highlight key features and benefits. Always respond in valid JSON format.`,
+      // Skip Gemini 2.5-flash "thinking" — it expands to consume the whole budget
+      // and truncates the JSON, forcing the parse fallback. (No-op for OpenAI/Groq.)
+      reasoningEffort: 'none',
     });
 
     return this.parseListingResponse(response);
@@ -60,10 +63,12 @@ ${currentDescription}
 """`;
 
     const raw = await this.aiService.generateCompletion(prompt, {
-      // Gemini 2.5-flash spends "thinking" tokens before output, so we budget generously.
-      maxTokens: 1500,
+      // Gemini 2.5-flash "thinking" tokens expand to fill max_tokens and truncate
+      // the output, so we disable thinking instead of just over-budgeting.
+      maxTokens: 800,
       temperature: 0.7,
       systemPrompt: `You are an expert copywriter for rental listings. Reply with the rewritten description only — never with commentary, options, or meta-text.`,
+      reasoningEffort: 'none',
     });
 
     // Strip common preamble patterns that LLMs sometimes inject despite instructions
@@ -97,10 +102,12 @@ Rules:
 - Example: ["Title one","Title two","Title three"]`;
 
     const response = await this.aiService.generateCompletion(prompt, {
-      // Gemini 2.5-flash spends "thinking" tokens before output, so we budget generously.
-      maxTokens: 1500,
+      // Gemini 2.5-flash "thinking" tokens expand to fill max_tokens and truncate
+      // the JSON array, so we disable thinking instead of just over-budgeting.
+      maxTokens: 400,
       temperature: 0.9,
       systemPrompt: `You are a creative copywriter for rental listings. Always reply with a JSON array of strings — never with prose, options, or markdown.`,
+      reasoningEffort: 'none',
     });
 
     // Try JSON parse first (preferred path), fall back to line-splitting.

@@ -48,6 +48,12 @@ export interface PriceSuggestionResponse {
   unit: string;
   /** Row ID of the suggestion log — send back on listing publish to link finalPrice */
   logId?: string;
+  /**
+   * Which engine produced this number:
+   *   'ai'       → Gemini RAG reasoned over the comparables
+   *   'fallback' → deterministic math pipeline (model unavailable / invalid output)
+   */
+  source?: 'ai' | 'fallback';
 }
 
 // ── Client function ───────────────────────────────────────────────────────────

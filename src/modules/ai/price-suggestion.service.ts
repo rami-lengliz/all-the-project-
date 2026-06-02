@@ -208,6 +208,7 @@ export class PriceSuggestionService {
         compsUsed:   guarded.compsUsed,
         currency:    guarded.currency,
         unit:        guarded.unit,
+        source:      'fallback',
       };
     }
   }
@@ -330,6 +331,11 @@ export class PriceSuggestionService {
       this.logger.error('Failed to write PriceSuggestionLog', err);
     }
 
+    // Which engine actually produced this number — surfaced to the UI so a host
+    // (and the defense panel) can see at a glance whether Gemini priced it or the
+    // deterministic math fallback ran.
+    const source: 'ai' | 'fallback' = geminiResult ? 'ai' : 'fallback';
+
     // ── 5. Apply output guardrails (clamp NaN/outliers before returning) ───────
     const guarded = applyGuardrails(
       { recommended, rangeMin, rangeMax, confidence, explanation,
@@ -354,6 +360,7 @@ export class PriceSuggestionService {
       currency:    guarded.currency,
       unit:        guarded.unit,
       logId:       guarded.logId,
+      source,
     };
   }  // end _suggest
 
@@ -966,9 +973,14 @@ export class PriceSuggestionService {
     try {
       const { systemPrompt, userPrompt } = this.buildPricingPrompt(allScored, dto, season, baseline);
       const raw = await this.aiService.generateCompletion(userPrompt, {
-        maxTokens:    500,
-        temperature:  0.2,   // low temp = more deterministic pricing
+        maxTokens:       800,
+        temperature:     0.2,    // low temp = more deterministic pricing
         systemPrompt,
+        // Gemini 2.5-flash otherwise spends the whole token budget on hidden
+        // "thinking" and truncates the JSON to nothing — which silently forced
+        // EVERY suggestion onto the math fallback. Skipping thinking returns
+        // valid JSON in a small budget and ~5x faster. (No-op for OpenAI/Groq.)
+        reasoningEffort: 'none',
       });
 
       // Parse and validate via Zod schema.

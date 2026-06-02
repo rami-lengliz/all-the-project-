@@ -369,8 +369,12 @@ Rules:
     const raw = await this.aiService.generateCompletion(prompt, {
       systemPrompt: 'Rental intent extractor. Return ONLY the JSON template filled in. Do not add any other fields or change the format.',
       temperature:  0,
-      maxTokens:    300,
+      maxTokens:    512,
       jsonMode:     true,
+      // Gemini 2.5-flash burns "thinking" tokens that expand to fill the budget,
+      // truncating the JSON to nothing — which silently dropped every query onto
+      // the keyword fallback. Skip thinking so intent extraction actually runs.
+      reasoningEffort: 'none',
       maxRetries:   0,
       timeoutMs:    8_000,
     });

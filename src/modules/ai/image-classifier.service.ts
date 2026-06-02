@@ -22,68 +22,76 @@ const VALID_SLUGS = Object.keys(CATEGORY_META) as ClassifyImagesResult['category
 @Injectable()
 export class ImageClassifierService {
   private readonly logger = new Logger(ImageClassifierService.name);
-  private visionClient: OpenAI | null = null;
-  private visionModel = 'gemini-2.5-flash';
+  /** Ordered vision engines: [0] primary, the rest automatic fallbacks (used
+   *  when the primary rate-limits / errors). Mirrors AiService's text chain. */
+  private readonly visionEngines: { name: 'gemini' | 'groq' | 'openai'; client: OpenAI; model: string }[] = [];
 
   constructor(private readonly configService: ConfigService) {
-    // Build a dedicated vision client. All three providers accept base64
-    // image_url payloads via the OpenAI-compatible Chat Completions API.
-    // Priority: Gemini → Groq → OpenAI.
-    const geminiKey = this.configService.get<string>('GEMINI_API_KEY');
-    if (geminiKey?.trim()) {
-      this.visionClient = new OpenAI({
-        apiKey: geminiKey,
-        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-      });
-      this.visionModel =
-        this.configService.get<string>('GEMINI_MODEL', 'gemini-2.5-flash') ??
-        'gemini-2.5-flash';
-      this.logger.log(`Vision using Gemini (${this.visionModel})`);
-      return;
+    // All three providers accept base64 image_url via the OpenAI-compatible API.
+    // Order honours AI_PROVIDER first, then any other configured key — so vision
+    // auto-switches (e.g. Gemini→Groq) when the primary rate-limits or its key dies.
+    const cfg = this.configService;
+    const provider = (cfg.get<string>('AI_PROVIDER') || 'gemini').toLowerCase();
+    const geminiKey = cfg.get<string>('GEMINI_API_KEY');
+    const groqKey   = cfg.get<string>('GROQ_API_KEY');
+    const openaiKey = cfg.get<string>('OPENAI_API_KEY');
+    const openaiBaseUrl = cfg.get<string>('OPENAI_BASE_URL');
+
+    type VisionEngine = { name: 'gemini' | 'groq' | 'openai'; client: OpenAI; model: string };
+    const builders: Record<'gemini' | 'groq' | 'openai', () => VisionEngine | null> = {
+      gemini: () => geminiKey?.trim()
+        ? {
+            name: 'gemini',
+            // maxRetries: 0 so a 429 throws immediately and we fall back fast
+            // instead of the SDK waiting on the Retry-After header.
+            client: new OpenAI({ apiKey: geminiKey, baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/', maxRetries: 0 }),
+            model: cfg.get<string>('GEMINI_MODEL', 'gemini-2.5-flash') ?? 'gemini-2.5-flash',
+          }
+        : null,
+      // Groq's chat model (llama-3.3-70b) has no vision; use the vision-capable
+      // llama-4-scout configured via GROQ_VISION_MODEL.
+      groq: () => groqKey?.trim()
+        ? {
+            name: 'groq',
+            client: new OpenAI({ apiKey: groqKey, baseURL: 'https://api.groq.com/openai/v1', maxRetries: 0 }),
+            model: cfg.get<string>('GROQ_VISION_MODEL', 'meta-llama/llama-4-scout-17b-16e-instruct') ?? 'meta-llama/llama-4-scout-17b-16e-instruct',
+          }
+        : null,
+      // Plain OpenAI — only if the base URL isn't pointed at another provider.
+      openai: () => {
+        const baseLooksLikeOpenAI = !openaiBaseUrl || openaiBaseUrl.includes('api.openai.com');
+        return (openaiKey?.trim() && baseLooksLikeOpenAI)
+          ? { name: 'openai', client: new OpenAI({ apiKey: openaiKey, maxRetries: 0 }), model: 'gpt-4o-mini' }
+          : null;
+      },
+    };
+
+    const order: ('gemini' | 'groq' | 'openai')[] =
+      provider === 'groq'   ? ['groq', 'gemini', 'openai'] :
+      provider === 'openai' ? ['openai', 'gemini', 'groq'] :
+                              ['gemini', 'groq', 'openai'];
+
+    for (const name of order) {
+      const engine = builders[name]();
+      if (engine) this.visionEngines.push(engine);
     }
 
-    // Groq vision — the chat model (llama-3.3-70b) has no vision support, so
-    // require a separately-configured vision-capable model.
-    const groqKey = this.configService.get<string>('GROQ_API_KEY');
-    if (groqKey?.trim()) {
-      this.visionClient = new OpenAI({
-        apiKey: groqKey,
-        baseURL: 'https://api.groq.com/openai/v1',
-      });
-      this.visionModel = this.configService.get<string>(
-        'GROQ_VISION_MODEL',
-        'meta-llama/llama-4-scout-17b-16e-instruct',
-      ) ?? 'meta-llama/llama-4-scout-17b-16e-instruct';
-      this.logger.log(`Vision using Groq (${this.visionModel})`);
-      return;
+    if (this.visionEngines.length) {
+      this.logger.log(`Vision engines: ${this.visionEngines.map((e) => `${e.name}(${e.model})`).join(' → ')}`);
+    } else {
+      this.logger.warn(
+        'No vision-capable key found (set GEMINI_API_KEY, GROQ_API_KEY + ' +
+        'GROQ_VISION_MODEL, or a real OPENAI_API_KEY). Image classification will be skipped.',
+      );
     }
-
-    // Plain OpenAI — only if the base URL is not pointed at a different provider
-    // (e.g. when OPENAI_API_KEY is actually a Groq key behind a custom baseURL).
-    const openaiKey = this.configService.get<string>('OPENAI_API_KEY');
-    const openaiBaseUrl = this.configService.get<string>('OPENAI_BASE_URL');
-    const baseLooksLikeOpenAI =
-      !openaiBaseUrl || openaiBaseUrl.includes('api.openai.com');
-    if (openaiKey?.trim() && baseLooksLikeOpenAI) {
-      this.visionClient = new OpenAI({ apiKey: openaiKey });
-      this.visionModel = 'gpt-4o-mini';
-      this.logger.log('Vision using OpenAI (gpt-4o-mini)');
-      return;
-    }
-
-    this.logger.warn(
-      'No vision-capable key found (set GEMINI_API_KEY, GROQ_API_KEY + ' +
-      'GROQ_VISION_MODEL, or a real OPENAI_API_KEY). ' +
-      'Image classification will be skipped.',
-    );
   }
 
   async classify(files: Express.Multer.File[]): Promise<ClassifyImagesResult> {
     this.logger.log(
-      `classify: files=${files?.length ?? 0}, visionReady=${!!this.visionClient}`,
+      `classify: files=${files?.length ?? 0}, visionEngines=${this.visionEngines.length}`,
     );
 
-    if (files?.length && this.visionClient) {
+    if (files?.length && this.visionEngines.length) {
       try {
         return await this.classifyWithVision(files);
       } catch (err: any) {
@@ -115,65 +123,63 @@ export class ImageClassifierService {
       return this.noResult();
     }
 
-    this.logger.log(`Sending ${imageContent.length} image(s) to ${this.visionModel}`);
+    const promptText =
+      'You are classifying a rental listing photo for a marketplace.\n\n' +
+      'Categories:\n' +
+      '- "stays": house, villa, apartment, studio, chalet, room — any accommodation\n' +
+      '- "mobility": car, scooter, motorbike, bicycle, van, boat — any vehicle\n' +
+      '- "sports-facilities": padel, tennis, football pitch, basketball court — any sports venue\n' +
+      '- "beach-gear": kayak, paddleboard, jet-ski, surfboard, snorkel — any beach/water equipment\n\n' +
+      'Reply with ONLY a JSON object, nothing else:\n' +
+      '{"categorySlug":"stays","confidence":0.95}';
 
-    const response = await this.visionClient!.chat.completions.create({
-      model: this.visionModel,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            ...imageContent,
-            {
-              type: 'text',
-              text:
-                'You are classifying a rental listing photo for a marketplace.\n\n' +
-                'Categories:\n' +
-                '- "stays": house, villa, apartment, studio, chalet, room — any accommodation\n' +
-                '- "mobility": car, scooter, motorbike, bicycle, van, boat — any vehicle\n' +
-                '- "sports-facilities": padel, tennis, football pitch, basketball court — any sports venue\n' +
-                '- "beach-gear": kayak, paddleboard, jet-ski, surfboard, snorkel — any beach/water equipment\n\n' +
-                'Reply with ONLY a JSON object, nothing else:\n' +
-                '{"categorySlug":"stays","confidence":0.95}',
-            },
-          ],
-        },
-      ],
-      // Gemini 2.5-flash spends some of its budget on internal reasoning before
-      // emitting the JSON, so keep this generous to avoid mid-value truncation.
-      max_tokens: 256,
-      temperature: 0,
-      // No response_format — Gemini rejects json_object alongside image_url content
-    } as any);
+    // Try each engine in order; on rate-limit / error / unparseable output, fall
+    // back to the next (e.g. Gemini→Groq) so a quota wall never kills auto-detect.
+    let lastError: unknown;
+    for (let i = 0; i < this.visionEngines.length; i++) {
+      const engine = this.visionEngines[i];
+      const next = this.visionEngines[i + 1];
+      try {
+        this.logger.log(`Sending ${imageContent.length} image(s) to ${engine.name} (${engine.model})`);
+        const response = await engine.client.chat.completions.create({
+          model: engine.model,
+          messages: [{ role: 'user', content: [...imageContent, { type: 'text', text: promptText }] }],
+          max_tokens: 256,
+          temperature: 0,
+          // Gemini 2.5-flash otherwise spends the whole budget on hidden "thinking"
+          // and returns empty content. (reasoning_effort is Gemini-only; would 400
+          // on Groq/OpenAI.) No response_format — Gemini rejects json_object with images.
+          ...(engine.name === 'gemini' ? { reasoning_effort: 'none' } : {}),
+        } as any);
 
-    const raw = response.choices[0]?.message?.content?.trim() ?? '';
-    this.logger.log(`Vision raw response: ${raw.substring(0, 200)}`);
+        const raw = response.choices[0]?.message?.content?.trim() ?? '';
+        this.logger.log(`Vision raw (${engine.name}): ${raw.substring(0, 200)}`);
 
-    const parsed = this.extractClassification(raw);
-    if (!parsed) {
-      this.logger.warn(`Could not parse vision response — falling back. Raw: ${raw}`);
-      return this.noResult();
+        const parsed = this.extractClassification(raw);
+        if (!parsed) {
+          this.logger.warn(`Unparseable vision response from ${engine.name}${next ? ` — trying ${next.name}` : ''}. Raw: ${raw}`);
+          continue;
+        }
+
+        const slug: ClassifyImagesResult['categorySlug'] = VALID_SLUGS.includes(parsed.categorySlug as any)
+          ? (parsed.categorySlug as ClassifyImagesResult['categorySlug'])
+          : 'stays';
+        const confidence =
+          typeof parsed.confidence === 'number' ? Math.min(1, Math.max(0, parsed.confidence)) : 0.7;
+
+        this.logger.log(`Classified as: ${slug} (confidence=${confidence}, via ${engine.name})`);
+        return { categorySlug: slug, ...CATEGORY_META[slug], confidence, source: 'vision' };
+      } catch (err: any) {
+        lastError = err;
+        this.logger.warn(
+          `Vision ${engine.name} failed (${err?.status ?? String(err?.message ?? 'error').slice(0, 60)})` +
+          (next ? ` — falling back to ${next.name}` : ' — no fallback left'),
+        );
+      }
     }
 
-    const slug: ClassifyImagesResult['categorySlug'] = VALID_SLUGS.includes(
-      parsed.categorySlug as any,
-    )
-      ? (parsed.categorySlug as ClassifyImagesResult['categorySlug'])
-      : 'stays';
-
-    const confidence =
-      typeof parsed.confidence === 'number'
-        ? Math.min(1, Math.max(0, parsed.confidence))
-        : 0.7;
-
-    this.logger.log(`Classified as: ${slug} (confidence=${confidence})`);
-
-    return {
-      categorySlug: slug,
-      ...CATEGORY_META[slug],
-      confidence,
-      source: 'vision',
-    };
+    if (lastError) this.logger.error(`All vision engines failed: ${(lastError as any)?.message ?? lastError}`);
+    return this.noResult();
   }
 
   /**

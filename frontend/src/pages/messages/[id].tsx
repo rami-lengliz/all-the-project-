@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '@/components/layout/Layout';
 import { useMessages } from '@/lib/api/hooks/useMessages';
+import { useConversations } from '@/lib/api/hooks/useConversations';
 import { useChatSocket } from '@/lib/chat/useChatSocket';
 import { markRead } from '@/lib/api/chat';
 import { useAuth } from '@/lib/auth/AuthProvider';
@@ -230,6 +231,7 @@ function BookingDetailsModal({
 }) {
   const { data, isLoading, isError } = useQuery<HostDetails>({
     queryKey: ['host-details', bookingId],
+    enabled: !!bookingId,
     queryFn: async () => {
       const res = await api.get(`/bookings/${bookingId}/host-details`);
       return res.data?.data ?? res.data;
@@ -374,6 +376,7 @@ function BookingCardActions({ bookingId, myId }: { bookingId: string; myId: stri
 
   const { data: booking, isLoading } = useQuery({
     queryKey: ['booking-chat', bookingId],
+    enabled: !!bookingId,
     queryFn: async () => {
       const res = await api.get(`/bookings/${bookingId}`);
       return res.data as {
@@ -384,7 +387,7 @@ function BookingCardActions({ bookingId, myId }: { bookingId: string; myId: stri
     staleTime: 10_000,
   });
 
-  if (isLoading || !booking) return null;
+  if (!bookingId || isLoading || !booking) return null;
 
   const isHost = booking.hostId === myId;
   const isRenter = booking.renterId === myId;
@@ -576,6 +579,13 @@ export default function ChatThreadPage() {
 
   // ── REST: load message history ──────────────────────────────────
   const messagesQuery = useMessages(conversationId);
+
+  // Each conversation maps to exactly one booking (unique renter+host+booking).
+  // Older BOOKING_CARD messages were persisted before the card JSON carried a
+  // bookingId, so fall back to the conversation's bookingId for accept/reject.
+  const conversationsQuery = useConversations();
+  const conversationBookingId =
+    conversationsQuery.data?.find((c) => c.id === conversationId)?.bookingId ?? null;
 
   // ── local message state (merge REST history + real-time) ────────
   const [messages, setMessages] = useState<Message[]>([]);
@@ -963,7 +973,7 @@ export default function ChatThreadPage() {
                             </div>
                           </div>
                         </Link>
-                        <BookingCardActions bookingId={card.bookingId} myId={myId} />
+                        <BookingCardActions bookingId={card.bookingId ?? conversationBookingId ?? ''} myId={myId} />
                         </div>
                       ) : (
                         /* ── Plain text bubble ── */

@@ -46,6 +46,22 @@ const CONFIDENCE_CONFIG = {
   },
 };
 
+// Distinguishes which engine produced the number, shown as a badge in the header.
+const SOURCE_CONFIG = {
+  ai: {
+    label: 'Gemini AI',
+    icon: 'fa-wand-magic-sparkles',
+    cls: 'text-violet-700 bg-violet-50 border-violet-200',
+    title: 'Priced by Gemini, reasoning over your real comparable listings.',
+  },
+  fallback: {
+    label: 'Math fallback',
+    icon: 'fa-calculator',
+    cls: 'text-slate-600 bg-slate-100 border-slate-300',
+    title: 'AI was unavailable — priced by the deterministic math pipeline.',
+  },
+} as const;
+
 const UNIT_LABEL_MAP: Record<string, string> = {
   per_night: '/night',
   per_hour: '/hour',
@@ -141,16 +157,27 @@ export default function PriceSuggestionCard({
   return (
     <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-6">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white flex-shrink-0">
-          <i className="fa-solid fa-robot text-sm" />
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white flex-shrink-0">
+            <i className="fa-solid fa-robot text-sm" />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">AI Price Suggestion</h3>
+            <p className="text-xs text-gray-500">
+              Let AI suggest the right price based on comparable listings in {cityName || 'your city'}.
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-base font-semibold text-gray-900">AI Price Suggestion</h3>
-          <p className="text-xs text-gray-500">
-            Let AI suggest the right price based on comparable listings in {cityName || 'your city'}.
-          </p>
-        </div>
+        {result?.source && (
+          <span
+            title={SOURCE_CONFIG[result.source].title}
+            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${SOURCE_CONFIG[result.source].cls}`}
+          >
+            <i className={`fa-solid ${SOURCE_CONFIG[result.source].icon}`} />
+            {SOURCE_CONFIG[result.source].label}
+          </span>
+        )}
       </div>
 
       {/* Accommodation-specific inputs */}

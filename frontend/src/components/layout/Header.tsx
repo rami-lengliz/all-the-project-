@@ -130,9 +130,6 @@ export function Header() {
                 {router.locale === 'ar' ? 'مساعدة' : 'Help'}
               </Link>
               <div className="mx-2 h-4 w-px bg-slate-300"></div>
-              <Link href="/demo/ai-search" className="text-sm font-bold text-purple-600 hover:text-purple-800">
-                ✨ AI Demo
-              </Link>
             </>
           )}
         </nav>

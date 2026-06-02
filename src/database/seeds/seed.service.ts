@@ -6,7 +6,7 @@ import * as crypto from 'crypto';
 // ── Realistic Tunisian seed data ──────────────────────────────────────────────
 
 const HOSTS = [
-  { name: 'Ahmed Ben Salah', email: 'ahmed.bensalah@rentai.tn', phone: '+21620100001' },
+  { name: 'fadi', email: 'fadi@rentai.tn', phone: '+21620100001' },
   { name: 'Sana Mansouri', email: 'sana.mansouri@rentai.tn', phone: '+21620100002' },
   { name: 'Yassine Trabelsi', email: 'yassine.trabelsi@rentai.tn', phone: '+21620100003' },
   { name: 'Fatma Belhaj', email: 'fatma.belhaj@rentai.tn', phone: '+21620100004' },
@@ -609,7 +609,7 @@ export class SeedService {
     await this.seedDemoScenarios(savedUsers, savedCategories);
 
     console.log('\nSeed completed successfully!');
-    console.log('  Admin login : ahmed.bensalah@rentai.tn / password123');
+    console.log('  Admin login : fadi@rentai.tn / password123');
     console.log('  Host login  : sana.mansouri@rentai.tn  / password123');
     console.log('  Renter login: mohamed.chaabane@gmail.com / password123');
   }
@@ -885,7 +885,7 @@ export class SeedService {
     console.log(`  ║  Blocked dates : ${dailyStart.toISOString().substring(0, 10)} → ${dailyEnd.toISOString().substring(0, 10)} (confirmed)   ║`);
     console.log(`  ║  SLOT  listing : ${slotListingId} ║`);
     console.log(`  ║  Blocked slot  : 10:00–12:00 on ${slotDate.toISOString().substring(0, 10)}               ║`);
-    console.log('  ║  Admin  login  : ahmed.bensalah@rentai.tn            ║');
+    console.log('  ║  Admin  login  : fadi@rentai.tn            ║');
     console.log('  ║  Host   login  : sana.mansouri@rentai.tn             ║');
     console.log('  ║  Renter login  : mohamed.chaabane@gmail.com          ║');
     console.log('  ║  Password      : password123                         ║');
