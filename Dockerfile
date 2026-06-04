@@ -3,7 +3,7 @@ FROM node:20-slim AS development
 RUN apt-get update -y && apt-get install -y openssl
 WORKDIR /usr/src/app
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 COPY . .
 RUN npx prisma generate
 RUN npm run build
@@ -16,7 +16,7 @@ RUN apt-get update -y && apt-get install -y openssl
 WORKDIR /usr/src/app
 COPY package*.json ./
 COPY prisma ./prisma
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci --only=production --legacy-peer-deps && npm cache clean --force
 RUN npx prisma generate
 COPY --from=development /usr/src/app/dist ./dist
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
