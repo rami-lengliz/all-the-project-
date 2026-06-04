@@ -5,11 +5,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-generator markdown {
-  provider = "prisma-markdown"
-  output   = "ERD.md"
-  title    = "RentAI ERD"
-}
 
 datasource db {
   provider  = "postgresql"

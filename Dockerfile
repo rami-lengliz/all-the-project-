@@ -3,6 +3,7 @@ FROM node:20-slim AS development
 RUN apt-get update -y && apt-get install -y openssl
 WORKDIR /usr/src/app
 COPY package*.json ./
+COPY prisma ./prisma
 RUN npm ci --legacy-peer-deps
 COPY . .
 RUN npx prisma generate
