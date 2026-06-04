@@ -17,7 +17,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                   <i className="fa-solid fa-circle-nodes text-white text-lg" />
                 </div>
                 <span className="text-xl font-bold text-gray-900">
-                  RentEverything
+                  RentAI
                 </span>
               </Link>
             </div>
@@ -56,7 +56,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
       <footer className="border-t border-gray-200 bg-white py-6 mt-16">
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between text-sm text-gray-500">
-          <span>RentEverything · © {new Date().getFullYear()} · Tunisia</span>
+          <span>RentAI · © {new Date().getFullYear()} · Tunisia</span>
           <div className="flex items-center gap-4">
             <Link href="/help" className="hover:text-gray-700">
               Help

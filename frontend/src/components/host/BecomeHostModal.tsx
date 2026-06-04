@@ -143,7 +143,7 @@ export function BecomeHostModal({
                 </li>
                 <li className="flex items-start gap-2">
                   <i className="fa-solid fa-check text-emerald-500 mt-0.5" />
-                  <span>RentEverything keeps 10% commission on each completed booking.</span>
+                  <span>RentAI keeps 10% commission on each completed booking.</span>
                 </li>
               </ul>
               <label className="flex items-start gap-2 cursor-pointer text-sm">

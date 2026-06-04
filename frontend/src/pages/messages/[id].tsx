@@ -1042,7 +1042,7 @@ export default function ChatThreadPage() {
             >
               <strong>Heads up:</strong> we hide phone numbers, emails, and
               social handles in messages. Bookings paid outside the platform
-              aren't protected — pay through RentEverything to be covered.
+              aren't protected — pay through RentAI to be covered.
             </div>
           ) : null}
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', maxWidth: 800, margin: '0 auto' }}>

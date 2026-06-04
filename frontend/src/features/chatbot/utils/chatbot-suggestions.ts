@@ -25,7 +25,7 @@ const BASE_SUGGESTIONS: ChatbotSuggestion[] = [
   {
     id: 'help_general',
     label: 'How does this work?',
-    message: 'How does RentEverything work? Give me a quick overview.',
+    message: 'How does RentAI work? Give me a quick overview.',
     icon: 'fa-circle-question',
     variant: 'info',
   },
@@ -79,7 +79,7 @@ export function getSuggestionsForContext(
         {
           id: 'help_booking',
           label: 'How do I book?',
-          message: 'How do I make a booking on RentEverything?',
+          message: 'How do I make a booking on RentAI?',
           icon: 'fa-circle-question',
           variant: 'info',
         },
@@ -173,7 +173,7 @@ export function getSuggestionsForContext(
         {
           id: 'search_category',
           label: 'Search by category',
-          message: 'What categories are available on RentEverything?',
+          message: 'What categories are available on RentAI?',
           icon: 'fa-folder-open',
           variant: 'info',
         },
@@ -274,7 +274,7 @@ export function getNextStepSuggestions(
         {
           id: 'ns_booking_help',
           label: 'How to book this',
-          message: 'How do I make a booking on RentEverything?',
+          message: 'How do I make a booking on RentAI?',
           icon: 'fa-circle-question',
           variant: 'info',
         },

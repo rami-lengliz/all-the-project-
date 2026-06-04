@@ -94,14 +94,14 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <title>RentEverything — Rent stays, cars, sports & beach gear in Tunisia</title>
+        <title>RentAI — Rent stays, cars, sports & beach gear in Tunisia</title>
         <meta
           name="description"
           content="Tunisia's AI-first rental marketplace. Find villas, cars, padel courts, jet skis and beach gear near you. Pay safely with Flouci or D17."
         />
         <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="RentEverything" />
-        <meta property="og:title" content="RentEverything — Rent anything in Tunisia" />
+        <meta property="og:site_name" content="RentAI" />
+        <meta property="og:title" content="RentAI — Rent anything in Tunisia" />
         <meta
           property="og:description"
           content="Find villas, cars, padel courts, jet skis and beach gear near you. Pay safely with Flouci or D17."

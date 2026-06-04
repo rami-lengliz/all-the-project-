@@ -80,7 +80,7 @@ const INTENT_DEFINITIONS: Readonly<Record<ChatbotIntentKey, IntentDefinition>> =
   },
   EXPLAIN_PRICING: {
     label: 'How does pricing work?',
-    baseMessage: 'Can you explain how pricing and fees work on RentEverything?',
+    baseMessage: 'Can you explain how pricing and fees work on RentAI?',
     icon: 'fa-coins',
     variant: 'info',
   },
@@ -119,7 +119,7 @@ const INTENT_DEFINITIONS: Readonly<Record<ChatbotIntentKey, IntentDefinition>> =
   },
   RECOVERY_HELP_SAFE: {
     label: 'Visit help center',
-    baseMessage: 'I have a question about how RentEverything works.',
+    baseMessage: 'I have a question about how RentAI works.',
     icon: 'fa-circle-question',
     variant: 'info',
   },

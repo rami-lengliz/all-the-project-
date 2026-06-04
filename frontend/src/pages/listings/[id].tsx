@@ -1209,12 +1209,12 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => 
     if (!listing?.id) return { props: { seo: null } };
 
     const title =
-      `${listing.title} — ${formatCity(listing.address)} | RentEverything`.slice(0, 70);
+      `${listing.title} — ${formatCity(listing.address)} | RentAI`.slice(0, 70);
     const description =
       (listing.description ?? '')
         .replace(/\s+/g, ' ')
         .trim()
-        .slice(0, 160) || `Rent ${listing.title} on RentEverything.`;
+        .slice(0, 160) || `Rent ${listing.title} on RentAI.`;
     const url = `${siteBase}/listings/${listing.id}`;
     const image = Array.isArray(listing.images) && listing.images[0]
       ? (String(listing.images[0]).startsWith('http')

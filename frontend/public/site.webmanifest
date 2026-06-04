@@ -1,6 +1,6 @@
 {
-  "name": "RentEverything",
-  "short_name": "RentEverything",
+  "name": "RentAI",
+  "short_name": "RentAI",
   "description": "Tunisia's AI-first rental marketplace — stays, cars, sports & beach gear near you.",
   "start_url": "/",
   "display": "standalone",

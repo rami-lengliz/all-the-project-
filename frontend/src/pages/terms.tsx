@@ -17,8 +17,8 @@ export default function TermsPage() {
   return (
     <>
       <Head>
-        <title>Terms of Service · RentEverything</title>
-        <meta name="description" content="The terms governing your use of the RentEverything rental marketplace." />
+        <title>Terms of Service · RentAI</title>
+        <meta name="description" content="The terms governing your use of the RentAI rental marketplace." />
       </Head>
 
       <div className="bg-gray-50 font-sans">
@@ -32,16 +32,16 @@ export default function TermsPage() {
         <div className="mx-auto max-w-3xl px-6 py-12">
           <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
             <p className="mb-8 text-[15px] leading-relaxed text-gray-700">
-              Welcome to RentEverything (&ldquo;the Platform&rdquo;), a peer-to-peer rental marketplace
+              Welcome to RentAI (&ldquo;the Platform&rdquo;), a peer-to-peer rental marketplace
               operating primarily in Tunisia. These Terms of Service (&ldquo;Terms&rdquo;) form a binding
-              agreement between you and RentEverything. By creating an account or using the Platform,
+              agreement between you and RentAI. By creating an account or using the Platform,
               you agree to these Terms. If you do not agree, please do not use the Platform.
             </p>
 
             <div className="space-y-8">
               <Section id="accounts" title="1. Your account">
                 <p>
-                  You must be at least 18 years old to use RentEverything. You are responsible for the
+                  You must be at least 18 years old to use RentAI. You are responsible for the
                   accuracy of the information on your account and for keeping your login credentials
                   secure. You are responsible for all activity that occurs under your account.
                 </p>
@@ -54,7 +54,7 @@ export default function TermsPage() {
 
               <Section id="marketplace" title="2. The marketplace">
                 <p>
-                  RentEverything connects people who want to rent items, vehicles, stays, and equipment
+                  RentAI connects people who want to rent items, vehicles, stays, and equipment
                   (&ldquo;Renters&rdquo;) with people who own them (&ldquo;Hosts&rdquo;). We are a venue
                   and technology provider. The rental agreement for any booking is directly between the
                   Renter and the Host. We are not a party to that agreement and do not own, inspect, or
@@ -69,7 +69,7 @@ export default function TermsPage() {
                   rental rules are set by the Host.
                 </p>
                 <p>
-                  RentEverything charges a service commission (currently 10%) on completed bookings,
+                  RentAI charges a service commission (currently 10%) on completed bookings,
                   which is deducted from the Host&rsquo;s earnings. Payouts to Hosts are aggregated and
                   released according to our payout schedule. All amounts are in Tunisian Dinar (TND)
                   unless stated otherwise.
@@ -103,7 +103,7 @@ export default function TermsPage() {
               <Section id="content" title="6. Your content">
                 <p>
                   You retain ownership of the listings, photos, and messages you submit. You grant
-                  RentEverything a non-exclusive, worldwide license to host, display, and use that
+                  RentAI a non-exclusive, worldwide license to host, display, and use that
                   content for operating and promoting the Platform. You are responsible for having the
                   rights to anything you upload.
                 </p>
@@ -112,7 +112,7 @@ export default function TermsPage() {
               <Section id="liability" title="7. Disclaimers and liability">
                 <p>
                   The Platform is provided &ldquo;as is.&rdquo; To the maximum extent permitted by law,
-                  RentEverything is not liable for the condition, safety, legality, or quality of any
+                  RentAI is not liable for the condition, safety, legality, or quality of any
                   listed item, for the conduct of any user, or for any indirect or consequential
                   damages arising from a rental. Renters and Hosts deal with each other at their own
                   risk.

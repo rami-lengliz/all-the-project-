@@ -217,7 +217,7 @@ export function ChatbotPanel({ onClose, pageContext = null }: ChatbotPanelProps)
             <i className="fa-solid fa-robot" />
           </div>
           <div>
-            <h3 className="font-bold text-sm tracking-wide">RentEverything AI</h3>
+            <h3 className="font-bold text-sm tracking-wide">RentAI Assistant</h3>
             <p className="text-[10px] text-blue-100 font-medium tracking-wider uppercase">
               Online
             </p>

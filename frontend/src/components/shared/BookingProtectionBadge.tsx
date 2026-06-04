@@ -28,7 +28,7 @@ export function BookingProtectionBadge({ variant = 'badge' }: Props) {
         <div className="text-sm text-emerald-900">
           <div className="font-semibold">Your booking is protected</div>
           <p className="mt-1 text-emerald-800">
-            Pay through RentEverything and we'll back you if the rental
+            Pay through RentAI and we'll back you if the rental
             doesn't match the listing. Bookings paid outside the platform
             (cash on the side, direct bank transfer, WhatsApp) are
             <strong> not covered</strong>.

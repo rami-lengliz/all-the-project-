@@ -5,7 +5,7 @@ export default function NotFoundPage() {
   return (
     <>
       <Head>
-        <title>Page not found · RentEverything</title>
+        <title>Page not found · RentAI</title>
         <meta name="robots" content="noindex" />
       </Head>
       <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-blue-50 to-white px-6 text-center">

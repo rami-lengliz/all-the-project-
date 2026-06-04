@@ -68,7 +68,7 @@ describe('WalletService', () => {
     it('should atomically decrement and throw if negative', async () => {
       prisma.wallet.findUnique.mockResolvedValue({ id: 'w1', balance: 100 });
       prisma.wallet.update.mockResolvedValue({ id: 'w1', balance: -10 }); // Mock race condition
-      
+
       await expect(service.payForBooking('user1', 'b1', 100, prisma)).rejects.toThrow('Wallet balance cannot go negative');
     });
 

@@ -136,7 +136,7 @@ export function KycUploadCard() {
           </button>
           <p className="mt-2 text-xs text-gray-500">
             CIN or passport. JPEG / PNG / WebP, ≤ 8 MB. Your document is shown
-            only to RentEverything administrators.
+            only to RentAI administrators.
           </p>
         </div>
       )}

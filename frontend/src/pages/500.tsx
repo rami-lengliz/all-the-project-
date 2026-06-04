@@ -5,7 +5,7 @@ export default function ServerErrorPage() {
   return (
     <>
       <Head>
-        <title>Something went wrong · RentEverything</title>
+        <title>Something went wrong · RentAI</title>
         <meta name="robots" content="noindex" />
       </Head>
       <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-rose-50 to-white px-6 text-center">

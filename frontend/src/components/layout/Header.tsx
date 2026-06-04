@@ -75,25 +75,22 @@ export function Header() {
             <>
               <Link
                 href="/host/dashboard"
-                className={`text-sm font-medium hover:text-slate-900 ${
-                  router.pathname === '/host/dashboard' ? 'text-slate-900' : 'text-slate-700'
-                }`}
+                className={`text-sm font-medium hover:text-slate-900 ${router.pathname === '/host/dashboard' ? 'text-slate-900' : 'text-slate-700'
+                  }`}
               >
                 Dashboard
               </Link>
               <Link
                 href="/host/listings"
-                className={`text-sm font-medium hover:text-slate-900 ${
-                  router.pathname.startsWith('/host/listings') ? 'text-slate-900' : 'text-slate-700'
-                }`}
+                className={`text-sm font-medium hover:text-slate-900 ${router.pathname.startsWith('/host/listings') ? 'text-slate-900' : 'text-slate-700'
+                  }`}
               >
                 My listings
               </Link>
               <Link
                 href="/host/bookings"
-                className={`text-sm font-medium hover:text-slate-900 ${
-                  router.pathname === '/host/bookings' ? 'text-slate-900' : 'text-slate-700'
-                }`}
+                className={`text-sm font-medium hover:text-slate-900 ${router.pathname === '/host/bookings' ? 'text-slate-900' : 'text-slate-700'
+                  }`}
               >
                 Bookings
               </Link>
@@ -109,17 +106,15 @@ export function Header() {
             <>
               <Link
                 href="/search"
-                className={`text-sm font-medium hover:text-slate-900 ${
-                  router.pathname === '/search' ? 'text-slate-900' : 'text-slate-700'
-                }`}
+                className={`text-sm font-medium hover:text-slate-900 ${router.pathname === '/search' ? 'text-slate-900' : 'text-slate-700'
+                  }`}
               >
                 {router.locale === 'ar' ? 'بحث' : 'Search'}
               </Link>
               <Link
                 href="/map"
-                className={`text-sm font-medium hover:text-slate-900 ${
-                  router.pathname === '/map' ? 'text-slate-900' : 'text-slate-700'
-                }`}
+                className={`text-sm font-medium hover:text-slate-900 ${router.pathname === '/map' ? 'text-slate-900' : 'text-slate-700'
+                  }`}
               >
                 {router.locale === 'ar' ? 'الخريطة' : 'Map'}
               </Link>
@@ -150,11 +145,10 @@ export function Header() {
                         ? `Using your saved home (${cityName})`
                         : `Browsing near ${cityName}`
                 }
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                  isDefault
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${isDefault
                     ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
                     : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
-                }`}
+                  }`}
               >
                 <i className={`fa-solid ${isManual ? 'fa-location-pin' : fromSavedHome ? 'fa-house' : 'fa-location-dot'} text-xs ${isDefault ? 'text-amber-500' : 'text-blue-500'}`} />
                 <span className="max-w-[140px] truncate">{cityName}</span>
@@ -217,11 +211,10 @@ export function Header() {
               <button
                 type="button"
                 onClick={() => setMode('rent')}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                  mode === 'rent'
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${mode === 'rent'
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-500 hover:text-slate-700'
-                }`}
+                  }`}
                 aria-pressed={mode === 'rent'}
               >
                 <i className="fa-solid fa-bag-shopping mr-1 text-[10px]" />
@@ -230,11 +223,10 @@ export function Header() {
               <button
                 type="button"
                 onClick={() => setMode('host')}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                  mode === 'host'
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${mode === 'host'
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-500 hover:text-slate-700'
-                }`}
+                  }`}
                 aria-pressed={mode === 'host'}
               >
                 <i className="fa-solid fa-house-chimney mr-1 text-[10px]" />

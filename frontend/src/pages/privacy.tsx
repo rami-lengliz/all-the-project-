@@ -17,8 +17,8 @@ export default function PrivacyPage() {
   return (
     <>
       <Head>
-        <title>Privacy Policy · RentEverything</title>
-        <meta name="description" content="How RentEverything collects, uses, and protects your personal data." />
+        <title>Privacy Policy · RentAI</title>
+        <meta name="description" content="How RentAI collects, uses, and protects your personal data." />
       </Head>
 
       <div className="bg-gray-50 font-sans">
@@ -32,8 +32,8 @@ export default function PrivacyPage() {
         <div className="mx-auto max-w-3xl px-6 py-12">
           <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
             <p className="mb-8 text-[15px] leading-relaxed text-gray-700">
-              This Privacy Policy explains what personal data RentEverything (&ldquo;we&rdquo;) collects,
-              why we collect it, and the choices you have. It applies to your use of the RentEverything
+              This Privacy Policy explains what personal data RentAI (&ldquo;we&rdquo;) collects,
+              why we collect it, and the choices you have. It applies to your use of the RentAI
               marketplace. By using the Platform, you consent to the practices described here.
             </p>
 
@@ -136,7 +136,7 @@ export default function PrivacyPage() {
 
               <Section id="children" title="8. Children">
                 <p>
-                  RentEverything is not directed to anyone under 18, and we do not knowingly collect data
+                  RentAI is not directed to anyone under 18, and we do not knowingly collect data
                   from minors. If you believe a minor has provided us data, please contact us so we can
                   remove it.
                 </p>
