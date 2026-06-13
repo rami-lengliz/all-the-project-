@@ -66,6 +66,53 @@ export function withDisplay<T extends { status: string }>(
   return { ...booking, displayStatus: toDisplayStatus(booking.status) };
 }
 
+/**
+ * Mobile action flags — tell the mobile app which operations are currently
+ * available for this booking from the caller's perspective.
+ *
+ * All flags are computed from in-memory state (no extra DB round-trip).
+ * The server will still enforce the same rules on the actual mutation endpoint,
+ * so these are hints for UI rendering, not authoritative guards.
+ */
+export interface MobileBookingActions {
+  /** Renter can pay: booking is host-confirmed but not yet paid. */
+  canPay: boolean;
+  /** Renter or host can cancel (pending or confirmed/paid, not terminal). */
+  canCancel: boolean;
+  /** Renter can leave a review: rental completed and review not yet submitted. */
+  canReview: boolean;
+  /** Host can accept the booking request (still pending). */
+  canConfirm: boolean;
+  /** Host can decline the booking request (still pending). */
+  canReject: boolean;
+  /** Either party can open a chat thread for this booking. */
+  canMessageHost: boolean;
+}
+
+export function withMobileActions<
+  T extends { status: string; renterId: string; hostId: string; paid?: boolean },
+>(
+  booking: T,
+  viewerId: string,
+): T & { displayStatus: DisplayStatus; actions: MobileBookingActions } {
+  const s = booking.status;
+  const isRenter = booking.renterId === viewerId;
+  const isHost = booking.hostId === viewerId;
+  const isActive = !['completed', 'cancelled', 'rejected'].includes(s);
+
+  return {
+    ...withDisplay(booking),
+    actions: {
+      canPay: isRenter && s === 'confirmed' && !booking.paid,
+      canCancel: (isRenter || isHost) && ['pending', 'confirmed', 'paid'].includes(s),
+      canReview: isRenter && s === 'completed',
+      canConfirm: isHost && s === 'pending',
+      canReject: isHost && s === 'pending',
+      canMessageHost: isActive,
+    },
+  };
+}
+
 @Injectable()
 export class BookingsService {
   private readonly commissionPercentage: number;
@@ -322,12 +369,12 @@ export class BookingsService {
     }
 
     return bookings.map((b) => ({
-      ...withDisplay(b),
+      ...withMobileActions(b, userId),
       conversationId: convByBooking.get(b.id) ?? null,
     }));
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, viewerId?: string) {
     const booking = await this.prisma.booking.findUnique({
       where: { id },
       include: {
@@ -347,10 +394,11 @@ export class BookingsService {
     if (!booking) {
       throw new NotFoundException(`Booking with ID ${id} not found`);
     }
-    return {
-      ...withDisplay(booking),
-      conversationId: booking.Conversation?.[0]?.id ?? null,
-    };
+    const conversationId = booking.Conversation?.[0]?.id ?? null;
+    if (viewerId) {
+      return { ...withMobileActions(booking, viewerId), conversationId };
+    }
+    return { ...withDisplay(booking), conversationId };
   }
 
   async getHostDetails(bookingId: string, callerId: string, callerRole: string) {

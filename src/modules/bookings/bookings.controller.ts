@@ -71,11 +71,13 @@ export class BookingsController {
   }
 
   @Get('me')
-  @ApiOperation({ summary: 'Get all bookings for the current user' })
+  @ApiOperation({ summary: 'Get all bookings for the current user (renter or host)' })
   @ApiResponse({
     status: 200,
     description:
-      'Each booking includes a `displayStatus` field: pending | accepted | completed | canceled | rejected.',
+      'Each booking includes `displayStatus` (pending|accepted|completed|canceled|rejected) ' +
+      'and `actions` (canPay, canCancel, canReview, canConfirm, canReject, canMessageHost) ' +
+      'computed for the calling user.',
   })
   findAll(@Request() req) {
     return this.bookingsService.findAll(req.user.sub);
@@ -85,10 +87,13 @@ export class BookingsController {
   @ApiOperation({ summary: 'Get booking details' })
   @ApiResponse({
     status: 200,
-    description: 'Booking object with `displayStatus` field.',
+    description:
+      'Booking object with `displayStatus` and `actions` fields. ' +
+      '`actions` contains boolean flags (canPay, canCancel, canReview, canConfirm, canReject, canMessageHost) ' +
+      'computed for the calling user — use these to drive mobile UI state.',
   })
-  findOne(@Param('id') id: string) {
-    return this.bookingsService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req) {
+    return this.bookingsService.findOne(id, req.user.sub);
   }
 
   @Get(':id/host-details')

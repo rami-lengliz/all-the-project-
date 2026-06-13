@@ -19,7 +19,7 @@ import { SendMessageDto } from './dto/chat.dto';
       origin: string,
       callback: (err: Error | null, allow?: boolean) => void,
     ) => {
-      const allowed = (process.env.CORS_ORIGINS ?? 'http://localhost:3001')
+      const allowed = (process.env.CORS_ORIGINS ?? process.env.ALLOWED_ORIGINS ?? 'http://localhost:3001')
         .split(',')
         .map((o) => o.trim());
       if (!origin || allowed.includes(origin)) {

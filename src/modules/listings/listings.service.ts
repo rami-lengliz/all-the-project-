@@ -19,6 +19,7 @@ import { BLOCKING_BOOKING_STATUSES } from '../../common/constants/booking-status
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { EmbeddingService } from '../ai/embedding.service';
 import { buildIcal, parseIcal } from '../../common/utils/ical.util';
+import { toAbsoluteImageUrls } from '../../common/utils/image-url.helper';
 import axios from 'axios';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -45,6 +46,24 @@ export class ListingsService {
     @Inject(forwardRef(() => EmbeddingService))
     private embeddingService: EmbeddingService,
   ) {}
+
+  /**
+   * Appends `absoluteImages` to a listing-like object.
+   * Relative /uploads/... paths become absolute URLs using BACKEND_PUBLIC_URL.
+   * Cloudinary URLs pass through unchanged.
+   * Web frontend continues to use the original `images` field.
+   */
+  private withAbsoluteImages<T extends { images?: string[] | null }>(
+    listing: T,
+  ): T & { absoluteImages: string[] } {
+    const backendUrl =
+      this.configService.get<string>('BACKEND_PUBLIC_URL') ??
+      `http://localhost:${this.configService.get<number>('port') ?? 3001}`;
+    return {
+      ...listing,
+      absoluteImages: toAbsoluteImageUrls(listing.images ?? [], backendUrl),
+    };
+  }
 
   async create(
     createListingDto: CreateListingDto,
@@ -340,32 +359,40 @@ export class ListingsService {
       const results = await this.prisma.$queryRawUnsafe(query, ...params);
 
       // Transform results to match expected format
-      return (results as any[]).map((row) => ({
-        id: row.id,
-        title: row.title,
-        description: row.description,
-        pricePerDay: row.pricePerDay,
-        location: row.location ? JSON.parse(row.location) : null,
-        address: row.address,
-        images: row.images,
-        createdAt: row.createdAt,
-        bookingType: row.bookingType,
-        ratingAvg: Number(row.listing_ratingAvg ?? 0),
-        bookingCount30d: Number(row.listing_bookingCount30d ?? 0),
-        tsvRank: Number(row.tsv_rank ?? 0),
-        distance: row.distance != null ? Number(row.distance) : undefined,
-        category: {
-          id: row.category_id,
-          name: row.category_name,
-          icon: row.category_icon,
-          slug: row.category_slug,
-        },
-        host: {
-          id: row.host_id,
-          name: row.host_name,
-          ratingAvg: row.host_ratingAvg,
-        },
-      }));
+      const backendUrl =
+        this.configService.get<string>('BACKEND_PUBLIC_URL') ??
+        `http://localhost:${this.configService.get<number>('port') ?? 3001}`;
+
+      return (results as any[]).map((row) => {
+        const images: string[] = row.images ?? [];
+        return {
+          id: row.id,
+          title: row.title,
+          description: row.description,
+          pricePerDay: row.pricePerDay,
+          location: row.location ? JSON.parse(row.location) : null,
+          address: row.address,
+          images,
+          absoluteImages: toAbsoluteImageUrls(images, backendUrl),
+          createdAt: row.createdAt,
+          bookingType: row.bookingType,
+          ratingAvg: Number(row.listing_ratingAvg ?? 0),
+          bookingCount30d: Number(row.listing_bookingCount30d ?? 0),
+          tsvRank: Number(row.tsv_rank ?? 0),
+          distance: row.distance != null ? Number(row.distance) : undefined,
+          category: {
+            id: row.category_id,
+            name: row.category_name,
+            icon: row.category_icon,
+            slug: row.category_slug,
+          },
+          host: {
+            id: row.host_id,
+            name: row.host_name,
+            ratingAvg: row.host_ratingAvg,
+          },
+        };
+      });
     } catch (e: any) {
       // Defensive fallback
       const msg = String(e?.message || e);
@@ -401,8 +428,11 @@ export class ListingsService {
 
         const page = filters.page || 1;
         const limit = Math.min(filters.limit || 20, 200);
+        const fallbackBackendUrl =
+          this.configService.get<string>('BACKEND_PUBLIC_URL') ??
+          `http://localhost:${this.configService.get<number>('port') ?? 3001}`;
 
-        return await this.prisma.listing.findMany({
+        const rows = await this.prisma.listing.findMany({
           where,
           select: {
             id: true,
@@ -433,6 +463,10 @@ export class ListingsService {
           skip: (page - 1) * limit,
           take: limit,
         });
+        return rows.map((r) => ({
+          ...r,
+          absoluteImages: toAbsoluteImageUrls(r.images ?? [], fallbackBackendUrl),
+        }));
       } catch (e2: any) {
         this.logger.error(
           `Listings fallback search failed; returning empty list. ${String(e2?.message || e2)}`,
@@ -479,7 +513,7 @@ export class ListingsService {
       throw new NotFoundException(`Listing with ID ${id} not found`);
     }
 
-    return listing;
+    return this.withAbsoluteImages(listing);
   }
 
   async findManyByIds(ids: string[]): Promise<Listing[]> {
