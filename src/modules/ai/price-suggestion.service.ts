@@ -528,19 +528,19 @@ export class PriceSuggestionService {
   // Sorted by distance ASC so the closest comps come first.
   //
   // SQL:
-  //   SELECT l.id, l.price_per_day, l.address, l.availability,
+  //   SELECT l.id, l."pricePerDay", l.address, l.availability,
   //          ST_Y(l.location::geometry) AS lat,
   //          ST_X(l.location::geometry) AS lng,
   //          ST_Distance(l.location::geography, ref::geography) AS dist_m,
   //          c.slug AS category_slug,
-  //          b.snapshot_price_per_day AS booked_price
+  //          b."snapshotPricePerDay" AS booked_price
   //   FROM listings l
-  //   JOIN categories c ON c.id = l.category_id
-  //   LEFT JOIN bookings b ON b.listing_id = l.id
+  //   JOIN categories c ON c.id = l."categoryId"
+  //   LEFT JOIN bookings b ON b."listingId" = l.id
   //     AND b.status IN ('confirmed','paid','completed')
-  //     AND b.snapshot_price_per_day IS NOT NULL
-  //   WHERE l.is_active = true
-  //     AND l.deleted_at IS NULL
+  //     AND b."snapshotPricePerDay" IS NOT NULL
+  //   WHERE l."isActive" = true
+  //     AND l."deletedAt" IS NULL
   //     AND c.slug = $catSlug
   //     AND ST_DWithin(
   //           l.location::geography,
@@ -563,7 +563,7 @@ export class PriceSuggestionService {
       const rows = await this.prisma.$queryRaw<RawCompRow[]>`
         SELECT
           l.id                                      AS "listingId",
-          l.price_per_day::float                    AS "listingPrice",
+          l."pricePerDay"::float                    AS "listingPrice",
           l.address,
           ST_Y(l.location::geometry)                AS lat,
           ST_X(l.location::geometry)                AS lng,
@@ -579,18 +579,18 @@ export class PriceSuggestionService {
           l.bedrooms                                AS "bedrooms",
           -- Best booking price for this listing (most recent confirmed/paid/completed)
           (
-            SELECT b.snapshot_price_per_day::float
+            SELECT b."snapshotPricePerDay"::float
             FROM   bookings b
-            WHERE  b.listing_id = l.id
+            WHERE  b."listingId" = l.id
               AND  b.status IN ('confirmed', 'paid', 'completed')
-              AND  b.snapshot_price_per_day IS NOT NULL
-            ORDER  BY b.created_at DESC
+              AND  b."snapshotPricePerDay" IS NOT NULL
+            ORDER  BY b."createdAt" DESC
             LIMIT  1
           )                                         AS "bookedPrice"
         FROM   listings   l
-        JOIN   categories c ON c.id = l.category_id
-        WHERE  l.is_active   = true
-          AND  l.deleted_at  IS NULL
+        JOIN   categories c ON c.id = l."categoryId"
+        WHERE  l."isActive"   = true
+          AND  l."deletedAt"  IS NULL
           AND  l.status      = 'ACTIVE'
           AND  c.slug        = ${catSlug}
           AND  l.location    IS NOT NULL
@@ -734,7 +734,7 @@ export class PriceSuggestionService {
       const rawRows = await this.prisma.$queryRaw<NatRaw[]>`
         SELECT
           l.id                            AS "listingId",
-          l.price_per_day::float          AS "listingPrice",
+          l."pricePerDay"::float          AS "listingPrice",
           l.address,
           -- coordinates (null when listing has no geometry)
           ST_Y(l.location::geometry)      AS lat,
@@ -742,30 +742,30 @@ export class PriceSuggestionService {
           c.slug                          AS "categorySlug",
           -- Most recent confirmed/paid/completed booking price
           (
-            SELECT b.snapshot_price_per_day::float
+            SELECT b."snapshotPricePerDay"::float
             FROM   bookings b
-            WHERE  b.listing_id = l.id
+            WHERE  b."listingId" = l.id
               AND  b.status IN ('confirmed', 'paid', 'completed')
-              AND  b.snapshot_price_per_day IS NOT NULL
-            ORDER  BY b.created_at DESC
+              AND  b."snapshotPricePerDay" IS NOT NULL
+            ORDER  BY b."createdAt" DESC
             LIMIT  1
           )                               AS "bookedPrice"
         FROM   listings   l
-        JOIN   categories c ON c.id = l.category_id
-        WHERE  l.is_active  = true
-          AND  l.deleted_at IS NULL
+        JOIN   categories c ON c.id = l."categoryId"
+        WHERE  l."isActive"  = true
+          AND  l."deletedAt" IS NULL
           AND  l.status     = 'ACTIVE'
           AND  c.slug       = ${catSlug}
         -- Prioritise rows that have a real booking price so they rank first
         ORDER  BY
           CASE WHEN (
             SELECT 1 FROM bookings b2
-            WHERE  b2.listing_id = l.id
+            WHERE  b2."listingId" = l.id
               AND  b2.status IN ('confirmed', 'paid', 'completed')
-              AND  b2.snapshot_price_per_day IS NOT NULL
+              AND  b2."snapshotPricePerDay" IS NOT NULL
             LIMIT  1
           ) IS NOT NULL THEN 0 ELSE 1 END ASC,
-          l.created_at DESC
+          l."createdAt" DESC
         LIMIT  ${TOPK_NATIONAL_BOOKINGS + TOPK_NATIONAL_LISTINGS}
       `;
 
@@ -1318,7 +1318,7 @@ export class PriceSuggestionService {
     const rows = await this.prisma.$queryRaw<RichGeoRow[]>`
       SELECT
         l.id                                        AS "listingId",
-        l.price_per_day::float                      AS "listingPrice",
+        l."pricePerDay"::float                      AS "listingPrice",
         l.address,
         l.property_type::text                       AS "propertyType",
         l.guests_capacity                           AS "guestsCapacity",
@@ -1334,18 +1334,18 @@ export class PriceSuggestionService {
         )                                           AS "distanceM",
         c.slug                                      AS "categorySlug",
         (
-          SELECT b.snapshot_price_per_day::float
+          SELECT b."snapshotPricePerDay"::float
           FROM   bookings b
-          WHERE  b.listing_id = l.id
+          WHERE  b."listingId" = l.id
             AND  b.status IN ('confirmed', 'paid', 'completed')
-            AND  b.snapshot_price_per_day IS NOT NULL
-          ORDER  BY b.created_at DESC
+            AND  b."snapshotPricePerDay" IS NOT NULL
+          ORDER  BY b."createdAt" DESC
           LIMIT  1
         )                                           AS "bookedPrice"
       FROM   listings   l
-      JOIN   categories c ON c.id = l.category_id
-      WHERE  l.is_active   = true
-        AND  l.deleted_at  IS NULL
+      JOIN   categories c ON c.id = l."categoryId"
+      WHERE  l."isActive"   = true
+        AND  l."deletedAt"  IS NULL
         AND  l.status      = 'ACTIVE'
         AND  c.slug        = ${catSlug}
         AND  l.location    IS NOT NULL
@@ -1404,7 +1404,7 @@ export class PriceSuggestionService {
     const rows = await this.prisma.$queryRaw<RichCityRow[]>`
       SELECT
         l.id                          AS "listingId",
-        l.price_per_day::float        AS "listingPrice",
+        l."pricePerDay"::float        AS "listingPrice",
         l.address,
         l.property_type::text         AS "propertyType",
         l.guests_capacity             AS "guestsCapacity",
@@ -1414,18 +1414,18 @@ export class PriceSuggestionService {
         ST_X(l.location::geometry)    AS lng,
         c.slug                        AS "categorySlug",
         (
-          SELECT b.snapshot_price_per_day::float
+          SELECT b."snapshotPricePerDay"::float
           FROM   bookings b
-          WHERE  b.listing_id = l.id
+          WHERE  b."listingId" = l.id
             AND  b.status IN ('confirmed', 'paid', 'completed')
-            AND  b.snapshot_price_per_day IS NOT NULL
-          ORDER  BY b.created_at DESC
+            AND  b."snapshotPricePerDay" IS NOT NULL
+          ORDER  BY b."createdAt" DESC
           LIMIT  1
         )                             AS "bookedPrice"
       FROM   listings   l
-      JOIN   categories c ON c.id = l.category_id
-      WHERE  l.is_active   = true
-        AND  l.deleted_at  IS NULL
+      JOIN   categories c ON c.id = l."categoryId"
+      WHERE  l."isActive"   = true
+        AND  l."deletedAt"  IS NULL
         AND  l.status      = 'ACTIVE'
         AND  c.slug        = ${catSlug}
         AND  l.address     ILIKE ${cityPattern}
@@ -1433,12 +1433,12 @@ export class PriceSuggestionService {
         -- booking comps first, then most recently created
         CASE WHEN (
           SELECT 1 FROM bookings b2
-          WHERE  b2.listing_id = l.id
+          WHERE  b2."listingId" = l.id
             AND  b2.status IN ('confirmed', 'paid', 'completed')
-            AND  b2.snapshot_price_per_day IS NOT NULL
+            AND  b2."snapshotPricePerDay" IS NOT NULL
           LIMIT  1
         ) IS NOT NULL THEN 0 ELSE 1 END ASC,
-        l.created_at DESC
+        l."createdAt" DESC
       LIMIT  ${limit}
     `;
 
@@ -1485,7 +1485,7 @@ export class PriceSuggestionService {
     const rows = await this.prisma.$queryRaw<RichNatRow[]>`
       SELECT
         l.id                          AS "listingId",
-        l.price_per_day::float        AS "listingPrice",
+        l."pricePerDay"::float        AS "listingPrice",
         l.address,
         l.property_type::text         AS "propertyType",
         l.guests_capacity             AS "guestsCapacity",
@@ -1495,29 +1495,29 @@ export class PriceSuggestionService {
         ST_X(l.location::geometry)    AS lng,
         c.slug                        AS "categorySlug",
         (
-          SELECT b.snapshot_price_per_day::float
+          SELECT b."snapshotPricePerDay"::float
           FROM   bookings b
-          WHERE  b.listing_id = l.id
+          WHERE  b."listingId" = l.id
             AND  b.status IN ('confirmed', 'paid', 'completed')
-            AND  b.snapshot_price_per_day IS NOT NULL
-          ORDER  BY b.created_at DESC
+            AND  b."snapshotPricePerDay" IS NOT NULL
+          ORDER  BY b."createdAt" DESC
           LIMIT  1
         )                             AS "bookedPrice"
       FROM   listings   l
-      JOIN   categories c ON c.id = l.category_id
-      WHERE  l.is_active   = true
-        AND  l.deleted_at  IS NULL
+      JOIN   categories c ON c.id = l."categoryId"
+      WHERE  l."isActive"   = true
+        AND  l."deletedAt"  IS NULL
         AND  l.status      = 'ACTIVE'
         AND  c.slug        = ${catSlug}
       ORDER  BY
         CASE WHEN (
           SELECT 1 FROM bookings b2
-          WHERE  b2.listing_id = l.id
+          WHERE  b2."listingId" = l.id
             AND  b2.status IN ('confirmed', 'paid', 'completed')
-            AND  b2.snapshot_price_per_day IS NOT NULL
+            AND  b2."snapshotPricePerDay" IS NOT NULL
           LIMIT  1
         ) IS NOT NULL THEN 0 ELSE 1 END ASC,
-        l.created_at DESC
+        l."createdAt" DESC
       LIMIT  ${limit}
     `;
 

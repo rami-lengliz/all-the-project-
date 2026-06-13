@@ -44,3 +44,10 @@ lerna-debug.log*
 *.seed
 *.pid.lock
 
+# Local test-run output dumps
+test-results-*.txt
+test-round*.txt
+
+# Runtime user-uploaded media (dev/local only)
+/uploads/
+

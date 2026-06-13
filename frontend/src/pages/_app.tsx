@@ -15,6 +15,7 @@ import { EnvCheck } from '@/components/ui/EnvCheck';
 import { CompareProvider } from '@/lib/context/CompareContext';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { initMonitoring } from '@/lib/monitoring/sentry';
+import { LanguageProvider } from '@/lib/i18n/LanguageProvider';
 
 function RouteGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -117,16 +118,18 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="manifest" href="/site.webmanifest" />
       </Head>
       <EnvCheck />
-      <AuthProvider>
-        <RouteGuard>
-          <CompareProvider>
-            <ErrorBoundary>
-              <Component {...pageProps} />
-            </ErrorBoundary>
-          </CompareProvider>
-        </RouteGuard>
-        <Toaster />
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <RouteGuard>
+            <CompareProvider>
+              <ErrorBoundary>
+                <Component {...pageProps} />
+              </ErrorBoundary>
+            </CompareProvider>
+          </RouteGuard>
+          <Toaster />
+        </AuthProvider>
+      </LanguageProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );

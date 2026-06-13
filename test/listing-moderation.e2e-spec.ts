@@ -143,6 +143,7 @@ describe('Listing Moderation (e2e)', () => {
     const res = await request(app.getHttpServer())
       .patch(`/api/admin/listings/${listingId}/suspend`)
       .set('Authorization', `Bearer ${adminToken}`)
+      .send({ reason: 'Policy violation (e2e moderation test)' })
       .expect(200);
 
     const listing = res.body.data ?? res.body;

@@ -94,7 +94,7 @@ export class LastMinuteService {
           l.images,
           l."pricePerDay" AS price_per_day,
           l.rating_avg,
-          l."ratingCount" AS rating_count,
+          (SELECT COUNT(*)::int FROM reviews rv WHERE rv."listingId" = l.id) AS rating_count,
           l.quality_score,
           l."bookingType" AS booking_type,
           l.location,
@@ -116,7 +116,7 @@ export class LastMinuteService {
         FROM listings l
         WHERE l."isActive" = true
           AND l."deletedAt" IS NULL
-          AND l.status = 'APPROVED'
+          AND l.status = 'ACTIVE'
           AND l.quality_score >= $3
       )
       SELECT

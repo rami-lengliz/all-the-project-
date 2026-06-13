@@ -4,6 +4,8 @@ import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
+import { VerificationService } from './verification.service';
+import { RefreshTokenService } from './refresh-token.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -46,6 +48,19 @@ describe('AuthService', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: VerificationService,
+          useValue: { sendCode: jest.fn(), verifyCode: jest.fn() },
+        },
+        {
+          provide: RefreshTokenService,
+          useValue: {
+            issue: jest.fn().mockResolvedValue('refresh-token'),
+            rotate: jest.fn(),
+            revoke: jest.fn(),
+            revokeAll: jest.fn(),
+          },
         },
       ],
     }).compile();

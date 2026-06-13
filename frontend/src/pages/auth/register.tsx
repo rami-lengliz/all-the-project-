@@ -9,10 +9,19 @@ import { SocialAuthButtons } from '@/components/auth/SocialAuthButtons';
 
 const schema = z
   .object({
-    name: z.string().min(2),
-    email: z.string().email().optional().or(z.literal('')),
-    phone: z.string().optional().or(z.literal('')),
-    password: z.string().min(6),
+    name: z.string().min(2).max(255, 'Name is too long'),
+    email: z
+      .string()
+      .email()
+      .max(255, 'Email is too long')
+      .optional()
+      .or(z.literal('')),
+    phone: z
+      .string()
+      .max(20, 'Phone number is too long (max 20 characters)')
+      .optional()
+      .or(z.literal('')),
+    password: z.string().min(6).max(128, 'Password is too long'),
   })
   .refine(
     (v) => (v.email && v.email.length > 0) || (v.phone && v.phone.length > 0),

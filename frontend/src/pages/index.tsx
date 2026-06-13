@@ -17,6 +17,7 @@ import { InlineError } from '@/components/ui/InlineError';
 import { EmptyState } from '@/components/ui/EmptyState';
 import ListingMap from '@/components/shared/ListingMap';
 import { CityPicker } from '@/components/shared/CityPicker';
+import { useLanguage } from '@/lib/i18n/LanguageProvider';
 
 const CATEGORY_META: Record<string, { icon: string; colorBg: string; colorIcon: string; colorHover: string; subtitle: string }> = {
   'stays': { icon: 'fa-house', colorBg: 'bg-blue-100', colorIcon: 'text-blue-500', colorHover: 'group-hover:bg-blue-500', subtitle: 'Houses & Villas' },
@@ -31,6 +32,7 @@ export default function HomePage() {
   const router = useRouter();
   const { push } = router;
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [q, setQ] = useState('');
   const dq = useDebounce(q, 350);
 
@@ -87,11 +89,10 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-6 py-12">
           <div className="re-fade-up mx-auto mb-8 max-w-3xl text-center">
             <h1 className="mb-4 text-5xl font-bold text-gray-900">
-              Rent anything, locally
+              {t('home.heroTitle')}
             </h1>
             <p className="text-lg text-gray-600">
-              From homes to vehicles, sports gear to tools — discover what's
-              available near you
+              {t('home.heroSubtitle')}
             </p>
           </div>
 
@@ -104,20 +105,20 @@ export default function HomePage() {
               <div className="flex items-stretch">
                 <div className="flex-1 border-r border-gray-200 p-5">
                   <label className="mb-1 block text-xs font-semibold text-gray-700">
-                    What
+                    {t('home.whatLabel')}
                   </label>
                   <input
                     type="text"
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="What do you want to rent?"
+                    placeholder={t('home.whatPlaceholder')}
                     className="w-full text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
                   />
                 </div>
 
                 <div className="flex-1 border-r border-gray-200 p-5">
                   <label className="mb-1 block text-xs font-semibold text-gray-700">
-                    Where
+                    {t('home.whereLabel')}
                   </label>
                   <CityPicker
                     value={locLoading ? '' : where}

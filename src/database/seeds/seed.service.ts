@@ -266,6 +266,17 @@ export class SeedService {
   async seed() {
     console.log('Starting seed process...');
 
+    // Ensure the PostGIS GiST spatial index on listings.location exists.
+    // `prisma db push` does not manage raw indexes on the Unsupported geometry
+    // column, so this recreates it on every seed — keeping ST_DWithin radius
+    // queries (nearby categories, AI price comparables) on an Index Scan.
+    // NOTE: the app casts to ::geography in ST_DWithin, so the index must be a
+    // functional GiST index on (location::geography) — a plain geometry index
+    // is never used by those queries.
+    await this.prisma.$executeRawUnsafe(
+      'CREATE INDEX IF NOT EXISTS "listings_location_idx" ON "listings" USING GIST ((location::geography));',
+    );
+
     // Clear existing data (foreign-key-safe order)
     console.log('Clearing existing data...');
     await this.prisma.aiSearchLog.deleteMany({});

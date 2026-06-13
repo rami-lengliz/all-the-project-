@@ -39,6 +39,9 @@ describe('Two-sided Reviews (e2e)', () => {
     await app.init();
     prisma = moduleFixture.get<PrismaService>(PrismaService);
 
+    // Clean up any leftover data from previous runs with same SUFFIX
+    await cleanupBySuffix(prisma, SUFFIX);
+
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const bcrypt = require('bcrypt');
     const hash = await bcrypt.hash(PASSWORD, 10);
@@ -270,3 +273,31 @@ describe('Two-sided Reviews (e2e)', () => {
     });
   });
 });
+
+async function cleanupBySuffix(prisma: PrismaService, suffix: string) {
+  try {
+    const emails = [
+      `renter-${suffix}@rentai.tn`,
+      `host-${suffix}@rentai.tn`,
+      `unrelated-${suffix}@rentai.tn`,
+    ];
+    const listings = await prisma.listing.findMany({
+      where: { title: { contains: suffix } },
+      select: { id: true },
+    });
+    const listingIds = listings.map((l) => l.id);
+    if (listingIds.length) {
+      const bookings = await prisma.booking.findMany({
+        where: { listingId: { in: listingIds } },
+        select: { id: true },
+      });
+      const bookingIds = bookings.map((b) => b.id);
+      if (bookingIds.length) {
+        await prisma.review.deleteMany({ where: { bookingId: { in: bookingIds } } }).catch(() => { });
+        await prisma.booking.deleteMany({ where: { id: { in: bookingIds } } }).catch(() => { });
+      }
+      await prisma.listing.deleteMany({ where: { id: { in: listingIds } } }).catch(() => { });
+    }
+    await prisma.user.deleteMany({ where: { email: { in: emails } } }).catch(() => { });
+  } catch (_) { /* ignore */ }
+}

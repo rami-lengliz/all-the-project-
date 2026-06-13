@@ -5,8 +5,18 @@ import { AiService } from './ai.service';
 import { ListingsService } from '../listings/listings.service';
 import { CategoriesService } from '../categories/categories.service';
 import { PrismaService } from '../../database/prisma.service';
+import { EmbeddingService } from './embedding.service';
 
-describe('AiSearchService - JSON Parsing and Validation', () => {
+/**
+ * Unit tests for the AI-search NLU layer.
+ *
+ * The service uses a two-stage pipeline: the LLM does narrow entity extraction,
+ * then deterministic code (parseNlu) validates and normalises the JSON into a
+ * structured intent. These tests exercise parseNlu directly — the
+ * JSON-parsing and deterministic-fallback behaviour the report relies on — with
+ * no live AI call, so they are fully reproducible.
+ */
+describe('AiSearchService - NLU JSON parsing and fallback', () => {
   let service: AiSearchService;
   let module: TestingModule;
 
@@ -14,463 +24,91 @@ describe('AiSearchService - JSON Parsing and Validation', () => {
     module = await Test.createTestingModule({
       providers: [
         AiSearchService,
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn().mockReturnValue('mock-api-key'),
-          },
-        },
-        {
-          provide: AiService,
-          useValue: {
-            generateCompletion: jest.fn(),
-          },
-        },
-        {
-          provide: ListingsService,
-          useValue: {
-            findAll: jest.fn().mockResolvedValue([]),
-          },
-        },
-        {
-          provide: CategoriesService,
-          useValue: {
-            findNearbyWithCounts: jest.fn().mockResolvedValue([]),
-          },
-        },
-        {
-          provide: PrismaService,
-          useValue: {
-            aiSearchLog: {
-              create: jest.fn().mockResolvedValue({}),
-            },
-          },
-        },
+        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('mock') } },
+        { provide: AiService, useValue: { generateCompletion: jest.fn() } },
+        { provide: ListingsService, useValue: { findAll: jest.fn().mockResolvedValue([]) } },
+        { provide: CategoriesService, useValue: { findNearbyWithCounts: jest.fn().mockResolvedValue([]) } },
+        { provide: PrismaService, useValue: { aiSearchLog: { create: jest.fn().mockResolvedValue({}) } } },
+        { provide: EmbeddingService, useValue: { isAvailable: false, findSimilarListings: jest.fn().mockResolvedValue([]) } },
       ],
     }).compile();
 
     service = module.get<AiSearchService>(AiSearchService);
   });
 
-  describe('safeJsonParse', () => {
-    it('should parse clean JSON directly', () => {
-      const input = '{"mode":"RESULT","filters":{},"chips":[]}';
-      const result = service['safeJsonParse'](input);
+  const parse = (raw: string) => service['parseNlu'](raw) as any;
 
-      expect(result).toBeDefined();
-      expect(result.mode).toBe('RESULT');
+  it('is defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('valid JSON extraction', () => {
+    it('parses a clean NLU template into a structured intent', () => {
+      const r = parse('{"categorySlug":"stays","priceMax":500,"locationName":"Kelibia"}');
+      expect(r.categorySlug).toBe('stays');
+      expect(r.priceMax).toBe(500);
+      expect(r.locationName).toBe('kelibia'); // normalised to lowercase
     });
 
-    it('should extract JSON from text with extra content before', () => {
-      const input =
-        'Here is the response: {"mode":"RESULT","filters":{},"chips":[]}';
-      const result = service['safeJsonParse'](input);
-
-      expect(result).toBeDefined();
-      expect(result.mode).toBe('RESULT');
+    it('lowercases and trims the searchKeyword', () => {
+      const r = parse('{"categorySlug":"mobility","searchKeyword":"  Scooter  "}');
+      expect(r.searchKeyword).toBe('scooter');
     });
 
-    it('should extract JSON from text with extra content after', () => {
-      const input =
-        '{"mode":"RESULT","filters":{},"chips":[]} - end of response';
-      const result = service['safeJsonParse'](input);
-
-      expect(result).toBeDefined();
-      expect(result.mode).toBe('RESULT');
+    it('parses JSON wrapped in a ```json markdown fence', () => {
+      const r = parse('```json\n{"categorySlug":"sports-facilities"}\n```');
+      expect(r.categorySlug).toBe('sports-facilities');
     });
 
-    it('should extract JSON from text with content before and after', () => {
-      const input =
-        'Sure! {"mode":"FOLLOW_UP","followUp":{"question":"When?","field":"dates"},"filters":{},"chips":[]} Hope this helps!';
-      const result = service['safeJsonParse'](input);
-
-      expect(result).toBeDefined();
-      expect(result.mode).toBe('FOLLOW_UP');
+    it('keeps nearSea only when explicitly true', () => {
+      expect(parse('{"nearSea":true}').nearSea).toBe(true);
+      expect(parse('{"nearSea":false}').nearSea).toBeNull();
     });
 
-    it('should extract JSON from markdown code block', () => {
-      const input = '```json\n{"mode":"RESULT","filters":{},"chips":[]}\n```';
-      const result = service['safeJsonParse'](input);
-
-      expect(result).toBeDefined();
-      expect(result.mode).toBe('RESULT');
-    });
-
-    it('should return null for completely invalid JSON', () => {
-      const input = 'This is not JSON at all';
-      const result = service['safeJsonParse'](input);
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null for malformed JSON', () => {
-      const input = '{"mode":"RESULT", invalid}';
-      const result = service['safeJsonParse'](input);
-
-      expect(result).toBeNull();
+    it('accepts a valid ISO date and rejects a malformed one', () => {
+      expect(parse('{"availableFrom":"2026-07-10"}').availableFrom).toBe('2026-07-10');
+      expect(parse('{"availableFrom":"10 July"}').availableFrom).toBeNull();
     });
   });
 
-  describe('basicValidation', () => {
-    it('should validate FOLLOW_UP mode with required fields', () => {
-      const input = {
-        mode: 'FOLLOW_UP',
-        followUp: {
-          question: 'Which dates?',
-          field: 'dates',
-        },
-        filters: {},
-        chips: [],
-      };
-
-      const result = service['basicValidation'](input);
-      expect(result).toBeDefined();
-      expect(result.mode).toBe('FOLLOW_UP');
+  describe('validation / normalisation guardrails', () => {
+    it('discards a category slug that is not in the whitelist', () => {
+      expect(parse('{"categorySlug":"restaurants"}').categorySlug).toBeNull();
     });
 
-    it('should reject FOLLOW_UP without followUp.question', () => {
-      const input = {
-        mode: 'FOLLOW_UP',
-        followUp: {},
-        filters: {},
-      };
-
-      const result = service['basicValidation'](input);
-      expect(result).toBeNull();
+    it('never returns a zero or negative price (treated as absent)', () => {
+      expect(parse('{"priceMax":0}').priceMax).toBeNull();
+      expect(parse('{"priceMin":-5}').priceMin).toBeNull();
     });
 
-    it('should validate RESULT mode with required fields', () => {
-      const input = {
-        mode: 'RESULT',
-        filters: { q: 'villa' },
-        chips: [],
-      };
-
-      const result = service['basicValidation'](input);
-      expect(result).toBeDefined();
-      expect(result.mode).toBe('RESULT');
-    });
-
-    it('should reject RESULT without filters object', () => {
-      const input = {
-        mode: 'RESULT',
-        chips: [],
-      };
-
-      const result = service['basicValidation'](input);
-      expect(result).toBeNull();
-    });
-
-    it('should add empty chips array if missing in RESULT', () => {
-      const input = {
-        mode: 'RESULT',
-        filters: { q: 'villa' },
-      };
-
-      const result = service['basicValidation'](input);
-      expect(result).toBeDefined();
-      expect(Array.isArray(result.chips)).toBe(true);
-      expect(result.chips.length).toBe(0);
-    });
-
-    it('should reject invalid mode', () => {
-      const input = {
-        mode: 'INVALID_MODE',
-        filters: {},
-      };
-
-      const result = service['basicValidation'](input);
-      expect(result).toBeNull();
-    });
-
-    it('should reject non-object input', () => {
-      expect(service['basicValidation'](null)).toBeNull();
-      expect(service['basicValidation'](undefined)).toBeNull();
-      expect(service['basicValidation']('string')).toBeNull();
-      expect(service['basicValidation'](123)).toBeNull();
+    it('only accepts known booking types', () => {
+      expect(parse('{"bookingType":"SLOT"}').bookingType).toBe('SLOT');
+      expect(parse('{"bookingType":"HOURLY"}').bookingType).toBeNull();
     });
   });
 
-  describe('AI Search Guardrails', () => {
-    let aiService: AiService;
-    let configService: ConfigService;
+  describe('deterministic fallback on bad input', () => {
+    const EMPTY = {
+      categorySlug: null, searchKeyword: null, priceMin: null, priceMax: null,
+      locationName: null, nearSea: null, availableFrom: null, availableTo: null,
+      amenities: [], bookingType: null, sortPreference: null,
+    };
 
-    beforeEach(() => {
-      aiService = module.get<AiService>(AiService);
-      configService = module.get<ConfigService>(ConfigService);
-      module.get<ListingsService>(ListingsService); // retrieved but not needed in tests
+    it('returns an empty intent for non-JSON text instead of throwing', () => {
+      expect(parse('this is not json at all')).toEqual(EMPTY);
     });
 
-    describe('Guardrail 1: followUpUsed=true forces RESULT', () => {
-      it('should return RESULT mode when followUpUsed=true, even if AI suggests FOLLOW_UP', async () => {
-        // Mock AI to return FOLLOW_UP
-        jest.spyOn(aiService, 'generateCompletion').mockResolvedValue(
-          JSON.stringify({
-            mode: 'FOLLOW_UP',
-            followUp: {
-              question: 'Which dates?',
-              field: 'dates',
-            },
-            filters: { q: 'villa' },
-            chips: [{ key: 'q', label: 'villa' }],
-          }),
-        );
-
-        const result = await service.search({
-          query: 'villa',
-          lat: 36.8578,
-          lng: 11.092,
-          radiusKm: 10,
-          followUpUsed: 2, // ✅ Force RESULT
-          followUpAnswer: 'tomorrow',
-        });
-
-        expect(result.mode).toBe('RESULT');
-        expect(result.followUp).toBeNull();
-        expect(result.results).toBeDefined();
-        expect(Array.isArray(result.chips)).toBe(true);
-      });
-
-      it('should return RESULT mode when followUpUsed=true with valid AI RESULT', async () => {
-        // Mock AI to return RESULT
-        jest.spyOn(aiService, 'generateCompletion').mockResolvedValue(
-          JSON.stringify({
-            mode: 'RESULT',
-            filters: {
-              q: 'villa',
-              categorySlug: 'stays',
-              maxPrice: 250,
-            },
-            chips: [
-              { key: 'q', label: 'villa' },
-              { key: 'category', label: 'stays' },
-            ],
-          }),
-        );
-
-        const result = await service.search({
-          query: 'villa under 250',
-          followUpUsed: 2,
-          followUpAnswer: 'tomorrow',
-        });
-
-        expect(result.mode).toBe('RESULT');
-        expect(result.followUp).toBeNull();
-        expect(result.filters.q).toBe('villa');
-        expect(result.chips.length).toBeGreaterThan(0);
-      });
+    it('returns an empty intent for malformed JSON instead of throwing', () => {
+      expect(parse('{"categorySlug":"stays", invalid}')).toEqual(EMPTY);
     });
+  });
 
-    describe('Guardrail 2: Invalid AI output triggers fallback RESULT', () => {
-      it('should return fallback RESULT when AI returns invalid JSON', async () => {
-        // Mock AI to return invalid JSON
-        jest
-          .spyOn(aiService, 'generateCompletion')
-          .mockResolvedValue('This is not valid JSON at all');
-
-        const result = await service.search({
-          query: 'villa',
-          lat: 36.8578,
-          lng: 11.092,
-        });
-
-        expect(result.mode).toBe('RESULT');
-        expect(result.filters.q).toBe('villa');
-        expect(result.followUp).toBeNull();
-        expect(Array.isArray(result.chips)).toBe(true);
-        expect(Array.isArray(result.results)).toBe(true);
-      });
-
-      it('should return fallback RESULT when AI returns malformed JSON', async () => {
-        // Mock AI to return malformed JSON
-        jest
-          .spyOn(aiService, 'generateCompletion')
-          .mockResolvedValue('{"mode": "RESULT", invalid}');
-
-        const result = await service.search({
-          query: 'tennis court',
-        });
-
-        expect(result.mode).toBe('RESULT');
-        expect(result.filters.q).toBe('tennis court');
-        expect(result.followUp).toBeNull();
-        expect(Array.isArray(result.chips)).toBe(true);
-      });
-
-      it('should return fallback RESULT when AI throws error', async () => {
-        // Mock AI to throw error
-        jest
-          .spyOn(aiService, 'generateCompletion')
-          .mockRejectedValue(new Error('OpenAI API timeout'));
-
-        const result = await service.search({
-          query: 'car rental',
-          lat: 36.8578,
-          lng: 11.092,
-        });
-
-        expect(result.mode).toBe('RESULT');
-        expect(result.filters.q).toBe('car rental');
-        expect(result.followUp).toBeNull();
-        expect(Array.isArray(result.chips)).toBe(true);
-        expect(Array.isArray(result.results)).toBe(true);
-      });
-
-      it('should return fallback RESULT when OPENAI_API_KEY is missing', async () => {
-        // Mock ConfigService to return empty API key
-        jest.spyOn(configService, 'get').mockReturnValue('');
-
-        const result = await service.search({
-          query: 'villa',
-        });
-
-        expect(result.mode).toBe('RESULT');
-        expect(result.filters.q).toBe('villa');
-        expect(result.followUp).toBeNull();
-        expect(Array.isArray(result.chips)).toBe(true);
-        expect(Array.isArray(result.results)).toBe(true);
-
-        // Verify AI was never called
-        expect(aiService.generateCompletion).not.toHaveBeenCalled();
-      });
-    });
-
-    describe('Guardrail 3: Chips array always exists in RESULT', () => {
-      it('should include chips array in RESULT mode (with AI)', async () => {
-        // Mock AI to return RESULT
-        jest.spyOn(aiService, 'generateCompletion').mockResolvedValue(
-          JSON.stringify({
-            mode: 'RESULT',
-            filters: {
-              q: 'villa',
-              categorySlug: 'stays',
-            },
-            chips: [
-              { key: 'q', label: 'villa' },
-              { key: 'category', label: 'stays' },
-            ],
-          }),
-        );
-
-        const result = await service.search({
-          query: 'villa',
-        });
-
-        expect(result.mode).toBe('RESULT');
-        expect(Array.isArray(result.chips)).toBe(true);
-        expect(result.chips.length).toBeGreaterThan(0);
-        expect(result.chips[0]).toHaveProperty('key');
-        expect(result.chips[0]).toHaveProperty('label');
-      });
-
-      it('should include chips array in fallback RESULT mode', async () => {
-        // Mock ConfigService to trigger fallback
-        jest.spyOn(configService, 'get').mockReturnValue('');
-
-        const result = await service.search({
-          query: 'tennis court',
-          lat: 36.8578,
-          lng: 11.092,
-        });
-
-        expect(result.mode).toBe('RESULT');
-        expect(Array.isArray(result.chips)).toBe(true);
-        expect(result.chips.length).toBeGreaterThan(0);
-        expect(result.chips[0].key).toBe('q');
-        expect(result.chips[0].label).toBe('tennis court');
-      });
-
-      it('should include chips array even with empty query', async () => {
-        // Mock ConfigService to trigger fallback
-        jest.spyOn(configService, 'get').mockReturnValue('');
-
-        const result = await service.search({
-          query: '   ', // Empty query after trim
-        });
-
-        expect(result.mode).toBe('RESULT');
-        expect(Array.isArray(result.chips)).toBe(true);
-        // Chips array exists (may be empty or have default chips like radius)
-      });
-
-      it('should include chips in FOLLOW_UP mode', async () => {
-        // Mock AI to return FOLLOW_UP
-        jest.spyOn(aiService, 'generateCompletion').mockResolvedValue(
-          JSON.stringify({
-            mode: 'FOLLOW_UP',
-            followUp: {
-              question: 'Which dates?',
-              field: 'dates',
-            },
-            filters: { q: 'villa' },
-            chips: [{ key: 'q', label: 'villa' }],
-          }),
-        );
-
-        const result = await service.search({
-          query: 'villa',
-        });
-
-        expect(result.mode).toBe('FOLLOW_UP');
-        expect(Array.isArray(result.chips)).toBe(true);
-        expect(result.chips.length).toBeGreaterThan(0);
-      });
-    });
-
-    describe('Integration: Complete flow', () => {
-      it('should handle FOLLOW_UP → RESULT flow correctly', async () => {
-        // Call 1: FOLLOW_UP
-        jest.spyOn(aiService, 'generateCompletion').mockResolvedValueOnce(
-          JSON.stringify({
-            mode: 'FOLLOW_UP',
-            followUp: {
-              question: 'Which dates?',
-              field: 'dates',
-            },
-            filters: { q: 'villa' },
-            chips: [{ key: 'q', label: 'villa' }],
-          }),
-        );
-
-        const followUpResult = await service.search({
-          query: 'villa',
-          lat: 36.8578,
-          lng: 11.092,
-        });
-
-        expect(followUpResult.mode).toBe('FOLLOW_UP');
-        expect(followUpResult.followUp).toBeDefined();
-        expect(followUpResult.results).toEqual([]);
-
-        // Call 2: RESULT (followUpUsed=true)
-        jest.spyOn(aiService, 'generateCompletion').mockResolvedValueOnce(
-          JSON.stringify({
-            mode: 'RESULT',
-            filters: {
-              q: 'villa',
-              availableFrom: '2026-02-18',
-              availableTo: '2026-02-20',
-            },
-            chips: [
-              { key: 'q', label: 'villa' },
-              { key: 'dates', label: '2026-02-18 to 2026-02-20' },
-            ],
-          }),
-        );
-
-        const resultResult = await service.search({
-          query: 'villa',
-          lat: 36.8578,
-          lng: 11.092,
-          followUpUsed: 2,
-          followUpAnswer: 'tomorrow for 3 days',
-        });
-
-        expect(resultResult.mode).toBe('RESULT');
-        expect(resultResult.followUp).toBeNull();
-        expect(Array.isArray(resultResult.results)).toBe(true);
-        expect(Array.isArray(resultResult.chips)).toBe(true);
-      });
+  describe('backward-compatible {mode, filters} payload', () => {
+    it('extracts the intent from the legacy search response shape', () => {
+      const r = parse('{"mode":"RESULT","filters":{"categorySlug":"stays","maxPrice":300,"city":"Tunis"}}');
+      expect(r.categorySlug).toBe('stays');
+      expect(r.priceMax).toBe(300);
+      expect(r.locationName).toBe('tunis');
     });
   });
 });

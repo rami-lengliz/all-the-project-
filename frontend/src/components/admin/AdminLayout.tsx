@@ -44,7 +44,7 @@ export function AdminLayout({
                   <i className="fa-solid fa-circle-nodes text-white text-lg" />
                 </div>
                 <span className="text-xl font-bold text-gray-900">
-                  RentEverything
+                  RentAI
                 </span>
               </div>
             </div>
@@ -197,7 +197,7 @@ export function AdminLayout({
 
       <footer className="border-t border-gray-200 bg-white py-6 mt-12">
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between text-sm text-gray-500">
-          <span>RentEverything · Admin · © {new Date().getFullYear()}</span>
+          <span>RentAI · Admin · © {new Date().getFullYear()}</span>
           <span>v1</span>
         </div>
       </footer>

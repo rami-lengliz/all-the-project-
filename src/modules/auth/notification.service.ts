@@ -27,7 +27,7 @@ export class NotificationService {
     });
 
     await transporter.sendMail({
-      from: `"RentEverything" <${gmailUser}>`,
+      from: `"RentAI" <${gmailUser}>`,
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
@@ -106,7 +106,7 @@ export class NotificationService {
     const html =
       `<div style="font-family:sans-serif;max-width:520px;margin:auto">` +
       `<h2 style="color:#0284c7">Reset your password</h2>` +
-      `<p>We received a request to reset the password for your RentEverything account (<strong>${to}</strong>).</p>` +
+      `<p>We received a request to reset the password for your RentAI account (<strong>${to}</strong>).</p>` +
       `<p><a href="${resetUrl}" style="display:inline-block;background:#0284c7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Reset password</a></p>` +
       `<p style="font-size:12px;color:#666">Or paste this link into your browser:<br/><span style="word-break:break-all">${resetUrl}</span></p>` +
       `<p style="font-size:12px;color:#666">This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email.</p>` +
@@ -114,7 +114,7 @@ export class NotificationService {
 
     await this.dispatchEmail({
       to,
-      subject: 'Reset your RentEverything password',
+      subject: 'Reset your RentAI password',
       html,
       logFallback: `Password reset link for ${to}: ${resetUrl}`,
     });
@@ -132,7 +132,7 @@ export class NotificationService {
 
     await this.dispatchEmail({
       to,
-      subject: 'About your RentEverything account',
+      subject: 'About your RentAI account',
       html,
       logFallback: `OAuth-only reset attempt for ${to}`,
     });
@@ -155,7 +155,7 @@ export class NotificationService {
     const html = `<p>Your verification code is <strong style="font-size:24px;letter-spacing:4px">${code}</strong>.</p><p>It expires in 10 minutes.</p>`;
     await this.dispatchEmail({
       to,
-      subject: 'Your RentEverything verification code',
+      subject: 'Your RentAI verification code',
       html,
       logFallback: `Email verification code for ${to}: ${code}`,
     });
@@ -177,7 +177,7 @@ export class NotificationService {
     const body = new URLSearchParams({
       To: to,
       From: from,
-      Body: `Your RentEverything verification code is ${code}. Expires in 10 minutes.`,
+      Body: `Your RentAI verification code is ${code}. Expires in 10 minutes.`,
     });
 
     const response = await fetch(url, {

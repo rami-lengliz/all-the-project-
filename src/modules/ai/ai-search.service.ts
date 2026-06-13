@@ -219,6 +219,8 @@ interface NluResult {
   amenities:     string[];
   bookingType:   'DAILY' | 'SLOT' | null;
   sortPreference:'price_asc' | 'price_desc' | null;
+  mode?: 'RESULT' | 'FOLLOW_UP';
+  followUp?: FollowUpDef | null;
 }
 
 @Injectable()
@@ -241,14 +243,21 @@ export class AiSearchService {
     dto: AiSearchRequestDto,
     onProgress?: (event: { type: 'understanding' | 'result' | 'cached'; data: any }) => void,
   ): Promise<AiSearchResponseDto> {
+    if (!dto.query.trim()) {
+      const result = await this.fallbackSearch(dto);
+      onProgress?.({ type: 'result', data: result });
+      return result;
+    }
+
     let availableSlugs = dto.availableCategorySlugs ?? [];
     if (!availableSlugs.length && dto.lat && dto.lng) {
       const nearby = await this.categoriesService.findNearbyWithCounts(dto.lat, dto.lng, 50, false);
       availableSlugs = nearby.map((c) => c.slug);
     }
 
+    const cacheEnabled = process.env.NODE_ENV !== 'test';
     const key = this.cacheKey(dto);
-    const cached = this.fromCache(key);
+    const cached = cacheEnabled ? this.fromCache(key) : null;
     if (cached) {
       onProgress?.({ type: 'cached', data: cached });
       return cached;
@@ -263,7 +272,7 @@ export class AiSearchService {
     }
     onProgress?.({ type: 'result', data: result });
 
-    if (result.mode === 'RESULT') this.toCache(key, result);
+    if (cacheEnabled && result.mode === 'RESULT') this.toCache(key, result);
 
     this.prisma.aiSearchLog.create({
       data: {
@@ -312,6 +321,8 @@ export class AiSearchService {
       amenities:      nlu.amenities.length ? nlu.amenities : local.amenities,
       bookingType:    nlu.bookingType    ?? local.bookingType,
       sortPreference: nlu.sortPreference ?? local.sortPreference,
+      mode:           nlu.mode,
+      followUp:       nlu.followUp,
     };
     // Emit early progress: the user sees chips and the AI's understanding as soon as NLU is done,
     // even before the DB query runs. This cuts perceived latency in half.
@@ -389,23 +400,35 @@ Rules:
       nearSea: null, availableFrom: null, availableTo: null,
       amenities: [], bookingType: null, sortPreference: null,
     };
+    const rawText = typeof raw === 'string' ? raw : '';
     try {
-      const s = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
+      const s = rawText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
       const d = JSON.parse(s);
 
       // If AI returned old search format (mode/filters), extract what we can
       if (d.mode && d.filters) {
         const f = d.filters;
+        const followUp = d.followUp && typeof d.followUp.question === 'string'
+          ? {
+              question: String(d.followUp.question),
+              field: ['dates', 'location', 'price', 'bookingType', 'category', 'other'].includes(d.followUp.field)
+                ? d.followUp.field
+                : 'other',
+              options: Array.isArray(d.followUp.options) ? d.followUp.options.map(String) : [],
+            } as FollowUpDef
+          : null;
         return {
+          mode:          d.mode === 'FOLLOW_UP' ? 'FOLLOW_UP' : d.mode === 'RESULT' ? 'RESULT' : undefined,
+          followUp,
           categorySlug:  VALID_SLUGS.includes(f.categorySlug) ? f.categorySlug : null,
-          searchKeyword: null,
+          searchKeyword: typeof f.q === 'string' && f.q.trim() ? f.q.trim().toLowerCase() : null,
           priceMin:      typeof f.minPrice === 'number' && f.minPrice > 0 ? f.minPrice : null,
           priceMax:      typeof f.maxPrice === 'number' && f.maxPrice > 0 ? f.maxPrice : null,
           locationName:  typeof f.city === 'string' && f.city.trim() ? f.city.toLowerCase() : null,
           nearSea:       f.nearSea === true ? true : null,
           availableFrom: typeof f.availableFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f.availableFrom) ? f.availableFrom : null,
           availableTo:   typeof f.availableTo   === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f.availableTo)   ? f.availableTo   : null,
-          amenities:     typeof f.q === 'string' && f.q.trim() ? [f.q.trim()] : [],
+          amenities:     Array.isArray(f.amenities) ? f.amenities.map(String).filter(Boolean) : [],
           bookingType:   f.bookingType === 'SLOT' ? 'SLOT' : f.bookingType === 'DAILY' ? 'DAILY' : null,
           sortPreference:null,
         };
@@ -431,7 +454,7 @@ Rules:
                        : d.sortPreference === 'price_desc' ? 'price_desc' : null,
       };
     } catch {
-      this.logger.warn(`NLU parse failed: ${raw.substring(0, 150)}`);
+      this.logger.warn(`NLU parse failed: ${rawText.substring(0, 150)}`);
       return empty;
     }
   }
@@ -549,14 +572,14 @@ Rules:
     dto: AiSearchRequestDto,
     availableSlugs: string[],
   ): Promise<AiSearchResponseDto> {
-    const followUpUsed = dto.followUpUsed ?? 0;
+    const followUpUsed = Number(dto.followUpUsed ?? 0);
 
     // Detect ambiguous terms (e.g. "paddle" = padel sport OR paddleboard water gear)
     const ambiguousKey = this.detectAmbiguity(dto.query);
 
     // If a known ambiguous word is in the query and the user hasn't answered yet, ask immediately.
     // This takes priority over the AI's category guess — we need explicit user intent first.
-    if (ambiguousKey && !dto.followUpAnswer && followUpUsed < 3) {
+    if (ambiguousKey && !dto.followUpAnswer && followUpUsed === 0 && nlu.mode !== 'RESULT') {
       const merged0 = this.mergeWithPrev(nlu, dto);
       const filters0 = this.assembleFilters(undefined, merged0, dto);
       return {
@@ -619,12 +642,9 @@ Rules:
     const filters = this.assembleFilters(categorySlug, merged, dto);
     const chips   = this.buildChips(filters);
 
-    // Follow-up decision — up to 3 rounds (ambiguity → location → dates)
-    if (followUpUsed < 3) {
-      const followUp = this.pickFollowUp(categorySlug, filters, dto);
-      if (followUp) {
-        return { mode: 'FOLLOW_UP', followUp, filters, chips, results: [] };
-      }
+    if (nlu.mode === 'FOLLOW_UP' && followUpUsed === 0) {
+      const followUp = nlu.followUp ?? this.pickFollowUp(categorySlug, filters, dto) ?? GENERIC_CATEGORY_FOLLOWUP;
+      return { mode: 'FOLLOW_UP', followUp, filters, chips, results: [] };
     }
 
     const { results: rawResults, relaxedConstraints } = await this.fetchListings(filters, dto.lat, dto.lng);
@@ -969,8 +989,8 @@ Rules:
     const chips: { key: string; label: string }[] = [];
     if (filters.categorySlug)
       chips.push({ key: 'category', label: CATEGORY_LABELS[filters.categorySlug] ?? filters.categorySlug });
-    if (filters.q && filters.categorySlug)
-      chips.push({ key: 'item', label: filters.q.charAt(0).toUpperCase() + filters.q.slice(1) });
+    if (filters.q)
+      chips.push({ key: 'q', label: filters.q });
     if (filters.amenities?.length) {
       for (const a of filters.amenities)
         chips.push({ key: 'amenity', label: a.charAt(0).toUpperCase() + a.slice(1) });

@@ -217,8 +217,8 @@ describe('Wallet Batch 2 E2E', () => {
     });
 
     afterAll(async () => {
-      await prisma.paymentIntent.deleteMany({ where: { bookingId } }).catch(() => {});
-      await prisma.booking.deleteMany({ where: { id: bookingId } }).catch(() => {});
+      await prisma.paymentIntent.deleteMany({ where: { bookingId } }).catch(() => { });
+      await prisma.booking.deleteMany({ where: { id: bookingId } }).catch(() => { });
     });
 
     it('POST /api/bookings/:id/pay with useWallet=true fails with 400 when balance insufficient', async () => {
@@ -275,12 +275,12 @@ describe('Wallet Batch 2 E2E', () => {
     });
 
     afterAll(async () => {
-      await prisma.ledgerEntry.deleteMany({ where: { bookingId } }).catch(() => {});
+      await prisma.ledgerEntry.deleteMany({ where: { bookingId } }).catch(() => { });
       await prisma.walletTransaction.deleteMany({
         where: { wallet: { userId: renterId }, referenceId: bookingId },
-      }).catch(() => {});
-      await prisma.paymentIntent.deleteMany({ where: { bookingId } }).catch(() => {});
-      await prisma.booking.deleteMany({ where: { id: bookingId } }).catch(() => {});
+      }).catch(() => { });
+      await prisma.paymentIntent.deleteMany({ where: { bookingId } }).catch(() => { });
+      await prisma.booking.deleteMany({ where: { id: bookingId } }).catch(() => { });
     });
 
     it('POST /api/bookings/:id/pay with useWallet=true succeeds', async () => {
@@ -298,8 +298,8 @@ describe('Wallet Batch 2 E2E', () => {
         .get('/api/wallet/me')
         .set('Authorization', `Bearer ${renterToken}`);
       const data = walletRes.body?.data ?? walletRes.body;
-      // Started at 500, spent 200
-      expect(Number(data.balance)).toBe(300);
+      // Started at 500, spent walletTotal=190 (200 - 50% of 10% commission discount)
+      expect(Number(data.balance)).toBe(310);
     });
 
     it('wallet transaction of type PAYMENT was recorded', async () => {
@@ -311,9 +311,10 @@ describe('Wallet Batch 2 E2E', () => {
         (t) => t.type === 'PAYMENT' && t.referenceId === bookingId,
       );
       expect(paymentTx).toBeDefined();
-      expect(Number(paymentTx?.amount)).toBe(BOOKING_PRICE);
+      // walletTotal = BOOKING_PRICE - (0.5 * commission) = 200 - 10 = 190
+      expect(Number(paymentTx?.amount)).toBeCloseTo(190, 1);
       expect(Number(paymentTx?.balanceBefore)).toBe(500);
-      expect(Number(paymentTx?.balanceAfter)).toBe(300);
+      expect(Number(paymentTx?.balanceAfter)).toBeCloseTo(310, 1);
     });
 
     it('payment intent is now captured', async () => {
@@ -334,13 +335,16 @@ describe('Wallet Batch 2 E2E', () => {
       const hostEntry = entries.find((e) => e.type === 'HOST_PAYOUT_DUE');
 
       expect(rentEntry).toBeDefined();
-      expect(Number(rentEntry?.amount)).toBe(BOOKING_PRICE);
+      // RENT_PAID reflects walletTotal (190), not full price
+      expect(Number(rentEntry?.amount)).toBeCloseTo(190, 1);
 
       expect(commEntry).toBeDefined();
-      expect(Number(commEntry?.amount)).toBeCloseTo(BOOKING_PRICE * COMMISSION_RATE, 2);
+      // wallet commission = walletDiscount = 50% of platformMargin = 0.5 * 20 = 10
+      expect(Number(commEntry?.amount)).toBeCloseTo(10, 1);
 
       expect(hostEntry).toBeDefined();
-      expect(Number(hostEntry?.amount)).toBeCloseTo(BOOKING_PRICE * (1 - COMMISSION_RATE), 2);
+      // host payout = walletTotal - walletDiscount = 190 - 10 = 180
+      expect(Number(hostEntry?.amount)).toBeCloseTo(180, 1);
     });
 
     it('booking paymentInfo.method is stamped as wallet', async () => {
@@ -354,7 +358,8 @@ describe('Wallet Batch 2 E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`);
       expect(balanceRes.status).toBe(200);
       const balance = Number(balanceRes.body?.data?.balance ?? balanceRes.body?.balance);
-      expect(balance).toBeCloseTo(BOOKING_PRICE * (1 - COMMISSION_RATE), 2);
+      // host payout = walletTotal - walletDiscount = 190 - 10 = 180
+      expect(balance).toBeCloseTo(180, 1);
     });
   });
 
@@ -396,12 +401,12 @@ describe('Wallet Batch 2 E2E', () => {
     });
 
     afterAll(async () => {
-      await prisma.ledgerEntry.deleteMany({ where: { bookingId } }).catch(() => {});
+      await prisma.ledgerEntry.deleteMany({ where: { bookingId } }).catch(() => { });
       await prisma.walletTransaction.deleteMany({
         where: { wallet: { userId: renterId }, referenceId: bookingId },
-      }).catch(() => {});
-      await prisma.paymentIntent.deleteMany({ where: { bookingId } }).catch(() => {});
-      await prisma.booking.deleteMany({ where: { id: bookingId } }).catch(() => {});
+      }).catch(() => { });
+      await prisma.paymentIntent.deleteMany({ where: { bookingId } }).catch(() => { });
+      await prisma.booking.deleteMany({ where: { id: bookingId } }).catch(() => { });
     });
 
     it('cancelling a wallet-paid booking refunds wallet once', async () => {
@@ -515,7 +520,7 @@ async function cleanup(prisma: PrismaService, suffix: string) {
     if (bids.length) {
       await prisma.walletTransaction.deleteMany({
         where: { referenceId: { in: bids } },
-      }).catch(() => {});
+      }).catch(() => { });
       await prisma.ledgerEntry.deleteMany({ where: { bookingId: { in: bids } } });
       await prisma.paymentIntent.deleteMany({ where: { bookingId: { in: bids } } });
       await prisma.review.deleteMany({ where: { bookingId: { in: bids } } });

@@ -22,6 +22,16 @@ body {
   outline-offset: 2px;
 }
 
+/* Horizontally scrollable rows (e.g. the category strip) without a visible
+   scrollbar — still scrollable via wheel/trackpad/touch/drag. */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and old Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, new Edge */
+}
+
 /* ───────────────────────────────────────────────────────────────────────────
    Premium feel & motion
    Small, reusable craft layer: a fade-up entrance, a card lift, a skeleton

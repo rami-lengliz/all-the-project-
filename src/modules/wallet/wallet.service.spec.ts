@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { WalletService } from './wallet.service';
 import { PrismaService } from '../../database/prisma.service';
 import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { KonnectProvider } from '../payments/providers/konnect.provider';
 
 describe('WalletService', () => {
   let service: WalletService;
@@ -29,6 +31,8 @@ describe('WalletService', () => {
       providers: [
         WalletService,
         { provide: PrismaService, useValue: prisma },
+        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(undefined) } },
+        { provide: KonnectProvider, useValue: { initPayment: jest.fn(), isConfigured: jest.fn().mockReturnValue(false) } },
       ],
     }).compile();
 

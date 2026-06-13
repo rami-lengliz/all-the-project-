@@ -10,9 +10,12 @@ import { fetchUnreadCount } from '@/lib/api/chat';
 import { useUserLocation } from '@/lib/hooks/useUserLocation';
 import { useHostMode } from '@/lib/hooks/useHostMode';
 import { NotificationBell } from '@/components/shared/NotificationBell';
+import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
+import { useLanguage } from '@/lib/i18n/LanguageProvider';
 
 export function Header() {
   const router = useRouter();
+  const { t } = useLanguage();
   const { user, logout } = useAuth();
   const [isMounted, setIsMounted] = useState(false);
   const {
@@ -60,13 +63,13 @@ export function Header() {
         <Link
           href="/"
           className="flex items-center gap-2"
-          aria-label="RentEverything home"
+          aria-label="RentAI home"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-600 text-white">
-            RE
+            <i className="fa-solid fa-paper-plane text-base" />
           </div>
           <span className="text-xl font-extrabold text-slate-900">
-            RentEverything
+            RentAI
           </span>
         </Link>
 
@@ -78,28 +81,28 @@ export function Header() {
                 className={`text-sm font-medium hover:text-slate-900 ${router.pathname === '/host/dashboard' ? 'text-slate-900' : 'text-slate-700'
                   }`}
               >
-                Dashboard
+                {t('nav.dashboard')}
               </Link>
               <Link
                 href="/host/listings"
                 className={`text-sm font-medium hover:text-slate-900 ${router.pathname.startsWith('/host/listings') ? 'text-slate-900' : 'text-slate-700'
                   }`}
               >
-                My listings
+                {t('nav.myListings')}
               </Link>
               <Link
                 href="/host/bookings"
                 className={`text-sm font-medium hover:text-slate-900 ${router.pathname === '/host/bookings' ? 'text-slate-900' : 'text-slate-700'
                   }`}
               >
-                Bookings
+                {t('nav.bookings')}
               </Link>
               <Link
                 href="/host/create"
                 className="rounded-full bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
               >
                 <i className="fa-solid fa-plus mr-1 text-xs" />
-                New listing
+                {t('nav.newListing')}
               </Link>
             </>
           ) : (
@@ -109,20 +112,20 @@ export function Header() {
                 className={`text-sm font-medium hover:text-slate-900 ${router.pathname === '/search' ? 'text-slate-900' : 'text-slate-700'
                   }`}
               >
-                {router.locale === 'ar' ? 'بحث' : 'Search'}
+                {t('nav.search')}
               </Link>
               <Link
                 href="/map"
                 className={`text-sm font-medium hover:text-slate-900 ${router.pathname === '/map' ? 'text-slate-900' : 'text-slate-700'
                   }`}
               >
-                {router.locale === 'ar' ? 'الخريطة' : 'Map'}
+                {t('nav.map')}
               </Link>
               <Link
                 href="/help"
                 className="text-sm font-medium text-slate-700 hover:text-slate-900"
               >
-                {router.locale === 'ar' ? 'مساعدة' : 'Help'}
+                {t('nav.help')}
               </Link>
               <div className="mx-2 h-4 w-px bg-slate-300"></div>
             </>
@@ -161,7 +164,7 @@ export function Header() {
               {locMenuOpen && (
                 <div className="absolute right-0 top-full z-50 mt-1.5 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
                   <div className="border-b border-slate-100 px-4 py-2.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Location</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t('loc.location')}</p>
                     <p className="mt-0.5 truncate text-sm font-medium text-slate-800">{cityName}</p>
                   </div>
                   <button
@@ -170,7 +173,7 @@ export function Header() {
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                   >
                     <i className="fa-solid fa-pen-to-square text-blue-500 w-4 text-center" />
-                    Pick a city manually
+                    {t('loc.pickCity')}
                   </button>
                   <button
                     type="button"
@@ -178,7 +181,7 @@ export function Header() {
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                   >
                     <i className="fa-solid fa-rotate text-blue-500 w-4 text-center" />
-                    Use my GPS location
+                    {t('loc.useGps')}
                   </button>
                   {(isManual || !isDefault) && (
                     <button
@@ -187,7 +190,7 @@ export function Header() {
                       className="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                     >
                       <i className="fa-solid fa-xmark text-slate-400 w-4 text-center" />
-                      Reset to default
+                      {t('loc.reset')}
                     </button>
                   )}
                 </div>
@@ -218,7 +221,7 @@ export function Header() {
                 aria-pressed={mode === 'rent'}
               >
                 <i className="fa-solid fa-bag-shopping mr-1 text-[10px]" />
-                Renting
+                {t('header.renting')}
               </button>
               <button
                 type="button"
@@ -230,7 +233,7 @@ export function Header() {
                 aria-pressed={mode === 'host'}
               >
                 <i className="fa-solid fa-house-chimney mr-1 text-[10px]" />
-                Hosting
+                {t('header.hosting')}
               </button>
             </div>
           ) : (
@@ -239,22 +242,11 @@ export function Header() {
               href={user ? '/profile?onboard=host' : '/auth/register?next=/profile?onboard=host'}
               className="hidden md:inline-flex rounded-full px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
             >
-              {router.locale === 'ar' ? 'كن مضيفاً' : 'Become a host'}
+              {t('header.becomeHost')}
             </Link>
           )}
 
-          <button
-            type="button"
-            className="rounded-full px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-            aria-label="Language toggle"
-            onClick={() =>
-              router.push(router.pathname, router.asPath, {
-                locale: router.locale === 'ar' ? 'en' : 'ar',
-              })
-            }
-          >
-            🌐
-          </button>
+          <LanguageSwitcher />
 
           {isMounted && user ? (
             <div className="flex items-center gap-2">
@@ -291,21 +283,21 @@ export function Header() {
                   className="rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
                 >
                   <i className="fa-solid fa-shield-halved mr-1 text-xs" />
-                  Admin
+                  {t('header.admin')}
                 </Link>
               )}
               <Link
                 href="/profile"
                 className="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
-                {router.locale === 'ar' ? 'الملف' : 'Profile'}
+                {t('header.profile')}
               </Link>
               <button
                 type="button"
                 onClick={logout}
                 className="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
-                {router.locale === 'ar' ? 'خروج' : 'Logout'}
+                {t('header.logout')}
               </button>
             </div>
           ) : (
@@ -313,7 +305,7 @@ export function Header() {
               href="/auth/login"
               className="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              {router.locale === 'ar' ? 'تسجيل' : 'Login'}
+              {t('header.login')}
             </Link>
           )}
         </div>

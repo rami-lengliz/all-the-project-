@@ -41,7 +41,14 @@ export class PasswordResetService {
     // the email so we don't leak account presence to the requester.
     if (!user.passwordHash) {
       this.logger.log(`Password reset requested for OAuth-only user ${user.id}`);
-      await this.notifications.sendPasswordResetUnavailableEmail(email);
+      // Fire-and-forget: don't block the HTTP response on SMTP delivery.
+      void this.notifications
+        .sendPasswordResetUnavailableEmail(email)
+        .catch((err) =>
+          this.logger.error(
+            `Failed to send OAuth-only notice to ${email}: ${err?.message ?? err}`,
+          ),
+        );
       return { message: 'If that email is registered, a reset link has been sent.' };
     }
 
@@ -68,8 +75,19 @@ export class PasswordResetService {
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
     const resetUrl = `${frontendBase}/auth/reset-password?token=${encodeURIComponent(rawToken)}`;
 
-    await this.notifications.sendPasswordResetEmail(email, resetUrl);
-    this.logger.log(`Password reset email sent for user ${user.id}`);
+    // Fire-and-forget: the response is intentionally identical whether or not
+    // the email exists, so there's no reason to block it on SMTP delivery
+    // (the Gmail handshake alone can take 20+ seconds on a cold connection).
+    void this.notifications
+      .sendPasswordResetEmail(email, resetUrl)
+      .then(() =>
+        this.logger.log(`Password reset email sent for user ${user.id}`),
+      )
+      .catch((err) =>
+        this.logger.error(
+          `Failed to send password reset email for user ${user.id}: ${err?.message ?? err}`,
+        ),
+      );
 
     return { message: 'If that email is registered, a reset link has been sent.' };
   }

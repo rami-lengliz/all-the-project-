@@ -13,7 +13,7 @@ export class ReviewsService {
   constructor(
     private prisma: PrismaService,
     private personalization: PersonalizationService,
-  ) {}
+  ) { }
 
   async create(dto: CreateReviewDto, authorId: string) {
     const booking = await this.prisma.booking.findUnique({
@@ -62,6 +62,7 @@ export class ReviewsService {
       data: {
         bookingId: dto.bookingId,
         authorId,
+        authorRole: isRenter ? 'RENTER' : 'HOST',
         targetUserId,
         listingId: booking.listingId,
         type: type as any,
@@ -123,20 +124,20 @@ export class ReviewsService {
     return eligible
       .filter((b) => !reviewedIds.has(b.id))
       .map((b: any) => {
-      const isRenter = b.renterId === userId;
-      return {
-        bookingId: b.id,
-        listing: {
-          id: b.listing?.id,
-          title: b.listing?.title,
-          images: b.listing?.images ?? [],
-        },
-        counterparty: isRenter
-          ? { id: b.host?.id, name: b.host?.name ?? 'Host' }
-          : { id: b.renter?.id, name: b.renter?.name ?? 'Renter' },
-        myRole: isRenter ? 'RENTER' : 'HOST',
-      };
-    });
+        const isRenter = b.renterId === userId;
+        return {
+          bookingId: b.id,
+          listing: {
+            id: b.listing?.id,
+            title: b.listing?.title,
+            images: b.listing?.images ?? [],
+          },
+          counterparty: isRenter
+            ? { id: b.host?.id, name: b.host?.name ?? 'Host' }
+            : { id: b.renter?.id, name: b.renter?.name ?? 'Renter' },
+          myRole: isRenter ? 'RENTER' : 'HOST',
+        };
+      });
   }
 
   async findByListing(listingId: string) {

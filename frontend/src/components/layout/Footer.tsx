@@ -1,8 +1,8 @@
 import Link from 'next/link';
-import { useRouter } from 'next/router';
+import { useLanguage } from '@/lib/i18n/LanguageProvider';
 
 export function Footer() {
-  const { locale } = useRouter();
+  const { lang: locale } = useLanguage();
   return (
     <footer className="mt-16 bg-slate-900 text-white">
       <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-6 py-12 md:grid-cols-4">
@@ -77,7 +77,7 @@ export function Footer() {
       </div>
       <div className="border-t border-slate-800">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 text-sm text-slate-400">
-          <span>© {new Date().getFullYear()} RentEverything</span>
+          <span>© {new Date().getFullYear()} RentAI</span>
           <span>{locale === 'ar' ? 'تونس' : 'Tunisia'}</span>
         </div>
       </div>

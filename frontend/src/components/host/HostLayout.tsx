@@ -36,7 +36,7 @@ export function HostLayout({
                   <i className="fa-solid fa-circle-nodes text-white text-lg" />
                 </div>
                 <span className="text-xl font-bold text-gray-900">
-                  RentEverything
+                  RentAI
                 </span>
               </Link>
             </div>
@@ -133,7 +133,7 @@ export function HostLayout({
 
       <footer className="border-t border-gray-200 bg-white py-6 mt-12">
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between text-sm text-gray-500">
-          <span>RentEverything · Host · © {new Date().getFullYear()}</span>
+          <span>RentAI · Host · © {new Date().getFullYear()}</span>
           <div className="flex items-center gap-4">
             <Link href="/host/dashboard" className="hover:text-gray-700">
               Dashboard
