@@ -214,7 +214,10 @@ describe('POST /api/ai/search — golden queries', () => {
 
         const res = await request(app.getHttpServer())
           .post(ENDPOINT)
-          .send(gq.request)
+          // followUpUsed: 3 → past the follow-up budget, so a complete query
+          // returns RESULT directly (this section verifies filters + chips, not
+          // the location/date follow-up flow, which is covered in Sections 3–4).
+          .send({ ...gq.request, followUpUsed: 3 })
           .expect(201);
 
         const body = res.body.data ?? res.body;
@@ -272,7 +275,7 @@ describe('POST /api/ai/search — golden queries', () => {
         // results must be empty during FOLLOW_UP
         expect(body1.results).toHaveLength(0);
 
-        // ── Call 2: followUpUsed=true + answer → MUST be RESULT ───────────────
+        // ── Call 2: follow-up budget exhausted → MUST be RESULT ───────────────
         if (!liveMode) {
           // Mock returns FOLLOW_UP again — the guardrail must override it to RESULT
           mockGenerateCompletion.mockResolvedValueOnce(MOCK_AI_RESPONSES[`${id}-call2`]);
@@ -282,14 +285,14 @@ describe('POST /api/ai/search — golden queries', () => {
           .post(ENDPOINT)
           .send({
             ...gq.request,
-            followUpUsed:   true,
+            followUpUsed:   3,
             followUpAnswer: 'this Saturday and Sunday',
           })
           .expect(201);
 
         const body2 = res2.body.data ?? res2.body;
 
-        // Guardrail 1: followUpUsed=true must always produce RESULT
+        // Guardrail 1: an exhausted follow-up budget must always produce RESULT
         expect(body2.mode).toBe('RESULT');
         expect(body2.followUp).toBeNull();
         expect(body2.filters).toBeDefined();
@@ -300,18 +303,18 @@ describe('POST /api/ai/search — golden queries', () => {
     );
   });
 
-  // ── Section 4: Max 1 follow-up rule (Guardrail 1 hardened) ───────────────────
+  // ── Section 4: Follow-up budget cap (Guardrail 1 hardened) ───────────────────
   //
-  // Even if the AI model misbehaves and returns FOLLOW_UP on the second call
-  // (followUpUsed=true), the service MUST return RESULT.
+  // Even if the AI model misbehaves and returns FOLLOW_UP once the follow-up
+  // budget is exhausted (followUpUsed=3), the service MUST return RESULT.
   // This test simulates that adversarial scenario for both FOLLOW_UP golden queries.
 
-  describe('Max 1 follow-up rule — Guardrail 1 adversarial test', () => {
+  describe('Follow-up budget cap — Guardrail 1 adversarial test', () => {
     test.each(FOLLOW_UP_QUERIES.map((gq) => [gq.id, gq]))(
-      '%s — %s: AI returns FOLLOW_UP on call 2 → guardrail forces RESULT',
+      '%s — %s: AI returns FOLLOW_UP at budget cap → guardrail forces RESULT',
       async (id: string, gq: GoldenQuery) => {
         if (!liveMode) {
-          // Adversarial: AI returns FOLLOW_UP even though followUpUsed=true
+          // Adversarial: AI returns FOLLOW_UP even though the budget is spent
           mockGenerateCompletion.mockResolvedValueOnce(MOCK_AI_RESPONSES[`${id}-call1`]);
         }
 
@@ -319,7 +322,7 @@ describe('POST /api/ai/search — golden queries', () => {
           .post(ENDPOINT)
           .send({
             ...gq.request,
-            followUpUsed:   true,
+            followUpUsed:   3,
             followUpAnswer: 'any answer',
           })
           .expect(201);
@@ -364,7 +367,8 @@ describe('POST /api/ai/search — golden queries', () => {
 
       const res = await request(app.getHttpServer())
         .post(ENDPOINT)
-        .send({ query: 'how do I make tajine with lamb and olives?', lat: KELIBIA_LAT, lng: KELIBIA_LNG })
+        // followUpUsed: 3 → skip the follow-up budget so we assert the final RESULT.
+        .send({ query: 'how do I make tajine with lamb and olives?', lat: KELIBIA_LAT, lng: KELIBIA_LNG, followUpUsed: 3 })
         .expect(201);
 
       const body = res.body.data ?? res.body;
@@ -386,7 +390,7 @@ describe('POST /api/ai/search — golden queries', () => {
 
       const res = await request(app.getHttpServer())
         .post(ENDPOINT)
-        .send({ query: 'villa in Kelibia', lat: KELIBIA_LAT, lng: KELIBIA_LNG })
+        .send({ query: 'villa in Kelibia', lat: KELIBIA_LAT, lng: KELIBIA_LNG, followUpUsed: 3 })
         .expect(201);
 
       const body = res.body.data ?? res.body;

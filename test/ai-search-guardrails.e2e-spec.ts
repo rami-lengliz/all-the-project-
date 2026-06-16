@@ -124,15 +124,16 @@ describe('POST /api/ai/search — guardrails', () => {
 
   // ─── Test 2: Second call with followUpUsed=true → must be RESULT ────────────
 
-  it('TC-2  followUpUsed=true forces RESULT even if AI returns FOLLOW_UP', async () => {
-    // Mock still returns FOLLOW_UP — the guardrail must override it
+  it('TC-2  exhausted follow-up budget (followUpUsed=3) forces RESULT even if AI returns FOLLOW_UP', async () => {
+    // Mock still returns FOLLOW_UP — the loop-prevention guardrail must override it
+    // once the 3-round follow-up budget is spent.
     mockGenerateCompletion.mockResolvedValueOnce(followUpJson());
 
     const res = await request(app.getHttpServer())
       .post('/api/ai/search')
       .send({
         query: 'villa near beach',
-        followUpUsed: true,
+        followUpUsed: 3,
         followUpAnswer: 'tomorrow',
       })
       .expect(201);
@@ -157,9 +158,11 @@ describe('POST /api/ai/search — guardrails', () => {
   it('TC-3  RESULT mode always includes filters object and chips array', async () => {
     mockGenerateCompletion.mockResolvedValueOnce(resultJson());
 
+    // followUpUsed=3 → past the follow-up budget, so the response is a RESULT
+    // regardless of missing location/dates (deterministic for shape checks).
     const res = await request(app.getHttpServer())
       .post('/api/ai/search')
-      .send({ query: 'villa under 250', followUpUsed: false })
+      .send({ query: 'villa under 250', followUpUsed: 3 })
       .expect(201);
 
     const body = res.body.data ?? res.body;
@@ -228,14 +231,14 @@ describe('POST /api/ai/search — guardrails', () => {
 
   // ─── Test 6: followUpUsed=true + RESULT from AI → plain RESULT ───────────────
 
-  it('TC-6  followUpUsed=true with AI returning RESULT yields RESULT with filters+chips', async () => {
+  it('TC-6  exhausted budget with AI returning RESULT yields RESULT with filters+chips', async () => {
     mockGenerateCompletion.mockResolvedValueOnce(resultJson());
 
     const res = await request(app.getHttpServer())
       .post('/api/ai/search')
       .send({
         query: 'villa under 250',
-        followUpUsed: true,
+        followUpUsed: 3,
         followUpAnswer: 'tomorrow',
       })
       .expect(201);
@@ -263,10 +266,11 @@ describe('POST /api/ai/search — guardrails', () => {
     mockGenerateCompletion.mockResolvedValueOnce(resultJson());
     // resultJson() returns q='villa', categorySlug='stays', maxPrice=250
     // → 3 chips expected: q, category, price
+    // followUpUsed=3 → past the follow-up budget, so we deterministically get RESULT.
 
     const res = await request(app.getHttpServer())
       .post('/api/ai/search')
-      .send({ query: 'villa under 250', followUpUsed: false })
+      .send({ query: 'villa under 250', followUpUsed: 3 })
       .expect(201);
 
     const body = res.body.data ?? res.body;

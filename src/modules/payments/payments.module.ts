@@ -7,6 +7,7 @@ import { CancellationPolicyService } from '../../common/policies/cancellation-po
 import { LedgerModule } from '../ledger/ledger.module';
 import { FlouciProvider } from './providers/flouci.provider';
 import { KonnectProvider } from './providers/konnect.provider';
+import { StripeProvider } from './providers/stripe.provider';
 import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 
 @Module({
@@ -17,6 +18,7 @@ import { PaymentProviderRegistry } from './providers/payment-provider.registry';
     CancellationPolicyService,
     FlouciProvider,
     KonnectProvider,
+    StripeProvider,
     PaymentProviderRegistry,
   ],
   exports: [PaymentsService],

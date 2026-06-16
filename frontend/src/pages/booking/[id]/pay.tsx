@@ -10,7 +10,7 @@ import { InlineError } from '@/components/ui/InlineError';
 import { toast } from '@/components/ui/Toaster';
 import { BookingProtectionBadge } from '@/components/shared/BookingProtectionBadge';
 
-type ProviderKey = 'flouci' | 'konnect' | 'd17';
+type ProviderKey = 'flouci' | 'konnect' | 'd17' | 'stripe';
 
 interface ProviderOption {
   key: ProviderKey;
@@ -21,6 +21,12 @@ interface ProviderOption {
 }
 
 const PROVIDERS: ProviderOption[] = [
+  {
+    key: 'stripe',
+    label: 'Card (Stripe)',
+    blurb: 'Pay securely by credit or debit card via Stripe Checkout.',
+    icon: 'fa-brands fa-cc-stripe',
+  },
   {
     key: 'flouci',
     label: 'Flouci',

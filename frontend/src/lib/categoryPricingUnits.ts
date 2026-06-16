@@ -40,9 +40,9 @@ export const CATEGORY_PRICING_UNITS: Record<string, PricingUnit> = {
   'event-spaces': 'hour',
   events: 'hour',
 
-  // beach / outdoor
-  'beach-gear': 'day',
-  outdoor: 'day',
+  // beach / outdoor — rented in hourly time slots, not full days
+  'beach-gear': 'hour',
+  outdoor: 'hour',
 };
 
 export const UNIT_LABELS: Record<PricingUnit, string> = {

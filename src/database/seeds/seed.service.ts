@@ -396,6 +396,26 @@ export class SeedService {
       return this.prisma.listing.findUnique({ where: { id: opts.id } });
     };
 
+    // Standard daytime slot config for gear rented by the hour (beach gear,
+    // scooters, bikes, quads). 60-min slots, 08:00–20:00, up to 8 slots/booking.
+    const createDaytimeSlotConfig = async (listingId: string, price: number) => {
+      const day = { start: '08:00', end: '20:00' };
+      await this.prisma.slotConfiguration.create({
+        data: {
+          listingId,
+          slotDurationMinutes: 60,
+          operatingHours: {
+            monday: day, tuesday: day, wednesday: day, thursday: day,
+            friday: day, saturday: day, sunday: day,
+          },
+          minBookingSlots: 1,
+          maxBookingSlots: 8,
+          bufferMinutes: 0,
+          pricePerSlot: price,
+        },
+      });
+    };
+
     // ── DAILY listings ────────────────────────────────────────
     console.log('Creating listings...');
     const savedListings: any[] = [];
@@ -437,11 +457,14 @@ export class SeedService {
       const b = BEACH_LISTINGS[i];
       const { lat, lng } = kelibiaCoords(i + 20);
       const id = crypto.randomUUID();
+      // Beach gear is rented in hourly time slots, not full days.
       savedListings.push(await insertListing({
         id, ...b, price: b.price, lat, lng,
         categoryId: beachCat.id,
         hostId: hosts[i % hosts.length].id,
+        bookingType: 'SLOT',
       }));
+      await createDaytimeSlotConfig(id, b.price);
     }
 
     // ── SLOT sports facilities ────────────────────────────────

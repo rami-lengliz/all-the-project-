@@ -579,7 +579,7 @@ Rules:
 
     // If a known ambiguous word is in the query and the user hasn't answered yet, ask immediately.
     // This takes priority over the AI's category guess — we need explicit user intent first.
-    if (ambiguousKey && !dto.followUpAnswer && followUpUsed === 0 && nlu.mode !== 'RESULT') {
+    if (ambiguousKey && !dto.followUpAnswer && followUpUsed < 3) {
       const merged0 = this.mergeWithPrev(nlu, dto);
       const filters0 = this.assembleFilters(undefined, merged0, dto);
       return {
@@ -642,9 +642,16 @@ Rules:
     const filters = this.assembleFilters(categorySlug, merged, dto);
     const chips   = this.buildChips(filters);
 
-    if (nlu.mode === 'FOLLOW_UP' && followUpUsed === 0) {
-      const followUp = nlu.followUp ?? this.pickFollowUp(categorySlug, filters, dto) ?? GENERIC_CATEGORY_FOLLOWUP;
-      return { mode: 'FOLLOW_UP', followUp, filters, chips, results: [] };
+    // Smart follow-up: ask for the next missing essential field one at a time
+    // (category → location → dates), up to the 3-round budget. pickFollowUp
+    // returns null once location and dates are resolved, so a fully-specified
+    // query ("villa à Kelibia ce week-end") skips straight to results, while a
+    // bare "house" / "cycle" gets asked for location, then dates.
+    if (followUpUsed < 3) {
+      const followUp = this.pickFollowUp(categorySlug, filters, dto);
+      if (followUp) {
+        return { mode: 'FOLLOW_UP', followUp, filters, chips, results: [] };
+      }
     }
 
     const { results: rawResults, relaxedConstraints } = await this.fetchListings(filters, dto.lat, dto.lng);
@@ -960,7 +967,7 @@ Rules:
     const radiusKm = noLocPref ? 200 : (cityRadius ?? dto.radiusKm ?? 20);
 
     let bookingType = nlu.bookingType;
-    if (!bookingType && categorySlug === 'sports-facilities') bookingType = 'SLOT';
+    if (!bookingType && (categorySlug === 'sports-facilities' || categorySlug === 'beach-gear')) bookingType = 'SLOT';
     if (!bookingType && (categorySlug === 'stays' || categorySlug === 'mobility')) bookingType = 'DAILY';
 
     // Sticky across turns: once the user has resolved location, don't ask again.

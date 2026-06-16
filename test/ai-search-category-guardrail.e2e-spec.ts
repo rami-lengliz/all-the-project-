@@ -90,7 +90,9 @@ describe('POST /api/ai/search — category slug anti-hallucination', () => {
 
         const res = await request(app.getHttpServer())
           .post('/api/ai/search')
-          .send({ query: 'something', lat: 36.8578, lng: 11.092 })
+          // followUpUsed: 3 → past the follow-up budget, so the response is a
+          // RESULT (this section verifies categorySlug passthrough, not follow-ups).
+          .send({ query: 'something', lat: 36.8578, lng: 11.092, followUpUsed: 3 })
           .expect(201);
 
         const b = body(res);
@@ -133,7 +135,7 @@ describe('POST /api/ai/search — category slug anti-hallucination', () => {
 
         const res = await request(app.getHttpServer())
           .post('/api/ai/search')
-          .send({ query: 'random query' })
+          .send({ query: 'random query', followUpUsed: 3 })
           .expect(201);
 
         const b = body(res);
@@ -167,6 +169,7 @@ describe('POST /api/ai/search — category slug anti-hallucination', () => {
         .send({
           query: 'football pitch',
           availableCategorySlugs: ['stays'], // simulated geo restriction
+          followUpUsed: 3,
         })
         .expect(201);
 
@@ -183,6 +186,7 @@ describe('POST /api/ai/search — category slug anti-hallucination', () => {
         .send({
           query: 'villa',
           availableCategorySlugs: ['stays', 'mobility'],
+          followUpUsed: 3,
         })
         .expect(201);
 
@@ -199,6 +203,7 @@ describe('POST /api/ai/search — category slug anti-hallucination', () => {
         .send({
           query: 'scooter',
           availableCategorySlugs: ['beach-gear'],
+          followUpUsed: 3,
         })
         .expect(201);
 
@@ -218,7 +223,7 @@ describe('POST /api/ai/search — category slug anti-hallucination', () => {
 
       const res = await request(app.getHttpServer())
         .post('/api/ai/search')
-        .send({ query: 'something in Kelibia' })
+        .send({ query: 'something in Kelibia', followUpUsed: 3 })
         .expect(201);
 
       const b = body(res);

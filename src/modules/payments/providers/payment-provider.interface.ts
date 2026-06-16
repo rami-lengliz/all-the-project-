@@ -6,7 +6,7 @@
  * BookingsService, or the ledger.
  */
 
-export type ProviderKey = 'flouci' | 'konnect' | 'd17';
+export type ProviderKey = 'flouci' | 'konnect' | 'd17' | 'stripe';
 
 export type ProviderPaymentStatus =
   | 'pending'   // user has not paid yet (we just created the link)

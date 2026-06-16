@@ -6,10 +6,10 @@
  * Rules:
  *  - accommodation / stays → night
  *  - sports-facilities      → hour  (slot bookings = 1 hr blocks; price is per hour)
- *  - mobility / vehicles    → day
+ *  - mobility / vehicles    → day   (cars; scooters/bikes/quads book per slot)
  *  - tools-equipment        → day
  *  - event-spaces           → hour
- *  - beach-gear             → day   (half-day / full-day hire)
+ *  - beach-gear             → hour  (slot bookings = hourly blocks)
  *
  * No multiple units per category until a post-MVP iteration.
  * The DB column stays `pricePerDay`; this map controls display + AI suggestion.
@@ -41,9 +41,9 @@ export const CATEGORY_PRICING_UNITS: Record<string, PricingUnit> = {
   'event-spaces': 'hour',
   events: 'hour',
 
-  // beach / outdoor gear
-  'beach-gear': 'day',
-  outdoor: 'day',
+  // beach / outdoor gear — rented in hourly time slots, not full days
+  'beach-gear': 'hour',
+  outdoor: 'hour',
 };
 
 /** Human-readable label for a pricing unit */
