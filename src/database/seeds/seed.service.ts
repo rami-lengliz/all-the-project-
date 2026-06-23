@@ -125,6 +125,15 @@ const STAYS_TUNIS = [
   },
 ];
 
+// Tunisian apartment layout notation: S+N = salon (living room) + N bedrooms.
+// Derived from the bedroom count already stated in the French description;
+// studios are marketed as S+1. Capped at S+4 (the standard local range).
+function apartmentLayout(description: string): string {
+  const m = description.match(/(\d+)\s*chambres?/i);
+  if (m) return `S+${Math.min(4, Math.max(1, parseInt(m[1], 10)))}`;
+  return 'S+1'; // studios
+}
+
 const MOBILITY_LISTINGS = [
   {
     title: 'Peugeot 208 — Citadine économique',
@@ -369,14 +378,15 @@ export class SeedService {
       id: string; title: string; description: string; price: number;
       lat: number; lng: number; address: string;
       categoryId: string; hostId: string; images: string[];
-      bookingType?: string; status?: string;
+      bookingType?: string; status?: string; apartmentType?: string;
     }) => {
       const bt = opts.bookingType ?? 'DAILY';
       const st = opts.status ?? 'ACTIVE';
       await this.prisma.$executeRaw`
         INSERT INTO listings (
           id, title, description, "pricePerDay", location, address,
-          "categoryId", "hostId", images, "isActive", status, "bookingType", "createdAt", "updatedAt"
+          "categoryId", "hostId", images, "isActive", status, "bookingType",
+          "property_type", "createdAt", "updatedAt"
         ) VALUES (
           ${opts.id}::uuid,
           ${opts.title},
@@ -390,6 +400,7 @@ export class SeedService {
           true,
           ${st}::"ListingStatus",
           ${bt}::"BookingType",
+          ${opts.apartmentType ?? null},
           NOW(), NOW()
         )
       `;
@@ -424,8 +435,10 @@ export class SeedService {
       const s = STAYS_KELIBIA[i];
       const { lat, lng } = kelibiaCoords(i);
       const id = crypto.randomUUID();
+      const layout = apartmentLayout(s.description);
       savedListings.push(await insertListing({
-        id, ...s, price: s.price, lat, lng,
+        id, ...s, title: `${s.title} · ${layout}`, apartmentType: layout,
+        price: s.price, lat, lng,
         categoryId: staysCat.id,
         hostId: hosts[i % hosts.length].id,
       }));
@@ -435,8 +448,10 @@ export class SeedService {
       const s = STAYS_TUNIS[i];
       const { lat, lng } = tunisCoords(i);
       const id = crypto.randomUUID();
+      const layout = apartmentLayout(s.description);
       savedListings.push(await insertListing({
-        id, ...s, price: s.price, lat, lng,
+        id, ...s, title: `${s.title} · ${layout}`, apartmentType: layout,
+        price: s.price, lat, lng,
         categoryId: staysCat.id,
         hostId: hosts[i % hosts.length].id,
       }));
@@ -537,7 +552,7 @@ export class SeedService {
     const { lat: pLat, lng: pLng } = kelibiaCoords(5);
     await insertListing({
       id: pendingId,
-      title: 'Villa Sonia — En attente de validation',
+      title: 'Villa Sonia — En attente de validation · S+4',
       description: 'Belle villa avec piscine privée, 4 chambres, barbecue. En attente de validation par l\'équipe RentAI avant publication.',
       price: 250,
       lat: pLat, lng: pLng,
@@ -546,6 +561,7 @@ export class SeedService {
       hostId: hosts[1].id,
       images: ['https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&q=80'],
       status: 'PENDING_REVIEW',
+      apartmentType: 'S+4',
     });
     console.log(`  ✓ PENDING listing: ${pendingId} (host: ${hosts[1].email})`);
 
@@ -666,10 +682,10 @@ export class SeedService {
     await this.prisma.$executeRaw`
       INSERT INTO listings (
         id, title, description, "pricePerDay", location, address,
-        "categoryId", "hostId", images, "isActive", status, "bookingType", "createdAt", "updatedAt"
+        "categoryId", "hostId", images, "isActive", status, "bookingType", "property_type", "createdAt", "updatedAt"
       ) VALUES (
         ${dailyListingId}::uuid,
-        ${'[DEMO] Villa Dar Yasmine — Conflit de dates'},
+        ${'[DEMO] Villa Dar Yasmine — Conflit de dates · S+3'},
         ${'Villa démo pour tester la prévention des conflits de réservation DAILY. La période D+30 à D+33 est déjà confirmée après le seed.'},
         ${150},
         ST_SetSRID(ST_MakePoint(${KELIBIA_LNG + 0.05}, ${KELIBIA_LAT + 0.05}), 4326),
@@ -679,6 +695,7 @@ export class SeedService {
         ARRAY['https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80']::TEXT[],
         true, 'ACTIVE'::"ListingStatus",
         'DAILY'::"BookingType",
+        ${'S+3'},
         NOW(), NOW()
       )
     `;

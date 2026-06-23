@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 import { NotificationService } from '../auth/notification.service';
@@ -38,6 +39,29 @@ export class BookingReminderService {
     private readonly whatsapp: TwilioWhatsappClient,
     private readonly configService: ConfigService,
   ) {}
+
+  // ── Automatic in-process scheduler ─────────────────────────────────────────
+  // Runs every 30 minutes — no external cron (Railway/cron-job.org) needed.
+  // `cronRunning` prevents overlap if a run is slow; set DISABLE_REMINDER_CRON=true
+  // on any secondary instance so only one process sends reminders (avoids dupes).
+  private cronRunning = false;
+
+  @Cron(CronExpression.EVERY_30_MINUTES, { name: 'booking-reminders' })
+  async handleReminderCron(): Promise<void> {
+    if (this.configService.get<string>('DISABLE_REMINDER_CRON') === 'true') return;
+    if (this.cronRunning) {
+      this.logger.warn('Reminder cron skipped — previous run still in progress');
+      return;
+    }
+    this.cronRunning = true;
+    try {
+      await this.processPending();
+    } catch (err) {
+      this.logger.error(`Reminder cron failed: ${(err as Error)?.message ?? err}`);
+    } finally {
+      this.cronRunning = false;
+    }
+  }
 
   /** Top-level cron entry point. Returns counts so admins can sanity-check. */
   async processPending(): Promise<{

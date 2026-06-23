@@ -1,5 +1,6 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
@@ -36,6 +37,7 @@ import { PersonalizationModule } from './modules/personalization/personalization
 @Module({
   imports: [
     AppConfigModule,
+    ScheduleModule.forRoot(),
     HttpModule,
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
